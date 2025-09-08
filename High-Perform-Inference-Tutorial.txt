@@ -1,0 +1,139 @@
+# High-Performance Inference with PaddleOCR
+
+## Overview
+
+In real-world production environments, many applications have **strict performance requirements** regarding response speed. PaddleOCR provides **High-Performance Inference (HPI)** to significantly improve model inference speed with just one option, without requiring complex configuration.
+
+Specifically, PaddleOCR’s HPI can:
+
+* **Automatically select the best inference backend** (Paddle Inference, OpenVINO, ONNX Runtime, TensorRT).
+* **Configure acceleration strategies** (e.g., increase inference threads, enable FP16 precision).
+* **Automatically convert PaddlePaddle static graph models to ONNX** when needed for better acceleration.
+
+---
+
+## 1. Prerequisites
+
+### 1.1 Install High-Performance Inference Dependencies
+
+Use the CLI command:
+
+```bash
+paddleocr install_hpi_deps {device_type}
+```
+
+**Supported device types:**
+
+* `cpu` → CPU-only inference
+
+  * Linux, x86-64 processors, Python 3.8–3.12
+* `gpu` → CPU or NVIDIA GPU inference
+
+  * Linux, x86-64 processors, Python 3.8–3.12
+  * For full acceleration, ensure a compatible **TensorRT** is installed
+
+> ⚠️ Only one device type should exist in the same environment.
+> On Windows → it is recommended to install within **Docker** or **WSL**.
+
+### 1.2 Recommended Docker Images
+
+Use the official **PaddlePaddle** images:
+
+* **CPU**
+
+  ```
+  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-cpu
+  ```
+* **GPU (CUDA 11.8)**
+
+  ```
+  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-gpu-cuda11.8-cudnn8.9-trt8.6
+  ```
+* **GPU (CUDA 12.6)**
+
+  ```
+  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlex/paddlex:paddlex3.0.1-paddlepaddle3.0.0-gpu-cuda12.6-cudnn9.5-trt10.5
+  ```
+
+> ℹ️ With **CUDA 12.6 + cuDNN 9.5**, only **OpenVINO and ONNX Runtime** are supported. **TensorRT is not supported yet.**
+
+---
+
+### 1.3 GPU Environment Setup
+
+* **Supported CUDA/cuDNN combinations:**
+
+  * CUDA 11.8 + cuDNN 8.9
+  * CUDA 12.6 + cuDNN 9.5
+
+* **If using the official PaddlePaddle Docker image** → CUDA and cuDNN are already included.
+
+* **If installed via pip** → Python CUDA/cuDNN packages are installed automatically, but non-Python CUDA/cuDNN libraries must still be installed manually to match.
+
+#### Check CUDA/cuDNN versions:
+
+```bash
+pip list | grep nvidia-cuda
+pip list | grep nvidia-cudnn
+```
+
+#### Install TensorRT (optional, for optimal CUDA 11.8 performance)
+
+* **With official Docker**:
+
+  ```bash
+  python -m pip install /usr/local/TensorRT-*/python/tensorrt-*-cp310-none-linux_x86_64.whl
+  ```
+
+* **Manual installation**:
+
+  ```bash
+  wget https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/secure/8.6.1/tars/TensorRT-8.6.1.6.Linux.x86_64-gnu.cuda-11.8.tar.gz
+  tar xvf TensorRT-8.6.1.6.Linux.x86_64-gnu.cuda-11.8.tar.gz
+  python -m pip install TensorRT-8.6.1.6/python/tensorrt-8.6.1-cp310-none-linux_x86_64.whl
+
+  export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:TensorRT-8.6.1.6/lib"
+  ```
+
+---
+
+## 2. Running High-Performance Inference
+
+### CLI
+
+Enable HPI with the `--enable_hpi` flag:
+
+```bash
+paddleocr ocr --enable_hpi True ...
+```
+
+### Python API
+
+Set `enable_hpi=True` during initialization:
+
+```python
+from paddleocr import PaddleOCR
+
+pipeline = PaddleOCR(enable_hpi=True)
+result = pipeline.predict("sample.jpg")
+```
+
+---
+
+## 3. Notes & Best Practices
+
+* **First run may be slower** → because the inference engine is being built. Results are cached, so subsequent runs are faster.
+* **Not all models support acceleration** → e.g., non-static graph models or those with unsupported operators.
+* **Automatic model conversion** → PaddleOCR handles conversion from Paddle → ONNX if necessary.
+* **Custom configuration** → You can provide a PaddleX production line config to fine-tune backends and HPI settings.
+
+References:
+
+* \[ONNX Model Conversion Guide]
+* \[PaddleX Production Line Config Guide]
+
+---
+
+👉 With this setup, PaddleOCR can run **faster and more efficiently** in production environments, without heavy manual optimization.
+
+---

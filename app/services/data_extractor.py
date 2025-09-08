@@ -1,0 +1,1486 @@
+# telkom_extractor.py
+# Ekstraktor Telkom Contract — Page 1 (One Time Charge) + merge helper untuk Page 2
+# -----------------------------------------------------
+# Prasyarat: file schemas.py berisi kelas Pydantic yang sudah kamu kirim.
+
+from __future__ import annotations
+import re
+import json
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+# Import model pydantic kamu
+# Import pydantic models (support both "python -m app.services.data_extractor" and direct script run)
+try:  # Preferred absolute import when package root is on sys.path
+    from app.models.schemas import (
+        Perwakilan,
+        KontakPersonPelanggan,
+        InformasiPelanggan,
+        JangkaWaktu,
+        KontakPersonTelkom,
+        LayananUtama,
+        RincianLayanan,
+        TataCaraPembayaran,
+        TerminPayment,
+        TelkomContractData,
+    )
+except ModuleNotFoundError:  # Fallback for direct invocation: python app/services/data_extractor.py
+    import os, sys as _sys
+    _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if _ROOT not in _sys.path:
+        _sys.path.insert(0, _ROOT)
+    from app.models.schemas import (
+        Perwakilan,
+        KontakPersonPelanggan,
+        InformasiPelanggan,
+        JangkaWaktu,
+        KontakPersonTelkom,
+        LayananUtama,
+        RincianLayanan,
+        TataCaraPembayaran,
+        TerminPayment,
+        TelkomContractData,
+    )
+
+# -------------------- Utilities --------------------
+_MONEY_TOKEN = re.compile(r"^\s*(?:Rp\.?|Rp)?\s*[\d\.\,]+\s*$", re.I)
+
+def _texts_from_ocr(ocr_json: Any) -> List[str]:
+    """
+    Normalisasi struktur OCR ke list of strings (urutan token baris/kolom).
+    Kompatibel dengan PaddleOCR-style: ocr['overall_ocr_res']['rec_texts'].
+    """
+    if isinstance(ocr_json, dict):
+        # PaddleOCR aggregated
+        overall = ocr_json.get("overall_ocr_res") or {}
+        if isinstance(overall, dict) and isinstance(overall.get("rec_texts"), list):
+            return [str(t) for t in overall["rec_texts"]]
+        # Generic variants
+        if isinstance(ocr_json.get("lines"), list):
+            return [str(t) for t in ocr_json["lines"]]
+        if isinstance(ocr_json.get("text"), str):
+            return [ln for ln in ocr_json["text"].splitlines()]
+    if isinstance(ocr_json, list):
+        return [str(t) for t in ocr_json]
+    if isinstance(ocr_json, str):
+        return ocr_json.splitlines()
+    return []
+
+def _find_eq(texts: List[str], label: str, start: int = 0) -> Optional[int]:
+    """Cari index token yang sama persis (case-insensitive) dengan label."""
+    tgt = label.strip().lower()
+    for i in range(start, len(texts)):
+        if texts[i].strip().lower() == tgt:
+            return i
+    return None
+
+def _value_after(texts: List[str], label: str, start: int = 0) -> Optional[str]:
+    """Ambil token setelah label tertentu (exact-match)."""
+    idx = _find_eq(texts, label, start)
+    if idx is not None and idx + 1 < len(texts):
+        return texts[idx + 1].strip()
+    return None
+
+def _parse_rupiah_token(tok: str) -> float:
+    """Konversi token rupiah 'Rp 1.234.567,89' -> 1234567.89 (float)."""
+    s = re.sub(r"[^\d,\.]", "", tok)
+    if s.count(",") == 1 and s.count(".") >= 1:
+        # Format ID: titik thousand, koma decimal
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(",", "")
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+def _next_money(texts: List[str], start_idx: int) -> float:
+    """Ambil token uang pada posisi sesudah start_idx."""
+    for j in range(start_idx + 1, min(start_idx + 5, len(texts))):
+        if _MONEY_TOKEN.match(texts[j]):
+            return _parse_rupiah_token(texts[j])
+    # fallback: token persis setelahnya
+    if start_idx + 1 < len(texts) and any(ch.isdigit() for ch in texts[start_idx + 1]):
+        return _parse_rupiah_token(texts[start_idx + 1])
+    return 0.0
+
+def _find_count_after_phrase(texts: List[str], phrase: str) -> int:
+    """Cari angka tepat setelah sebuah frasa (exact-match token)."""
+    idx = _find_eq(texts, phrase)
+    if idx is not None and idx + 1 < len(texts):
+        nxt = re.sub(r"[^\d]", "", texts[idx + 1])
+        if nxt.isdigit():
+            return int(nxt)
+    return 0
+
+def _find_count_robust(texts: List[str], service_patterns: List[str], max_distance: int = 5) -> int:
+    """
+    Cari angka service dengan multiple strategies dan proximity matching.
+    """
+    for pattern in service_patterns:
+        # Strategy 1: Exact match + next token (existing logic)
+        count = _find_count_after_phrase(texts, pattern)
+        if count > 0:
+            return count
+        
+        # Strategy 2: Fuzzy match + next token
+        idx = _find_fuzzy(texts, pattern, 0.7)
+        if idx is not None and idx + 1 < len(texts):
+            nxt = re.sub(r"[^\d]", "", texts[idx + 1])
+            if nxt.isdigit():
+                return int(nxt)
+        
+        # Strategy 3: Containing match + nearby numbers
+        idx = _find_containing(texts, pattern)
+        if idx is not None:
+            # Cari angka dalam radius max_distance tokens
+            for i in range(max(0, idx - max_distance), min(len(texts), idx + max_distance + 1)):
+                if i != idx:  # Skip the label token itself
+                    token = texts[i].strip()
+                    # Look for standalone digit
+                    if token.isdigit() and 0 <= int(token) <= 20:  # Reasonable service count range
+                        return int(token)
+                    # Look for digit in mixed text
+                    digits = re.findall(r'\b(\d+)\b', token)
+                    if digits:
+                        for digit in digits:
+                            if 0 <= int(digit) <= 20:
+                                return int(digit)
+    
+    return 0
+
+def _slice_after_keyword(texts: List[str], keyword: str, span: int = 12) -> str:
+    """Gabung beberapa token setelah kata kunci (untuk raw_text simpanan)."""
+    # cari token yang mengandung keyword (case-insensitive)
+    for i, t in enumerate(texts):
+        if keyword.lower() in t.lower():
+            return " ".join(texts[i : min(i + span, len(texts))]).strip()
+    return ""
+
+def _get_payment_section_text(texts: List[str]) -> str:
+    """
+    Ekstrak teks dari seksi pembayaran untuk analisis metode pembayaran.
+    Prioritas: teks di sekitar header TATA CARA PEMBAYARAN, lalu fallback ke seluruh dokumen.
+    """
+    # Cari teks di sekitar header pembayaran dengan span lebih besar
+    payment_section = _slice_after_keyword(texts, "TATA CARA PEMBAYARAN", span=20)
+    if payment_section:
+        return payment_section
+    
+    # Fallback: cari header pembayaran alternatif
+    payment_section = _slice_after_keyword(texts, "PEMBAYARAN", span=20)
+    if payment_section:
+        return payment_section
+        
+    payment_section = _slice_after_keyword(texts, "KETENTUAN PEMBAYARAN", span=20)
+    if payment_section:
+        return payment_section
+    
+    # Fallback terakhir: gabung seluruh teks dokumen
+    return " ".join(texts)
+
+def _normalize_payment_text(text: str) -> str:
+    """
+    Normalisasi teks pembayaran untuk deteksi yang konsisten.
+    """
+    text = text.lower().strip()
+    # Hapus spasi berlebih dan normalize
+    text = re.sub(r'\s+', ' ', text)
+    # Standardisasi singkatan bulan
+    text = text.replace('/bln', ' per bulan')
+    text = text.replace('bln', ' bulan')
+    return text
+
+def _detect_payment_type(texts: List[str]) -> tuple[str, str, str]:
+    """
+    Deteksi metode pembayaran dari teks OCR.
+    
+    Returns:
+        tuple: (method_type, description, confidence)
+        - method_type: "one_time_charge", "recurring", atau "unknown"
+        - description: Deskripsi metode pembayaran
+        - confidence: "high", "medium", "low"
+    """
+    # Ekstrak teks dari seksi pembayaran
+    payment_text = _get_payment_section_text(texts)
+    normalized_text = _normalize_payment_text(payment_text)
+    
+    # Pattern untuk deteksi termin (prioritas tinggi - exclude dari recurring)
+    termin_patterns = [
+        r'\btermin[-\s]*\d+\b',           # Termin-1, Termin 1, etc.
+        r'\btermin\s+(pertama|kedua|ketiga|keempat|kelima)\b',  # Termin pertama, dll
+    ]
+    
+    # Cek eksplisit "One Time Charge" untuk prioritas tinggi
+    if re.search(r'\bone\s*time\s*charge\b', normalized_text, re.I):
+        return "one_time_charge", "One Time Charge", "high"
+    
+    # Cek apakah ada pola termin
+    for pattern in termin_patterns:
+        if re.search(pattern, normalized_text, re.I):
+            # Deteksi termin sebagai method type tersendiri
+            return "termin", "Pembayaran termin terdeteksi", "high"
+    
+    # Pattern untuk deteksi recurring (Indonesian + English)
+    recurring_patterns = [
+        r'\brecurring\b',                          # Explicit "recurring"
+        r'\bperbulan\b|\bper\s*bulan\b',          # "perbulan", "per bulan"
+        r'\bbulanan\b',                           # "bulanan"
+        r'\bsetiap\s*bulan\b',                    # "setiap bulan"
+        r'\bpembayaran\s*bulanan\b',              # "pembayaran bulanan"
+        r'\btagihan\s*bulanan\b',                 # "tagihan bulanan"
+        r'\blangganan\s*bulanan\b',               # "langganan bulanan"
+        r'\bmonthly\b',                           # "monthly"
+        r'\brecurring\s*monthly\b',               # "recurring monthly"
+        r'\bbilling\s*cycle\s*:\s*monthly\b',     # "billing cycle: monthly"
+        r'\bper\s*/?\s*bulan\b',                  # "per/bulan"
+    ]
+    
+    # Cari pola recurring dalam teks seksi pembayaran (confidence tinggi)
+    payment_section_only = _slice_after_keyword(texts, "TATA CARA PEMBAYARAN", span=20)
+    if payment_section_only:
+        normalized_section = _normalize_payment_text(payment_section_only)
+        for pattern in recurring_patterns:
+            match = re.search(pattern, normalized_section, re.I)
+            if match:
+                matched_phrase = match.group(0)
+                return "recurring", f"Pembayaran bulanan terdeteksi (frasa: '{matched_phrase}')", "high"
+    
+    # Cari pola recurring di seluruh dokumen (confidence medium)
+    for pattern in recurring_patterns:
+        match = re.search(pattern, normalized_text, re.I)
+        if match:
+            matched_phrase = match.group(0)
+            return "recurring", f"Pembayaran bulanan terdeteksi (frasa: '{matched_phrase}')", "medium"
+    
+    # Cek keberadaan header tabel "BULANAN" sebagai indikator recurring
+    # Tapi hanya jika tidak ada indikator One Time Charge yang eksplisit
+    full_text = " ".join(texts)
+    if re.search(r'\bBULANAN\b', full_text, re.I):
+        return "recurring", "Pembayaran bulanan terdeteksi (tabel biaya bulanan)", "medium"
+    
+    # Default: tidak dapat menentukan, assume one_time_charge untuk backward compatibility
+    return "one_time_charge", "Metode pembayaran tidak terdeteksi", "low"
+
+def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int, float]:
+    """
+    Ekstrak daftar pembayaran termin dari teks OCR.
+    
+    Returns:
+        tuple: (termin_list, total_count, total_amount)
+    """
+    # Cari teks dari seksi pembayaran
+    payment_text = _get_payment_section_text(texts)
+    
+    # Pattern untuk menangkap termin dengan berbagai format
+    # Cocokkan bulan dan tahun, lalu kata kunci sebelum Rp
+    termin_pattern = re.compile(
+        r'Termin[-\s]*(\d+)[,\s]*yaitu\s+periode\s+(\w+\s*\d{4})\s*(?:sebesar\s*[:]*\s*)?[:]?\s*Rp\.?([\d\.,]+)',
+        re.IGNORECASE
+    )
+    
+    termin_payments = []
+    total_amount = 0.0
+    
+    # Cari semua matches dalam teks
+    matches = termin_pattern.findall(payment_text)
+    
+    for match in matches:
+        try:
+            termin_num = int(match[0])
+            period = match[1].strip()
+            amount_str = match[2].strip()
+            
+            # Bersihkan amount string dari karakter trailing
+            amount_str = re.sub(r'[^\d\.,]', '', amount_str)
+            # Parse amount dengan handling format Indonesia (titik sebagai thousand separator, koma sebagai decimal)
+            amount = _parse_rupiah_token("Rp " + amount_str)
+            
+            # Buat raw text untuk debugging
+            raw_match = re.search(
+                rf'Termin[-\s]*{termin_num}[^R]*?[Rp\.\s]*{re.escape(amount_str)}[,\.]?',
+                payment_text, re.IGNORECASE
+            )
+            raw_text = raw_match.group(0) if raw_match else f"Termin-{termin_num} {period} {amount_str}"
+            
+            termin_payment = TerminPayment(
+                termin_number=termin_num,
+                period=period,
+                amount=amount,
+                raw_text=raw_text.strip()
+            )
+            
+            termin_payments.append(termin_payment)
+            total_amount += amount
+            
+        except (ValueError, IndexError) as e:
+            # Log error tapi lanjutkan parsing termin lainnya
+            continue
+    
+    # Sort berdasarkan nomor termin
+    termin_payments.sort(key=lambda t: t.termin_number)
+    
+    return termin_payments, len(termin_payments), total_amount
+
+# -------------------- Robust Text Matching Utilities --------------------
+
+def _normalize_text_for_matching(text: str) -> str:
+    """
+    Normalisasi teks OCR untuk pencocokan yang robust.
+    Mengatasi variasi spasi, punctuation, dan OCR errors umum.
+    """
+    if not text:
+        return ""
+    
+    # Lowercase dan hapus spasi berlebih
+    text = re.sub(r'\s+', ' ', text.lower().strip())
+    
+    # Hapus punctuation umum yang sering muncul/hilang di OCR
+    text = re.sub(r'[\.,:;\-_\(\)\[\]]+', '', text)
+    
+    # Normalisasi OCR errors umum
+    text = text.replace('0', 'o')  # Angka nol jadi huruf O (untuk teks)
+    text = text.replace('1', 'l')  # Angka satu jadi huruf l (untuk beberapa kasus)
+    
+    return text
+
+def _calculate_text_similarity(text1: str, text2: str) -> float:
+    """
+    Hitung similarity antara dua teks menggunakan Jaccard similarity pada kata.
+    Returns 0.0-1.0, dimana 1.0 = identik.
+    """
+    norm1 = _normalize_text_for_matching(text1)
+    norm2 = _normalize_text_for_matching(text2)
+    
+    if not norm1 or not norm2:
+        return 0.0
+    
+    # Jaccard similarity pada kata-kata
+    words1 = set(norm1.split())
+    words2 = set(norm2.split())
+    
+    if not words1 and not words2:
+        return 1.0
+    if not words1 or not words2:
+        return 0.0
+        
+    intersection = words1.intersection(words2)
+    union = words1.union(words2)
+    
+    return len(intersection) / len(union) if union else 0.0
+
+def _find_fuzzy(texts: List[str], target: str, threshold: float = 0.6, start: int = 0) -> Optional[int]:
+    """
+    Cari teks menggunakan fuzzy matching dengan similarity threshold.
+    """
+    best_match = None
+    best_score = 0.0
+    
+    for i in range(start, len(texts)):
+        score = _calculate_text_similarity(texts[i], target)
+        if score >= threshold and score > best_score:
+            best_score = score
+            best_match = i
+    
+    return best_match
+
+def _find_containing(texts: List[str], target: str, start: int = 0) -> Optional[int]:
+    """
+    Cari token yang mengandung target substring (case-insensitive).
+    Lebih permissive daripada exact match.
+    """
+    target_norm = _normalize_text_for_matching(target)
+    
+    for i in range(start, len(texts)):
+        text_norm = _normalize_text_for_matching(texts[i])
+        if target_norm in text_norm or text_norm in target_norm:
+            return i
+    
+    return None
+
+def _find_near_label(texts: List[str], labels: List[str], start: int = 0, max_distance: int = 5) -> Optional[int]:
+    """
+    Cari salah satu dari beberapa variasi label dalam jarak tertentu.
+    """
+    for label in labels:
+        # Try exact match first
+        idx = _find_eq(texts, label, start)
+        if idx is not None:
+            return idx
+            
+        # Try fuzzy match
+        idx = _find_fuzzy(texts, label, 0.7, start)
+        if idx is not None:
+            return idx
+            
+        # Try containing match
+        idx = _find_containing(texts, label, start)
+        if idx is not None:
+            return idx
+    
+    return None
+
+def _extract_field_multi_strategy(texts: List[str], field_patterns: List[str], start_idx: int = 0) -> Optional[str]:
+    """
+    Ekstrak field menggunakan multiple strategies dalam urutan prioritas.
+    """
+    for pattern in field_patterns:
+        # Strategy 1: Exact match + next token
+        idx = _find_eq(texts, pattern, start_idx)
+        if idx is not None and idx + 1 < len(texts):
+            candidate = texts[idx + 1].strip()
+            if candidate and candidate not in ['', 'Nama', 'Alamat', 'NPWP']:  # Skip obvious labels
+                return candidate
+        
+        # Strategy 2: Fuzzy match + next token
+        idx = _find_fuzzy(texts, pattern, 0.7, start_idx)
+        if idx is not None and idx + 1 < len(texts):
+            candidate = texts[idx + 1].strip()
+            if candidate and candidate not in ['', 'Nama', 'Alamat', 'NPWP']:
+                return candidate
+        
+        # Strategy 3: Containing match (for concatenated text)
+        idx = _find_containing(texts, pattern, start_idx)
+        if idx is not None:
+            text = texts[idx]
+            # Try to extract value after pattern in same token
+            pattern_norm = _normalize_text_for_matching(pattern)
+            text_norm = _normalize_text_for_matching(text)
+            pos = text_norm.find(pattern_norm)
+            if pos >= 0:
+                remainder = text[pos + len(pattern):].strip()
+                if remainder and remainder not in ['', 'Nama', 'Alamat', 'NPWP']:
+                    return remainder
+    
+    return None
+
+def _extract_cost_robust(texts: List[str], cost_patterns: List[str], max_distance: int = 10) -> float:
+    """
+    Ekstrak biaya dengan multiple strategies dan table parsing.
+    """
+    for pattern in cost_patterns:
+        # Strategy 1: Exact match + next token (existing logic)
+        idx = _find_eq(texts, pattern)
+        if idx is not None:
+            amount = _next_money(texts, idx)
+            if amount > 0:
+                return amount
+        
+        # Strategy 2: Fuzzy match + next token  
+        idx = _find_fuzzy(texts, pattern, 0.7)
+        if idx is not None:
+            amount = _next_money(texts, idx)
+            if amount > 0:
+                return amount
+        
+        # Strategy 3: Containing match + nearby amounts
+        idx = _find_containing(texts, pattern)
+        if idx is not None:
+            # Cari amount dalam radius max_distance tokens
+            for i in range(max(0, idx - max_distance), min(len(texts), idx + max_distance + 1)):
+                token = texts[i].strip()
+                if _MONEY_TOKEN.match(token):
+                    amount = _parse_rupiah_token(token)
+                    if amount > 0:
+                        return amount
+        
+        # Strategy 4: Look in HTML tables untuk pattern
+        for text in texts:
+            if '<table>' in text.lower() or '<html>' in text.lower():
+                # Simple HTML parsing untuk amounts
+                amounts = re.findall(r'(?:Rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', text)
+                if amounts:
+                    # Return first substantial amount (> 1000)
+                    for amount_str in amounts:
+                        amount = _parse_rupiah_token(amount_str)
+                        if amount > 1000:  # Skip small amounts likely to be counts
+                            return amount
+    
+    return 0.0
+
+def _extract_cost_value_before_label(texts: List[str]) -> tuple[float, float]:
+    """
+    Handle cases where cost values appear BEFORE their labels in the texts array.
+    This pattern appears in contracts like KONTRAK-PT-LKMS-MAHIRAH-MUAMALAH-2025.
+    
+    Pattern:
+    "Rp. 0.," <- Biaya Instalasi value
+    "Biaya Instalasi" <- Label
+    "Rp. 20.113.200," <- Biaya Langganan Tahunan value  
+    "Biaya Langganan Tahunan" <- Label
+    
+    Note: biaya_langganan_tahunan should never be free (0), only biaya_instalasi can be free.
+    """
+    biaya_instalasi = 0.0
+    biaya_langganan_tahunan = 0.0
+    
+    # Look for "4. BIAYA-BIAYA" section first to locate the area
+    biaya_section_idx = None
+    for i, text in enumerate(texts):
+        if "biaya-biaya" in text.lower() or "4. biaya-biaya" in text.lower():
+            biaya_section_idx = i
+            break
+    
+    if biaya_section_idx is not None:
+        # Search in the section around "BIAYA-BIAYA" (before and after)
+        search_start = max(0, biaya_section_idx - 5)
+        search_end = min(len(texts), biaya_section_idx + 10)
+        section_texts = texts[search_start:search_end]
+        
+        # Look for the pattern: amount followed by label
+        instalasi_found = False
+        langganan_found = False
+        
+        for i in range(len(section_texts) - 1):
+            current_text = section_texts[i].strip()
+            next_text = section_texts[i + 1].strip()
+            
+            # Check if current text is a money amount and next is "Biaya Instalasi"
+            if (_MONEY_TOKEN.match(current_text) and 
+                "biaya instalasi" in next_text.lower() and not instalasi_found):
+                biaya_instalasi = _parse_rupiah_token(current_text)
+                instalasi_found = True
+            
+            # Check if current text is a money amount and next is "Biaya Langganan Tahunan"
+            elif (_MONEY_TOKEN.match(current_text) and 
+                  ("biaya langganan tahunan" in next_text.lower() or "langganan tahunan" in next_text.lower()) and 
+                  not langganan_found):
+                amount = _parse_rupiah_token(current_text)
+                # biaya_langganan_tahunan should never be 0 unless instalasi is the main cost
+                if amount > 0:
+                    biaya_langganan_tahunan = amount
+                    langganan_found = True
+    
+    return biaya_instalasi, biaya_langganan_tahunan
+
+def _extract_cost_special_cases(texts: List[str]) -> tuple[float, float]:
+    """
+    Handle special cases like "Free", "Rp 0", combined text patterns, and value-before-label patterns.
+    """
+    biaya_instalasi = 0.0
+    biaya_langganan = 0.0
+    
+    # First, try the value-before-label pattern extraction
+    instalasi_before, langganan_before = _extract_cost_value_before_label(texts)
+    if instalasi_before >= 0 or langganan_before > 0:  # Allow 0 for instalasi but not for langganan
+        return instalasi_before, langganan_before
+    
+    # Original logic for other patterns
+    full_text = " ".join(texts).lower()
+    
+    # Case: "Biaya Instalasi Free" or "Free Biaya Langganan"
+    if "free" in full_text:
+        if "instalasi" in full_text and "free" in full_text:
+            # Instalasi free, cari langganan amount
+            langganan_patterns = ["Biaya Langganan", "Langganan Tahunan", "Langganan Selama"]
+            biaya_langganan = _extract_cost_robust(texts, langganan_patterns)
+        elif "langganan" in full_text and "free" in full_text:
+            # Langganan free, cari instalasi amount  
+            instalasi_patterns = ["Biaya Instalasi"]
+            biaya_instalasi = _extract_cost_robust(texts, instalasi_patterns)
+    
+    # Case: Table-based extraction with specific patterns
+    for text in texts:
+        if "biaya instalasi" in text.lower() and "langganan" in text.lower():
+            # Combined cost text, extract both
+            amounts = re.findall(r'(?:Rp\.?\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)', text)
+            if len(amounts) >= 2:
+                biaya_instalasi = _parse_rupiah_token(amounts[0])
+                biaya_langganan = _parse_rupiah_token(amounts[1])
+                break
+    
+    return biaya_instalasi, biaya_langganan
+
+
+# -------------------- Page 1 Extractor (One Time Charge) --------------------
+def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
+    """
+    Ekstraksi dari PAGE 1 untuk kasus 'One Time Charge'.
+    - Mengisi: informasi_pelanggan (nama, alamat, npwp, perwakilan jika ada),
+               layanan_utama (count),
+               rincian_layanan (biaya instalasi & langganan tahunan),
+               tata_cara_pembayaran (one_time_charge + raw_text).
+    - Placeholder: kontak_person_telkom, informasi_pelanggan.kontak_person, jangka_waktu.
+    """
+    t0 = time.time()
+    texts = _texts_from_ocr(ocr_json_page1)
+
+    # --- Informasi Pelanggan (Enhanced Robust Extraction) ---
+    nama_pelanggan = alamat = npwp = None
+    perwakilan_nama = perwakilan_jabatan = None
+
+    # Cari section pelanggan dengan multiple patterns
+    pelanggan_patterns = ["2.PELANGGAN", "2. PELANGGAN", "PELANGGAN", "2.PELANGGAN ", "2 PELANGGAN"]
+    idx_pelanggan = _find_near_label(texts, pelanggan_patterns)
+
+    if idx_pelanggan is not None:
+        # Multi-strategy extraction untuk fields utama
+        nama_patterns = ["Nama", "nama", "NAMA"]
+        alamat_patterns = ["Alamat", "alamat", "ALAMAT", "Alamat NPWP"]  # Handle concatenated case
+        npwp_patterns = ["NPWP", "npwp"]
+
+        nama_pelanggan = _extract_field_multi_strategy(texts, nama_patterns, idx_pelanggan)
+        alamat = _extract_field_multi_strategy(texts, alamat_patterns, idx_pelanggan) 
+        npwp = _extract_field_multi_strategy(texts, npwp_patterns, idx_pelanggan)
+        
+        # Clean up NPWP if it contains unwanted text
+        if npwp and "diwakili" in npwp.lower():
+            npwp = None  # Reset jika dapat noise text
+
+        # Jika alamat dan NPWP concatenated, coba pisahkan
+        if alamat and not npwp:
+            # Cari pola NPWP dalam alamat (XX.XXX.XXX.X-XXX.XXX)
+            npwp_match = re.search(r'\d{2}\.\d{3}\.\d{3}\.\d{1}-\d{3}\.\d{3}', alamat)
+            if npwp_match:
+                npwp = npwp_match.group(0)
+                # Hapus NPWP dari alamat
+                alamat = alamat.replace(npwp, '').strip()
+
+        # Cari perwakilan dengan flexible matching
+        perwakilan_patterns = ["Diwakili secara sah oleh:", "Diwakili secara sah oleh", "diwakili secara sah oleh"]
+        idx_rep = _find_near_label(texts, perwakilan_patterns, idx_pelanggan)
+        
+        if idx_rep is not None:
+            perwakilan_nama = _extract_field_multi_strategy(texts, nama_patterns, idx_rep)
+            jabatan_patterns = ["Jabatan", "jabatan", "JABATAN"]
+            perwakilan_jabatan = _extract_field_multi_strategy(texts, jabatan_patterns, idx_rep)
+
+    informasi_pelanggan = InformasiPelanggan(
+        nama_pelanggan=nama_pelanggan,
+        alamat=alamat,
+        npwp=npwp,
+        perwakilan=Perwakilan(nama=perwakilan_nama, jabatan=perwakilan_jabatan) if (perwakilan_nama or perwakilan_jabatan) else None,
+        kontak_person=None,  # placeholder (ada di Page 2)
+    )
+
+    # --- Layanan Utama (Enhanced Robust Counts) ---
+    # Multiple patterns untuk setiap service type
+    connectivity_patterns = [
+        "Layanan Connectivity TELKOM",
+        "LayananConnectivityTELKOM", 
+        "Connectivity TELKOM",
+        "LAYANAN CONNECTIVITY TELKOM"
+    ]
+    
+    non_connectivity_patterns = [
+        "Layanan Non-Connectivity TELKOM",
+        "LayananNon-ConnectivityTELKOM",
+        "Non-Connectivity TELKOM", 
+        "LAYANAN NON-CONNECTIVITY TELKOM"
+    ]
+    
+    bundling_patterns = [
+        "Bundling Layanan Connectivity TELKOM& Solusi",
+        "BundlingLayananConnectivityTELKOM&Solusi",
+        "Bundling Layanan Connectivity TELKOM & Solusi",
+        "BUNDLING LAYANAN CONNECTIVITY TELKOM& SOLUSI"
+    ]
+    
+    connectivity = _find_count_robust(texts, connectivity_patterns)
+    non_connectivity = _find_count_robust(texts, non_connectivity_patterns)
+    bundling = _find_count_robust(texts, bundling_patterns)
+    
+    layanan_utama = LayananUtama(
+        connectivity_telkom=connectivity,
+        non_connectivity_telkom=non_connectivity,
+        bundling=bundling,
+    )
+
+    # --- Rincian Layanan (Enhanced Robust Cost Extraction) ---
+    biaya_instalasi = 0.0
+    biaya_langganan_tahunan = 0.0
+
+    # Try special cases first (Free, combined patterns)
+    special_instalasi, special_langganan = _extract_cost_special_cases(texts)
+    if special_instalasi > 0 or special_langganan > 0:
+        biaya_instalasi = special_instalasi
+        biaya_langganan_tahunan = special_langganan
+    else:
+        # Multiple patterns untuk biaya instalasi
+        instalasi_patterns = [
+            "Biaya Instalasi",
+            "BiayaInstalasi", 
+            "BIAYA INSTALASI",
+            "Biaya Instalasi Rp"
+        ]
+        
+        # Multiple patterns untuk biaya langganan
+        langganan_patterns = [
+            "Biaya Langganan Tahunan",
+            "BiayaLanggananTahunan",
+            "BIAYA LANGGANAN TAHUNAN", 
+            "Biaya Langganan Selama",
+            "Langganan Tahunan",
+            "Biaya Langganan",
+            "Biaya Langganan Selama1Tahun"  # Handle concatenated case
+        ]
+        
+        biaya_instalasi = _extract_cost_robust(texts, instalasi_patterns)
+        biaya_langganan_tahunan = _extract_cost_robust(texts, langganan_patterns)
+
+    rincian_layanan = [
+        RincianLayanan(
+            biaya_instalasi=biaya_instalasi,
+            biaya_langganan_tahunan=biaya_langganan_tahunan,
+            tata_cara_pembayaran=None,  # di level utama kita isi di bawah
+        )
+    ]
+
+    # --- Tata Cara Pembayaran (Dynamic Detection) ---
+    raw_tata = _slice_after_keyword(texts, "TATA CARA PEMBAYARAN", span=16)
+    
+    # Deteksi metode pembayaran secara dinamis
+    method_type, description, confidence = _detect_payment_type(texts)
+    
+    # Jika termin, ekstrak detail pembayaran termin
+    termin_payments = None
+    total_termin_count = None
+    total_amount = None
+    
+    if method_type == "termin":
+        termin_list, count, amount = _extract_termin_payments(texts)
+        if termin_list:  # Jika berhasil ekstrak termin
+            termin_payments = termin_list
+            total_termin_count = count
+            total_amount = amount
+            description = f"Pembayaran termin ({count} periode)"
+        else:
+            # Fallback jika deteksi termin gagal
+            method_type = "one_time_charge"
+            description = "Pembayaran termin terdeteksi (gagal ekstrak detail)"
+    
+    tata_cara_pembayaran = TataCaraPembayaran(
+        method_type=method_type,
+        description=description,
+        termin_payments=termin_payments,
+        total_termin_count=total_termin_count,
+        total_amount=total_amount,
+        raw_text=raw_tata or None,
+    )
+
+    # --- Kontak Person Telkom (placeholder; ada di Page 2) ---
+    kontak_person_telkom = KontakPersonTelkom(
+        nama=None, jabatan=None, email=None, telepon=None
+    )
+
+    # --- Jangka Waktu (placeholder; ada di Page 2) ---
+    jangka_waktu = JangkaWaktu(mulai=None, akhir=None)
+
+    data = TelkomContractData(
+        informasi_pelanggan=informasi_pelanggan,
+        layanan_utama=layanan_utama,
+        rincian_layanan=rincian_layanan,
+        tata_cara_pembayaran=tata_cara_pembayaran,
+        kontak_person_telkom=kontak_person_telkom,
+        jangka_waktu=jangka_waktu,
+        extraction_timestamp=datetime.now(),
+        processing_time_seconds=round(time.time() - t0, 3),
+    )
+    return data
+
+
+# -------------------- Indonesian date parsing (robust) --------------------
+_ID_MONTHS = {
+    "jan": 1, "januari": 1,
+    "feb": 2, "februari": 2,
+    "mar": 3, "maret": 3,
+    "apr": 4, "april": 4,
+    "mei": 5,
+    "jun": 6, "juni": 6,
+    "jul": 7, "juli": 7,
+    "agu": 8, "agustus": 8,
+    "sep": 9, "sept": 9, "september": 9,
+    "okt": 10, "oktober": 10,
+    "nov": 11, "november": 11,
+    "des": 12, "desember": 12,
+}
+
+def _to_iso_date(y: int, m: int, d: int) -> Optional[str]:
+    try:
+        return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+    except Exception:
+        return None
+
+def _parse_date_id(s: str) -> Optional[str]:
+    s = s.strip()
+    print(f"🔍 DEBUG _parse_date_id: Attempting to parse '{s}'")
+    
+    # ISO: YYYY-MM-DD
+    m = re.search(r"\b(20\d{2}|19\d{2})-(\d{1,2})-(\d{1,2})\b", s)
+    if m:
+        result = _to_iso_date(m.group(1), m.group(2), m.group(3))
+        print(f"✅ DEBUG _parse_date_id: ISO format matched: {result}")
+        return result
+    
+    # DD[-/]MM[-/]YYYY
+    m = re.search(r"\b(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2}|19\d{2})\b", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        result = _to_iso_date(y, mo, d)
+        print(f"✅ DEBUG _parse_date_id: DD/MM/YYYY format matched: {result}")
+        return result
+    
+    # D Month YYYY (Indonesia) with spaces
+    m = re.search(r"\b(\d{1,2})\s+([A-Za-z\.]+)\s+(20\d{2}|19\d{2})\b", s)
+    if m:
+        d = int(m.group(1))
+        mon = m.group(2).lower().strip(".")
+        y = int(m.group(3))
+        print(f"🔍 DEBUG _parse_date_id: Spaced format - day: {d}, month: '{mon}', year: {y}")
+        if mon in _ID_MONTHS:
+            result = _to_iso_date(y, _ID_MONTHS[mon], d)
+            print(f"✅ DEBUG _parse_date_id: Spaced format matched: {result}")
+            return result
+        else:
+            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+    
+    # Concatenated format: DDMonthYYYY (e.g., "23Februari2027")  
+    m = re.search(r"(\d{1,2})([A-Za-z]+)(\d{4})", s)  # Removed \b boundaries
+    if m:
+        d = int(m.group(1))
+        mon = m.group(2).lower()
+        y = int(m.group(3))
+        print(f"🔍 DEBUG _parse_date_id: Concatenated format - day: {d}, month: '{mon}', year: {y}")
+        if mon in _ID_MONTHS:
+            result = _to_iso_date(y, _ID_MONTHS[mon], d)
+            print(f"✅ DEBUG _parse_date_id: Concatenated format matched: {result}")
+            return result
+        else:
+            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+    
+    # Format with optional spaces: DD [space] Month YYYY (e.g., "31 Desember2025")
+    m = re.search(r"(\d{1,2})\s*([A-Za-z]+)(\d{4})", s)  # Removed \b boundaries  
+    if m:
+        d = int(m.group(1))
+        mon = m.group(2).lower()
+        y = int(m.group(3))
+        print(f"🔍 DEBUG _parse_date_id: Optional spaces format - day: {d}, month: '{mon}', year: {y}")
+        if mon in _ID_MONTHS:
+            result = _to_iso_date(y, _ID_MONTHS[mon], d)
+            print(f"✅ DEBUG _parse_date_id: Optional spaces format matched: {result}")
+            return result
+        else:
+            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+    
+    # CRITICAL PATTERN: DD+Month + space + YYYY (e.g., "23Februari 2027")
+    m = re.search(r"(\d{1,2})([A-Za-z]+)\s+(\d{4})", s)
+    if m:
+        d = int(m.group(1))
+        mon = m.group(2).lower()
+        y = int(m.group(3))
+        print(f"🔍 DEBUG _parse_date_id: CRITICAL pattern - day: {d}, month: '{mon}', year: {y}")
+        if mon in _ID_MONTHS:
+            result = _to_iso_date(y, _ID_MONTHS[mon], d)
+            print(f"✅ DEBUG _parse_date_id: CRITICAL pattern matched: {result}")
+            return result
+        else:
+            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+    
+    print(f"❌ DEBUG _parse_date_id: No pattern matched for '{s}'")
+    return None
+
+# -------------------- Page 2: robust jangka waktu + kontak --------------------
+def _blob(texts: List[str]) -> str:
+    return "\n".join(texts)
+
+def _norm_label(s: str) -> str:
+    s = s.lower().strip()
+    s = s.replace("*", "").replace(")", "").replace("(", "")
+    s = s.replace(":", "")
+    s = s.replace("telepon/gsm", "telepon")
+    s = s.replace("e-mail", "email").replace("email", "email")
+    return s.strip()  # Final strip to remove any trailing spaces
+
+_EMAIL_RE = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+", re.I)
+_PHONE_RE = re.compile(r"(?:\+62|0)[\d\-\s]{7,20}", re.I)
+
+def _is_email(tok: str) -> bool:
+    return bool(_EMAIL_RE.fullmatch(tok.strip()))
+
+def _is_phone(tok: str) -> bool:
+    return bool(_PHONE_RE.fullmatch(tok.strip()))
+
+def _find_date_range_in_texts(texts: List[str]) -> tuple[Optional[str], Optional[str]]:
+    """
+    Find date range by looking for specific lines in texts array containing "berlaku sejak tanggal".
+    Handles both "hingga" and "sampai dengan" variations, including concatenated dates and trailing text.
+    """
+    print("🔍 DEBUG: _find_date_range_in_texts called")
+    print(f"🔍 DEBUG: Total texts to search: {len(texts)}")
+    
+    # Enhanced patterns that handle all possible OCR variations and formatting issues
+    date_range_patterns = [
+        # Pattern 1: Standard spaced format with "berlaku sejak tanggal"
+        r"berlaku\s+sejak\s+tanggal\s+(\d{1,2}\s+\w+\s+\d{4})\s+(?:hingga|sampai\s+dengan)\s+(\d{1,2}\s+\w+\s+\d{4})",
+        
+        # Pattern 2: Standard format with concatenated end date
+        r"berlaku\s+sejak\s+tanggal\s+(\d{1,2}\s+\w+\s+\d{4})\s+(?:hingga|sampai\s+dengan)\s*(\d{1,2}\w+\d{4})",
+        
+        # Pattern 3: CRITICAL - Concatenated "sejaktanggal" format (like the penerbangan sample)
+        r"berlaku\s+sejaktanggal\s+(\d{1,2}\w+\d{4})\s+(?:hingga|sampai\s+dengan)\s*(\d{1,2}\w+\d{4})",
+        
+        # Pattern 4: Mixed concatenated start, spaced end
+        r"berlaku\s+sejaktanggal\s+(\d{1,2}\w+\d{4})\s+(?:hingga|sampai\s+dengan)\s+(\d{1,2}\s+\w+\s+\d{4})",
+        
+        # Pattern 5: Flexible "berlaku sejak" without "tanggal"
+        r"berlaku\s+sejak\s+(\d{1,2}\s+\w+\s+\d{4})\s+(?:hingga|sampai\s+dengan)\s*(\d{1,2}\w+\d{4})",
+        
+        # Pattern 6: Very flexible fallback - any "sejak" pattern
+        r"sejak\s*tanggal?\s*(\d{1,2}[\w\s]+\d{4})\s+(?:hingga|sampai\s+dengan)\s*(\d{1,2}[\w\s]*\d{4})",
+        
+        # Pattern 7: OCR concatenation variations
+        r"berlaku.*?(\d{1,2}\w+\d{4}).*?(?:hingga|sampai.*?dengan).*?(\d{1,2}\w+\d{4})",
+        
+        # Pattern 8: Very permissive date range finder
+        r"(\d{1,2}[\w\s]+\d{4})\s+(?:hingga|sampai\s+dengan)\s*(\d{1,2}[\w\s]*\d{4})"
+    ]
+    
+    # First, look for any lines containing the search phrase
+    matching_lines = []
+    for i, text_line in enumerate(texts):
+        # Enhanced search terms to catch all possible variations
+        search_terms = [
+            "berlaku sejak tanggal",
+            "berlaku sejaktanggal",  # concatenated version
+            "berlaku sejak",
+            "sejak tanggal", 
+            "sejaktanggal"
+        ]
+        
+        if any(term in text_line.lower() for term in search_terms):
+            matching_lines.append((i, text_line))
+            print(f"🔍 DEBUG: Found matching line at index {i}: '{text_line}'")
+    
+    if not matching_lines:
+        print("🔍 DEBUG: No lines found containing 'berlaku sejak tanggal'")
+        return None, None
+    
+    for line_idx, text_line in matching_lines:
+        print(f"🔍 DEBUG: Processing line {line_idx}: '{text_line}'")
+        
+        # Try all patterns on this line
+        for pattern_idx, pattern in enumerate(date_range_patterns):
+            print(f"🔍 DEBUG: Trying pattern {pattern_idx + 1}: {pattern}")
+            match = re.search(pattern, text_line, flags=re.I)
+            if match:
+                print(f"✅ DEBUG: Pattern {pattern_idx + 1} MATCHED!")
+                start_str = match.group(1).strip()
+                end_str = match.group(2).strip()
+                print(f"🔍 DEBUG: Raw captures - start: '{start_str}', end: '{end_str}'")
+                
+                # Clean up captured groups - normalize spaces
+                start_str = re.sub(r'\s+', ' ', start_str)
+                end_str = re.sub(r'\s+', ' ', end_str)
+                print(f"🔍 DEBUG: Cleaned captures - start: '{start_str}', end: '{end_str}'")
+                
+                # Additional cleanup for concatenated dates
+                # Handle cases like "23Februari2027" -> ensure proper parsing
+                if not ' ' in end_str and len(end_str) > 8:  # Likely concatenated format
+                    print(f"🔍 DEBUG: Detected concatenated end date: '{end_str}'")
+                    # Try to add spaces for better parsing: "23Februari2027" -> "23 Februari 2027"
+                    concatenated_match = re.match(r'(\d{1,2})([A-Za-z]+)(\d{4})', end_str)
+                    if concatenated_match:
+                        day, month, year = concatenated_match.groups()
+                        end_str_spaced = f"{day} {month} {year}"
+                        print(f"🔍 DEBUG: Trying spaced version: '{end_str_spaced}'")
+                        # Try parsing the spaced version first
+                        end_date_spaced = _parse_date_id(end_str_spaced)
+                        if end_date_spaced:
+                            print(f"✅ DEBUG: Spaced version parsed successfully: {end_date_spaced}")
+                            end_str = end_str_spaced
+                        else:
+                            print(f"❌ DEBUG: Spaced version parsing failed")
+                
+                # Parse both dates
+                print(f"🔍 DEBUG: Attempting to parse dates...")
+                start_date = _parse_date_id(start_str)
+                end_date = _parse_date_id(end_str)
+                print(f"🔍 DEBUG: Parse results - start: {start_date}, end: {end_date}")
+                
+                # Return if both dates are valid and different
+                if start_date and end_date and start_date != end_date:
+                    print(f"✅ DEBUG: SUCCESS! Returning dates: start={start_date}, end={end_date}")
+                    return start_date, end_date
+                
+                # If parsing failed but we had a match, try parsing original concatenated format
+                if not end_date and not ' ' in match.group(2).strip():
+                    print(f"🔍 DEBUG: Retrying with original concatenated format: '{match.group(2).strip()}'")
+                    end_date = _parse_date_id(match.group(2).strip())
+                    print(f"🔍 DEBUG: Retry parse result: {end_date}")
+                    if start_date and end_date and start_date != end_date:
+                        print(f"✅ DEBUG: SUCCESS on retry! Returning dates: start={start_date}, end={end_date}")
+                        return start_date, end_date
+                
+                print(f"❌ DEBUG: Pattern {pattern_idx + 1} matched but date parsing failed")
+            else:
+                print(f"❌ DEBUG: Pattern {pattern_idx + 1} did not match")
+    
+    print("❌ DEBUG: No successful matches found, returning None, None")
+    return None, None
+
+def _extract_jangka_waktu(texts: List[str]) -> tuple[Optional[str], Optional[str]]:
+    """
+    Enhanced robust extraction untuk jangka waktu kontrak.
+    Prioritizes direct extraction from individual text lines containing date ranges.
+    """
+    # Strategy 1: Direct extraction from texts array - look for "berlaku sejak tanggal" lines
+    start_date, end_date = _find_date_range_in_texts(texts)
+    if start_date and end_date:
+        return start_date, end_date
+    
+    # Strategy 2: Look in JANGKA WAKTU section with focused approach
+    jangka_waktu_patterns = ["6.JANGKA WAKTU", "6. JANGKA WAKTU", "6.JANGKAWAKTU", "JANGKA WAKTU"]
+    jangka_idx = _find_near_label(texts, jangka_waktu_patterns)
+    
+    if jangka_idx is not None:
+        # Get section texts and try direct extraction first
+        section_texts = texts[jangka_idx:min(jangka_idx + 15, len(texts))]
+        start_date, end_date = _find_date_range_in_texts(section_texts)
+        if start_date and end_date:
+            return start_date, end_date
+        
+        # Fallback: Look for date patterns in section
+        for text_line in section_texts:
+            # Simple date range patterns within section
+            date_patterns = [
+                r"(\d{1,2}\s+\w+\s+\d{4})\s+(?:hingga|sampai\s+dengan)\s+(\d{1,2}[\s\w]*\d{4})",
+                r"(\d{1,2}\w+\d{4})\s+(?:hingga|sampai\s+dengan)\s+(\d{1,2}\w+\d{4})"
+            ]
+            
+            for pattern in date_patterns:
+                match = re.search(pattern, text_line, flags=re.I)
+                if match:
+                    start_str = match.group(1).strip()
+                    end_str = match.group(2).strip()
+                    
+                    start = _parse_date_id(start_str)
+                    end = _parse_date_id(end_str)
+                    if start and end and start != end:
+                        return start, end
+    
+    # Strategy 3: Enhanced proximity search for contract date ranges
+    date_tokens = []
+    seen_dates = set()
+    
+    # Collect more date candidates for better selection
+    for i, tok in enumerate(texts):
+        d = _parse_date_id(tok)
+        if d and d not in seen_dates:
+            date_tokens.append((i, d, tok))  # Include original text for context
+            seen_dates.add(d)
+        if len(date_tokens) >= 10:  # Get more candidates
+            break
+    
+    print(f"🔍 DEBUG: Found {len(date_tokens)} unique dates: {[(i, d) for i, d, _ in date_tokens]}")
+    
+    if len(date_tokens) >= 2:
+        # Smart date pair selection algorithm
+        best_pair = None
+        best_score = -1
+        
+        for i in range(len(date_tokens)):
+            for j in range(i + 1, len(date_tokens)):
+                idx1, date1, text1 = date_tokens[i]
+                idx2, date2, text2 = date_tokens[j]
+                
+                # Ensure chronological order
+                start_date, end_date = (date1, date2) if date1 < date2 else (date2, date1)
+                start_idx, end_idx = (idx1, idx2) if date1 < date2 else (idx2, idx1)
+                
+                # Calculate date range (in days)
+                from datetime import datetime
+                try:
+                    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+                    days_diff = (end_dt - start_dt).days
+                except:
+                    continue
+                
+                # Scoring criteria for contract date ranges
+                score = 0
+                
+                # 1. Prefer reasonable contract durations (30 days to 5 years)
+                if 30 <= days_diff <= 1825:  # 30 days to 5 years
+                    score += 100
+                elif 1 <= days_diff <= 30:  # Very short contracts
+                    score += 20
+                else:
+                    score -= 50  # Too short or too long
+                
+                # 2. Prefer dates that are closer together in the text (contract dates are usually mentioned together)
+                text_distance = abs(start_idx - end_idx)
+                if text_distance <= 5:
+                    score += 50
+                elif text_distance <= 10:
+                    score += 20
+                else:
+                    score -= 10
+                
+                # 3. Penalize obvious signature dates (single day differences or dates at end of document)
+                if days_diff <= 2:  # Likely signature dates
+                    score -= 100
+                
+                # 4. Prefer dates from earlier in jangka waktu section
+                if start_idx <= 15:  # Earlier in the section
+                    score += 30
+                
+                print(f"🔍 DEBUG: Date pair ({start_date}, {end_date}) - days: {days_diff}, text_distance: {text_distance}, score: {score}")
+                
+                if score > best_score:
+                    best_score = score
+                    best_pair = (start_date, end_date)
+        
+        if best_pair and best_score > 0:
+            print(f"✅ DEBUG: Selected best date pair with score {best_score}: {best_pair}")
+            return best_pair
+        
+        # Fallback: if no good pair found, use chronological order but skip obvious signature dates
+        dates_only = [date for _, date, _ in date_tokens]
+        dates_only.sort()
+        
+        # Try to find a pair that's not just 1-2 days apart (signature dates)
+        for i in range(len(dates_only) - 1):
+            for j in range(i + 1, len(dates_only)):
+                try:
+                    start_dt = datetime.strptime(dates_only[i], "%Y-%m-%d")
+                    end_dt = datetime.strptime(dates_only[j], "%Y-%m-%d")
+                    days_diff = (end_dt - start_dt).days
+                    if days_diff >= 30:  # At least 30 days for a reasonable contract
+                        print(f"✅ DEBUG: Fallback selection: {dates_only[i]}, {dates_only[j]} ({days_diff} days)")
+                        return dates_only[i], dates_only[j]
+                except:
+                    continue
+        
+        # Last resort: first two different dates
+        if len(dates_only) >= 2 and dates_only[0] != dates_only[1]:
+            print(f"⚠️  DEBUG: Last resort selection: {dates_only[0]}, {dates_only[1]}")
+            return dates_only[0], dates_only[1]
+    
+    return None, None
+
+def _extract_contact_blocks(texts: List[str]) -> tuple[Dict[str, str], Dict[str, str]]:
+    """
+    Enhanced robust extraction untuk contact blocks:
+    - Blok pertama: TELKOM
+    - Blok kedua: PELANGGAN
+    Menggunakan fuzzy matching dan multiple strategies.
+    """
+    # Strategy 1: Cari anchor "7.KONTAK PERSON" dengan fuzzy matching
+    kontak_patterns = ["7.KONTAK PERSON", "7. KONTAK PERSON", "7.KONTAKPERSON", "KONTAK PERSON", "7KONTAK PERSON"]
+    start = _find_near_label(texts, kontak_patterns)
+    
+    if start is None:
+        # Strategy 2: Cari berdasarkan context pattern
+        for i, text in enumerate(texts):
+            if "kontak" in text.lower() and "person" in text.lower():
+                start = i
+                break
+    
+    if start is None:
+        return {}, {}
+
+    # Ambil subarray wajar (hingga sebelum tanda tangan)
+    sub = texts[start : min(start + 120, len(texts))]
+
+    # Strategy 1: Cari token "TELKOM" dengan fuzzy matching
+    telkom_patterns = ["TELKOM", "PT TELKOM", "PT. TELKOM"]
+    telkom_anchor = _find_near_label(sub, telkom_patterns, 0)
+    
+    if telkom_anchor is None:
+        # Strategy 2: Cari berdasarkan context pattern
+        for i, text in enumerate(sub):
+            if "telkom" in text.lower():
+                telkom_anchor = i
+                break
+        if telkom_anchor is None:
+            telkom_anchor = 0  # fallback ke awal sub
+    
+    telkom_tokens = sub[telkom_anchor : ]
+
+    # Enhanced robust contact reading dengan fuzzy matching
+    def read_contact(seq: List[str]) -> tuple[Dict[str, str], int]:
+        fields = {"nama": None, "jabatan": None, "telepon": None, "email": None}
+        field_patterns = {
+            "nama": ["Nama", "nama", "NAMA", "Name"],
+            "jabatan": ["Jabatan", "jabatan", "JABATAN", "Posisi", "Position"],
+            "telepon": ["Telepon", "telepon", "TELEPON", "Tlp", "TLP", "Phone", "No. Tlp"],
+            "email": ["Email", "email", "EMAIL", "E-mail", "e-mail", "E-Mail"]
+        }
+        
+        i = 0
+        last_label = None
+        hits = 0
+        
+        while i < len(seq):
+            tok_raw = seq[i].strip()
+            
+            # Strategy 1: Exact label matching (existing logic)
+            tok_norm = _norm_label(tok_raw)
+            matched_field = None
+            for field, patterns in field_patterns.items():
+                if any(_norm_label(pattern) == tok_norm for pattern in patterns):
+                    matched_field = field
+                    break
+            
+            if matched_field:
+                # Heuristik switch: jika muncul "Nama" baru DAN sudah ada minimal 2 field → akhir blok
+                if matched_field == "nama" and sum(1 for v in fields.values() if v) >= 2:
+                    break
+                last_label = matched_field
+                i += 1
+                continue
+            
+            # Strategy 2: Fuzzy label matching jika exact gagal
+            if not matched_field:
+                for field, patterns in field_patterns.items():
+                    for pattern in patterns:
+                        if _calculate_text_similarity(tok_raw, pattern) >= 0.7:
+                            matched_field = field
+                            break
+                    if matched_field:
+                        break
+                
+                if matched_field:
+                    last_label = matched_field
+                    i += 1
+                    continue
+            
+            # Process value jika ada active label
+            if last_label:
+                val = tok_raw.strip()
+                
+                # Enhanced validation dengan OCR error tolerance
+                if last_label == "email":
+                    # Cek current token dan next token untuk email
+                    email_candidates = [val]
+                    if i + 1 < len(seq):
+                        email_candidates.append(seq[i + 1].strip())
+                    
+                    valid_email = None
+                    for email_candidate in email_candidates:
+                        if _is_email(email_candidate):
+                            valid_email = email_candidate
+                            if email_candidate != val:
+                                i += 1  # Skip next token jika itu yang dipake
+                            break
+                    
+                    if valid_email:
+                        val = valid_email
+                    else:
+                        # Coba bersihkan OCR errors umum dalam email
+                        cleaned_val = val.replace(' ', '').replace('0', 'o')  # Angka nol jadi huruf o
+                        if _is_email(cleaned_val):
+                            val = cleaned_val
+                        else:
+                            last_label = None
+                            i += 1
+                            continue
+                
+                elif last_label == "telepon":
+                    # Similar logic untuk telepon
+                    phone_candidates = [val]
+                    if i + 1 < len(seq):
+                        phone_candidates.append(seq[i + 1].strip())
+                    
+                    valid_phone = None
+                    for phone_candidate in phone_candidates:
+                        if _is_phone(phone_candidate):
+                            valid_phone = phone_candidate
+                            if phone_candidate != val:
+                                i += 1
+                            break
+                    
+                    if valid_phone:
+                        val = valid_phone
+                    else:
+                        # Bersihkan spasi berlebih untuk telepon
+                        cleaned_val = re.sub(r'\s+', '', val)
+                        if _is_phone(cleaned_val):
+                            val = cleaned_val
+                        else:
+                            last_label = None
+                            i += 1
+                            continue
+                
+                # Assign jika field belum terisi dan value valid
+                if fields.get(last_label) is None and val and val not in ['', '-', 'N/A']:
+                    fields[last_label] = val
+                    hits += 1
+                
+                last_label = None
+                i += 1
+                
+                # Stop heuristik: jika minimal nama + jabatan sudah ketemu
+                if hits >= 2 and fields.get("nama") and fields.get("jabatan"):
+                    # Lanjut sedikit untuk email/telepon
+                    if hits >= 4:
+                        break
+                continue
+
+            # Heuristik stop patterns
+            if any(stop_phrase in tok_raw.lower() for stop_phrase in ["wajib diisi", "tanda tangan", "ttd"]):
+                i += 1
+                break
+            
+            i += 1
+
+        return fields, i
+
+    telkom_fields, consumed = read_contact(telkom_tokens)
+
+    # PELANGGAN mulai setelah tokens yang telah dibaca
+    pelanggan_tokens = telkom_tokens[consumed:]
+    pelanggan_fields, _ = read_contact(pelanggan_tokens)
+
+    # Bersihkan nilai kosong
+    telkom_fields = {k: v for k, v in telkom_fields.items() if v}
+    pelanggan_fields = {k: v for k, v in pelanggan_fields.items() if v}
+    return telkom_fields, pelanggan_fields
+
+# -------------------- Payment Method Specific Page 2 Handling --------------------
+def _extract_page2_payment_specific(texts: List[str], payment_method: str) -> Dict[str, Any]:
+    """
+    Extract additional page 2 information specific to payment method.
+    """
+    additional_info = {}
+    
+    if payment_method == "termin":
+        # Termin contracts may have additional payment schedule details on page 2
+        full_text = " ".join(texts).lower()
+        if "jadwal pembayaran" in full_text or "schedule" in full_text:
+            additional_info["has_payment_schedule"] = True
+            
+        # Look for payment coordinator contact
+        coordinator_patterns = ["koordinator pembayaran", "payment coordinator", "pic pembayaran"]
+        for pattern in coordinator_patterns:
+            idx = _find_containing(texts, pattern)
+            if idx is not None:
+                additional_info["payment_coordinator_context"] = texts[idx]
+    
+    elif payment_method == "recurring":
+        # Recurring may have billing cycle information
+        full_text = " ".join(texts).lower()
+        if "siklus tagihan" in full_text or "billing cycle" in full_text:
+            additional_info["has_billing_cycle"] = True
+            
+        # Look for automated payment setup
+        auto_patterns = ["auto debit", "otomatis", "autopay"]
+        for pattern in auto_patterns:
+            if pattern in full_text:
+                additional_info["auto_payment_mentioned"] = True
+    
+    elif payment_method == "one_time_charge":
+        # One-time may have specific payment deadline information
+        full_text = " ".join(texts).lower()
+        if "batas waktu pembayaran" in full_text or "payment deadline" in full_text:
+            additional_info["has_payment_deadline"] = True
+    
+    return additional_info
+
+# -------------------- Page 2 Merge --------------------
+def merge_with_page2(existing: TelkomContractData, ocr_json_page2: Any) -> TelkomContractData:
+    texts = _texts_from_ocr(ocr_json_page2)
+
+    # Get payment method untuk context-aware extraction
+    payment_method = existing.tata_cara_pembayaran.method_type if existing.tata_cara_pembayaran else "unknown"
+    
+    # Payment method specific extraction
+    payment_specific_info = _extract_page2_payment_specific(texts, payment_method)
+
+    # 1) Enhanced jangka waktu extraction
+    start_date, end_date = _extract_jangka_waktu(texts)
+    if existing.jangka_waktu is None:
+        existing.jangka_waktu = JangkaWaktu()
+    if start_date:
+        existing.jangka_waktu.mulai = existing.jangka_waktu.mulai or start_date
+    if end_date:
+        existing.jangka_waktu.akhir = existing.jangka_waktu.akhir or end_date
+
+    # 2) Enhanced kontak person extraction (TELKOM & PELANGGAN)
+    telkom, pelanggan = _extract_contact_blocks(texts)
+
+    # Isi TELKOM
+    if any(telkom.values()):
+        existing.kontak_person_telkom = KontakPersonTelkom(
+            nama=telkom.get("nama"),
+            jabatan=telkom.get("jabatan"),
+            email=telkom.get("email"),
+            telepon=telkom.get("telepon"),
+        )
+
+    # Isi PELANGGAN
+    if existing.informasi_pelanggan is None:
+        existing.informasi_pelanggan = InformasiPelanggan()
+    if any(pelanggan.values()):
+        existing.informasi_pelanggan.kontak_person = KontakPersonPelanggan(
+            nama=pelanggan.get("nama"),
+            jabatan=pelanggan.get("jabatan"),
+            email=pelanggan.get("email"),
+            telepon=pelanggan.get("telepon"),
+        )
+
+    return existing
+
+
+# -------------------- Convenience I/O --------------------
+def extract_page1_file(input_json_path: str) -> Dict[str, Any]:
+    """Baca file JSON OCR page 1 dan kembalikan dict hasil model_dump()."""
+    with open(input_json_path, "r", encoding="utf-8") as f:
+        ocr = json.load(f)
+    data = extract_from_page1_one_time(ocr)
+    # mode="json" memastikan field datetime / non-JSON-native sudah di-serialize (ISO string)
+    return data.model_dump(mode="json")
+
+def merge_page2_file(existing_json_path: str, page2_json_path: str, output_json_path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Baca hasil existing (file JSON TelkomContractData) + OCR page 2,
+    lakukan merge, lalu simpan (opsional) & kembalikan dict.
+    """
+    with open(existing_json_path, "r", encoding="utf-8") as f:
+        existing_dict = json.load(f)
+    # Rekonstruksi model dari dict (jika perlu)
+    existing = TelkomContractData(**existing_dict)
+
+    with open(page2_json_path, "r", encoding="utf-8") as f:
+        ocr2 = json.load(f)
+
+    merged = merge_with_page2(existing, ocr2)
+    # Serialize to JSON-friendly structure
+    result = merged.model_dump(mode="json")
+
+    if output_json_path:
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+
+    return result
+
+
+# -------------------- CLI mini --------------------
+if __name__ == "__main__":
+    import argparse, sys, os
+    ap = argparse.ArgumentParser(description="Ekstraksi Telkom Contract (Page 1 one-time + merge Page 2)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p1 = sub.add_parser("page1", help="Ekstrak dari page 1 (one-time charge)")
+    p1.add_argument("--in", dest="inp", required=True, help="Path ke OCR JSON page 1")
+    p1.add_argument("--out", dest="out", help="Path simpan hasil TelkomContractData (JSON)")
+
+    m2 = sub.add_parser("merge2", help="Merge hasil page1 dengan OCR page 2")
+    m2.add_argument("--existing", required=True, help="File JSON hasil page1 (TelkomContractData)")
+    m2.add_argument("--page2", required=True, help="Path ke OCR JSON page 2")
+    m2.add_argument("--out", required=True, help="Path simpan hasil merged JSON")
+
+    args = ap.parse_args()
+
+    if args.cmd == "page1":
+        res = extract_page1_file(args.inp)
+        if args.out:
+            with open(args.out, "w", encoding="utf-8") as f:
+                json.dump(res, f, ensure_ascii=False, indent=2)
+        else:
+            json.dump(res, sys.stdout, ensure_ascii=False, indent=2)
+    elif args.cmd == "merge2":
+        res = merge_page2_file(args.existing, args.page2, args.out)
+        # file sudah disimpan; tampilkan ringkas ke stdout
+        print(f"Saved merged result to: {args.out}")
