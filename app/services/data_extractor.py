@@ -44,7 +44,7 @@ except ModuleNotFoundError:  # Fallback for direct invocation: python app/servic
     )
 
 # -------------------- Utilities --------------------
-_MONEY_TOKEN = re.compile(r"^\s*(?:Rp\.?|Rp)?\s*[\d\.\,]+\s*$", re.I)
+_MONEY_TOKEN = re.compile(r"^\s*(?:Rp\.?|Rp)?\s*[\d\.\,]+[-,]*\s*$", re.I)
 
 def _texts_from_ocr(ocr_json: Any) -> List[str]:
     """
@@ -85,11 +85,20 @@ def _value_after(texts: List[str], label: str, start: int = 0) -> Optional[str]:
 def _parse_rupiah_token(tok: str) -> float:
     """Konversi token rupiah 'Rp 1.234.567,89' -> 1234567.89 (float)."""
     s = re.sub(r"[^\d,\.]", "", tok)
+    
+    # Handle trailing dots (like "896.462.640.-" -> "896.462.640.")
+    s = s.rstrip(".")
+    
     if s.count(",") == 1 and s.count(".") >= 1:
         # Format ID: titik thousand, koma decimal
         s = s.replace(".", "").replace(",", ".")
     else:
-        s = s.replace(",", "")
+        # Handle Indonesian thousand separator (dots) without decimal comma
+        if s.count(".") >= 2:  # Multiple dots = thousand separators
+            s = s.replace(".", "")
+        else:
+            s = s.replace(",", "")
+    
     try:
         return float(s)
     except Exception:
@@ -114,39 +123,38 @@ def _find_count_after_phrase(texts: List[str], phrase: str) -> int:
             return int(nxt)
     return 0
 
-def _find_count_robust(texts: List[str], service_patterns: List[str], max_distance: int = 5) -> int:
+def _find_count_robust(texts: List[str], service_patterns: List[str], max_distance: int = 2) -> int:
     """
     Cari angka service dengan multiple strategies dan proximity matching.
+    Simplified untuk akurasi yang lebih baik dengan prioritas exact/adjacent matching.
     """
     for pattern in service_patterns:
-        # Strategy 1: Exact match + next token (existing logic)
+        # Strategy 1: Exact match + immediate next token (highest priority)
         count = _find_count_after_phrase(texts, pattern)
         if count > 0:
             return count
-        
-        # Strategy 2: Fuzzy match + next token
-        idx = _find_fuzzy(texts, pattern, 0.7)
+    
+    # Strategy 2: Try all patterns with fuzzy matching (only if exact failed)
+    for pattern in service_patterns:
+        # Enhanced fuzzy match + immediate next token only
+        idx = _find_fuzzy(texts, pattern, 0.75)  # Higher threshold for reliability
         if idx is not None and idx + 1 < len(texts):
-            nxt = re.sub(r"[^\d]", "", texts[idx + 1])
-            if nxt.isdigit():
+            nxt = texts[idx + 1].strip()
+            # Be strict about next token - must be pure digit
+            if nxt.isdigit() and 0 <= int(nxt) <= 20:
                 return int(nxt)
-        
-        # Strategy 3: Containing match + nearby numbers
+    
+    # Strategy 3: Containing match with tight proximity (last resort)
+    for pattern in service_patterns:
         idx = _find_containing(texts, pattern)
         if idx is not None:
-            # Cari angka dalam radius max_distance tokens
-            for i in range(max(0, idx - max_distance), min(len(texts), idx + max_distance + 1)):
-                if i != idx:  # Skip the label token itself
+            # Look for number in very tight radius only (adjacent tokens)
+            for i in range(max(0, idx - 1), min(len(texts), idx + 2)):
+                if i != idx:
                     token = texts[i].strip()
-                    # Look for standalone digit
-                    if token.isdigit() and 0 <= int(token) <= 20:  # Reasonable service count range
+                    # Only accept pure digits for high confidence
+                    if token.isdigit() and 0 <= int(token) <= 20:
                         return int(token)
-                    # Look for digit in mixed text
-                    digits = re.findall(r'\b(\d+)\b', token)
-                    if digits:
-                        for digit in digits:
-                            if 0 <= int(digit) <= 20:
-                                return int(digit)
     
     return 0
 
@@ -163,12 +171,33 @@ def _get_payment_section_text(texts: List[str]) -> str:
     Ekstrak teks dari seksi pembayaran untuk analisis metode pembayaran.
     Prioritas: teks di sekitar header TATA CARA PEMBAYARAN, lalu fallback ke seluruh dokumen.
     """
-    # Cari teks di sekitar header pembayaran dengan span lebih besar
-    payment_section = _slice_after_keyword(texts, "TATA CARA PEMBAYARAN", span=20)
-    if payment_section:
-        return payment_section
+    # Priority 1: Section 5 dengan berbagai format
+    section5_patterns = [
+        "5.TATACARAPEMBAYARAN",     # PT MPG format (tanpa spasi)
+        "5.TATA CARA PEMBAYARAN",   # Standard format
+        "5. TATA CARA PEMBAYARAN",  # Dengan spasi setelah angka
+        "5.TATACARA PEMBAYARAN",    # Variasi spasi
+        "5. TATACARA PEMBAYARAN",   # Kombinasi
+    ]
     
-    # Fallback: cari header pembayaran alternatif
+    for pattern in section5_patterns:
+        payment_section = _slice_after_keyword(texts, pattern, span=20)
+        if payment_section:
+            return payment_section
+    
+    # Priority 2: Header pembayaran umum dengan berbagai format
+    general_patterns = [
+        "TATACARAPEMBAYARAN",       # Tanpa spasi sama sekali
+        "TATA CARA PEMBAYARAN",     # Standard
+        "TATACARA PEMBAYARAN",      # Partial spasi
+    ]
+    
+    for pattern in general_patterns:
+        payment_section = _slice_after_keyword(texts, pattern, span=20)
+        if payment_section:
+            return payment_section
+    
+    # Fallback: header pembayaran alternatif
     payment_section = _slice_after_keyword(texts, "PEMBAYARAN", span=20)
     if payment_section:
         return payment_section
@@ -208,8 +237,10 @@ def _detect_payment_type(texts: List[str]) -> tuple[str, str, str]:
     
     # Pattern untuk deteksi termin (prioritas tinggi - exclude dari recurring)
     termin_patterns = [
-        r'\btermin[-\s]*\d+\b',           # Termin-1, Termin 1, etc.
+        r'\btermin[-\s]*\d+[x]*\b',                    # Termin4X, Termin-4X, Termin 4X, Termin4, Termin 4
         r'\btermin\s+(pertama|kedua|ketiga|keempat|kelima)\b',  # Termin pertama, dll
+        r'\b\d+[x]*\s*termin\b',                       # 4X termin, 4 termin, 4X Termin
+        r'\btermin[-\s]*(\d+)[-\s]*[kx]\b',           # Termin-4K, Termin 4X, Termin4K
     ]
     
     # Cek eksplisit "One Time Charge" untuk prioritas tinggi
@@ -254,14 +285,37 @@ def _detect_payment_type(texts: List[str]) -> tuple[str, str, str]:
             matched_phrase = match.group(0)
             return "recurring", f"Pembayaran bulanan terdeteksi (frasa: '{matched_phrase}')", "medium"
     
-    # Cek keberadaan header tabel "BULANAN" sebagai indikator recurring
-    # Tapi hanya jika tidak ada indikator One Time Charge yang eksplisit
-    full_text = " ".join(texts)
-    if re.search(r'\bBULANAN\b', full_text, re.I):
-        return "recurring", "Pembayaran bulanan terdeteksi (tabel biaya bulanan)", "medium"
+    # NOTE: Removed unreliable "BULANAN" header detection as it causes false positives
+    # Header tables are not reliable indicators of payment method
+    # Source of truth should be section 5. TATA CARA PEMBAYARAN only
     
     # Default: tidak dapat menentukan, assume one_time_charge untuk backward compatibility
     return "one_time_charge", "Metode pembayaran tidak terdeteksi", "low"
+
+def _extract_termin_count_only(texts: List[str]) -> Optional[int]:
+    """
+    Extract termin count even without amount details.
+    Handles formats like 'Termin4X', 'Termin 4X', '4X termin', etc.
+    """
+    payment_text = _get_payment_section_text(texts)
+    
+    # Pattern untuk termin count saja (lebih fleksibel)
+    count_patterns = [
+        r'termin[-\s]*(\d+)[x]*\b',        # Termin4X, Termin-4X, Termin 4X, Termin4
+        r'(\d+)[x]*\s*termin\b',           # 4X termin, 4 termin, 4X Termin
+        r'termin[-\s]*(\d+)[-\s]*[kx]\b',  # Termin-4K, Termin 4X, Termin4K
+    ]
+    
+    for pattern in count_patterns:
+        match = re.search(pattern, payment_text, re.I)
+        if match:
+            try:
+                count = int(match.group(1))
+                if 1 <= count <= 20:  # Reasonable range for termin count
+                    return count
+            except (ValueError, IndexError):
+                continue
+    return None
 
 def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int, float]:
     """
@@ -455,6 +509,83 @@ def _extract_field_multi_strategy(texts: List[str], field_patterns: List[str], s
     
     return None
 
+def _extract_cost_from_biaya_section(texts: List[str], cost_type: str) -> float:
+    """
+    Extract cost from structured BIAYA-BIAYA section.
+    Pattern: "4.BIAYA-BIAYA(Rupiah)" -> "Biaya Instalasi" -> "Rp. X" -> "Biaya Langganan Tahunan" -> "Rp. Y"
+    
+    Args:
+        texts: List of OCR text tokens
+        cost_type: "instalasi" or "langganan"
+    
+    Returns:
+        float: Extracted cost amount or 0.0 if not found
+    """
+    # Find the biaya section header
+    biaya_header_patterns = [
+        "4.BIAYA-BIAYA(Rupiah)",
+        "4. BIAYA-BIAYA(Rupiah)", 
+        "4.BIAYA-BIAYA (Rupiah)",
+        "4. BIAYA-BIAYA (Rupiah)",
+        "BIAYA-BIAYA(Rupiah)",
+        "BIAYA-BIAYA (Rupiah)"
+    ]
+    
+    start_idx = None
+    for pattern in biaya_header_patterns:
+        idx = _find_eq(texts, pattern)
+        if idx is not None:
+            start_idx = idx
+            break
+    
+    if start_idx is None:
+        return 0.0
+    
+    
+    # Parse structured sequence starting from biaya header
+    # Expected pattern: header -> "Biaya Instalasi" -> "Rp. X" -> "Biaya Langganan Tahunan" -> "Rp. Y"
+    i = start_idx + 1
+    instalasi_amount = 0.0
+    langganan_amount = 0.0
+    
+    while i < len(texts):
+        current_text = texts[i].strip()
+        
+        # Look for instalasi cost
+        if ("Biaya Instalasi" in current_text or "BiayaInstalasi" in current_text) and i + 1 < len(texts):
+            next_token = texts[i + 1].strip()
+            if _MONEY_TOKEN.match(next_token):
+                instalasi_amount = _parse_rupiah_token(next_token)
+                i += 2  # Skip the money token
+                continue
+        
+        # Look for langganan cost
+        if (("Biaya Langganan Tahunan" in current_text or 
+             "BiayaLanggananTahunan" in current_text or
+             "Biaya Langganan Selama" in current_text) and i + 1 < len(texts)):
+            next_token = texts[i + 1].strip()
+            if _MONEY_TOKEN.match(next_token):
+                langganan_amount = _parse_rupiah_token(next_token)
+                i += 2  # Skip the money token
+                continue
+        
+        # Stop if we hit the next major section
+        if current_text.startswith("5.") or "TATA CARA PEMBAYARAN" in current_text:
+            break
+            
+        i += 1
+        
+        # Safety limit - don't parse too far from biaya header
+        if i > start_idx + 20:
+            break
+    
+    if cost_type == "instalasi":
+        return instalasi_amount
+    elif cost_type == "langganan":
+        return langganan_amount
+    else:
+        return 0.0
+
 def _extract_cost_robust(texts: List[str], cost_patterns: List[str], max_distance: int = 10) -> float:
     """
     Ekstrak biaya dengan multiple strategies dan table parsing.
@@ -561,24 +692,67 @@ def _extract_cost_special_cases(texts: List[str]) -> tuple[float, float]:
     biaya_instalasi = 0.0
     biaya_langganan = 0.0
     
-    # First, try the value-before-label pattern extraction
-    instalasi_before, langganan_before = _extract_cost_value_before_label(texts)
-    if instalasi_before >= 0 or langganan_before > 0:  # Allow 0 for instalasi but not for langganan
-        return instalasi_before, langganan_before
-    
-    # Original logic for other patterns
+    # First check for "Free" pattern which is common and needs special handling
     full_text = " ".join(texts).lower()
     
-    # Case: "Biaya Instalasi Free" or "Free Biaya Langganan"
+    # PT MPG pattern: "Free", "Biaya Langganan Bulanan", "Rp896.462.640.-" as separate text blocks
     if "free" in full_text:
         if "instalasi" in full_text and "free" in full_text:
-            # Instalasi free, cari langganan amount
-            langganan_patterns = ["Biaya Langganan", "Langganan Tahunan", "Langganan Selama"]
+            # Instalasi free, set to 0 and find langganan amount
+            biaya_instalasi = 0.0
+            
+            # Handle separated pattern where Free, Biaya Langganan, and amount are separate blocks
+            found_free_idx = None
+            found_langganan_idx = None
+            amount_idx = None
+            
+            for i, text in enumerate(texts):
+                if "free" == text.lower().strip():
+                    found_free_idx = i
+                elif "biaya langganan bulanan" in text.lower():
+                    found_langganan_idx = i
+                elif "rp" in text.lower() and re.match(r'^\s*Rp[\d\.\,\-]+', text, re.I):
+                    amount_idx = i
+            
+            # If we found the separated pattern, extract the amount
+            if found_free_idx and found_langganan_idx and amount_idx:
+                # Check if the order makes sense (free, then langganan, then amount)
+                if found_free_idx < found_langganan_idx < amount_idx:
+                    parsed_amount = _parse_rupiah_token(texts[amount_idx])
+                    biaya_langganan = parsed_amount
+                    return biaya_instalasi, biaya_langganan
+            
+            # Fallback to enhanced pattern matching
+            langganan_patterns = [
+                "Biaya Langganan Tahunan", "Langganan Tahunan", "Langganan Selama",
+                "Biaya Langganan Selama1Tahun", "Biaya Langganan Selama1tahun",
+                "Biaya Langganan Selama 1Tahun", "Biaya Langganan Selama 1tahun",
+                "Biaya Langganan Bulanan"  # Handle PT MPG edge case
+            ]
             biaya_langganan = _extract_cost_robust(texts, langganan_patterns)
+            return biaya_instalasi, biaya_langganan
         elif "langganan" in full_text and "free" in full_text:
             # Langganan free, cari instalasi amount  
+            biaya_langganan = 0.0
             instalasi_patterns = ["Biaya Instalasi"]
             biaya_instalasi = _extract_cost_robust(texts, instalasi_patterns)
+            return biaya_instalasi, biaya_langganan
+    
+    # First try structured biaya section parsing (most reliable for standard contracts)
+    biaya_instalasi_structured = _extract_cost_from_biaya_section(texts, "instalasi")
+    biaya_langganan_structured = _extract_cost_from_biaya_section(texts, "langganan")
+    
+    # Use structured results if both found or if langganan found (langganan is more critical)
+    if biaya_langganan_structured > 0:
+        return biaya_instalasi_structured, biaya_langganan_structured
+    
+    # Fallback: try the value-before-label pattern extraction
+    instalasi_before, langganan_before = _extract_cost_value_before_label(texts)
+    # Only use if we actually found meaningful values (not default 0,0)
+    if langganan_before > 0 or (instalasi_before > 0 and langganan_before > 0):  
+        return instalasi_before, langganan_before
+    
+    # If still no values found, try other pattern matching approaches
     
     # Case: Table-based extraction with specific patterns
     for text in texts:
@@ -655,26 +829,36 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     )
 
     # --- Layanan Utama (Enhanced Robust Counts) ---
-    # Multiple patterns untuk setiap service type
+    # Multiple patterns untuk setiap service type dengan variasi spasi OCR
     connectivity_patterns = [
-        "Layanan Connectivity TELKOM",
-        "LayananConnectivityTELKOM", 
-        "Connectivity TELKOM",
-        "LAYANAN CONNECTIVITY TELKOM"
+        "Layanan Connectivity TELKOM",          # Standard format (SMK Penerbangan, SMKN Bireun)
+        "LayananConnectivityTELKOM",            # Tanpa spasi sama sekali
+        "LayananConnectivity TELKOM",           # PT MPG format (tanpa spasi setelah "Layanan")
+        "Layanan ConnectivityTELKOM",           # Tanpa spasi setelah "Connectivity"
+        "Connectivity TELKOM",                   # Simplified format
+        "LAYANAN CONNECTIVITY TELKOM",          # Uppercase variant
+        "LAYANANCONNECTIVITYTELKOM",            # Full concatenated
     ]
     
     non_connectivity_patterns = [
-        "Layanan Non-Connectivity TELKOM",
-        "LayananNon-ConnectivityTELKOM",
-        "Non-Connectivity TELKOM", 
-        "LAYANAN NON-CONNECTIVITY TELKOM"
+        "Layanan Non-Connectivity TELKOM",          # Standard format
+        "LayananNon-ConnectivityTELKOM",            # Tanpa spasi setelah "Layanan"
+        "Layanan Non-ConnectivityTELKOM",           # Tanpa spasi setelah "Non-Connectivity"
+        "LayananNon-Connectivity TELKOM",           # Tanpa spasi sebelum, dengan spasi setelah
+        "Non-Connectivity TELKOM",                   # Simplified format
+        "LAYANAN NON-CONNECTIVITY TELKOM",          # Uppercase variant
+        "LAYANANNON-CONNECTIVITYTELKOM",            # Full concatenated
     ]
     
     bundling_patterns = [
-        "Bundling Layanan Connectivity TELKOM& Solusi",
-        "BundlingLayananConnectivityTELKOM&Solusi",
-        "Bundling Layanan Connectivity TELKOM & Solusi",
-        "BUNDLING LAYANAN CONNECTIVITY TELKOM& SOLUSI"
+        "Bundling Layanan Connectivity TELKOM& Solusi",        # Standard format 
+        "BundlingLayananConnectivityTELKOM&Solusi",            # PT MPG format (full concatenated)
+        "Bundling LayananConnectivityTELKOM&Solusi",           # SMK Penerbangan format 
+        "Bundling Layanan Connectivity TELKOM & Solusi",       # SMKN Bireun format (dengan spasi sebelum &)
+        "BundlingLayanan Connectivity TELKOM&Solusi",          # Mixed format
+        "Bundling LayananConnectivity TELKOM&Solusi",          # Mixed format 2
+        "BUNDLING LAYANAN CONNECTIVITY TELKOM& SOLUSI",        # Uppercase variant
+        "BUNDLINGLAYANANCONNECTIVITYTELKOM&SOLUSI",           # Full uppercase concatenated
     ]
     
     connectivity = _find_count_robust(texts, connectivity_patterns)
@@ -693,7 +877,7 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
 
     # Try special cases first (Free, combined patterns)
     special_instalasi, special_langganan = _extract_cost_special_cases(texts)
-    if special_instalasi > 0 or special_langganan > 0:
+    if special_instalasi >= 0 or special_langganan > 0:  # Allow 0 for instalasi (Free case)
         biaya_instalasi = special_instalasi
         biaya_langganan_tahunan = special_langganan
     else:
@@ -705,19 +889,32 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
             "Biaya Instalasi Rp"
         ]
         
-        # Multiple patterns untuk biaya langganan
+        # Multiple patterns untuk biaya langganan (only specific patterns to avoid false matches)
         langganan_patterns = [
-            "Biaya Langganan Tahunan",
+            "Biaya Langganan Tahunan",       # Most specific first
             "BiayaLanggananTahunan",
             "BIAYA LANGGANAN TAHUNAN", 
-            "Biaya Langganan Selama",
-            "Langganan Tahunan",
-            "Biaya Langganan",
-            "Biaya Langganan Selama1Tahun"  # Handle concatenated case
+            "Biaya Langganan Selama1Tahun",  # Handle concatenated case
+            "Biaya Langganan Selama1tahun",  # Handle lowercase OCR variation
+            "Biaya Langganan Selama 1Tahun", # Handle spaced variation  
+            "Biaya Langganan Selama 1tahun", # Handle spaced + lowercase variation
+            "BiayaLanggananSelama1Tahun",    # Handle completely concatenated
+            "BiayaLanggananSelama1tahun",    # Handle concatenated + lowercase
+            "Biaya Langganan Selama",        # Keep this for general "Selama" patterns
+            "Biaya Langganan Bulanan"        # Handle PT MPG edge case where contract says "Bulanan" but means annual
         ]
         
-        biaya_instalasi = _extract_cost_robust(texts, instalasi_patterns)
-        biaya_langganan_tahunan = _extract_cost_robust(texts, langganan_patterns)
+        # First try structured biaya section parsing
+        biaya_langganan_tahunan = _extract_cost_from_biaya_section(texts, "langganan")
+        if biaya_langganan_tahunan == 0.0:
+            # Fallback to pattern-based extraction
+            biaya_langganan_tahunan = _extract_cost_robust(texts, langganan_patterns)
+        
+        # First try structured biaya section parsing for instalasi too
+        biaya_instalasi = _extract_cost_from_biaya_section(texts, "instalasi")
+        if biaya_instalasi == 0.0:
+            # Fallback to pattern-based extraction
+            biaya_instalasi = _extract_cost_robust(texts, instalasi_patterns)
 
     rincian_layanan = [
         RincianLayanan(
@@ -739,16 +936,22 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     total_amount = None
     
     if method_type == "termin":
+        # Try to extract full termin details first
         termin_list, count, amount = _extract_termin_payments(texts)
-        if termin_list:  # Jika berhasil ekstrak termin
+        if termin_list:  # Jika berhasil ekstrak termin lengkap
             termin_payments = termin_list
             total_termin_count = count
             total_amount = amount
             description = f"Pembayaran termin ({count} periode)"
         else:
-            # Fallback jika deteksi termin gagal
-            method_type = "one_time_charge"
-            description = "Pembayaran termin terdeteksi (gagal ekstrak detail)"
+            # Fallback: extract termin count only (for edge cases without amounts)
+            count_only = _extract_termin_count_only(texts)
+            if count_only:
+                total_termin_count = count_only
+                description = f"Pembayaran termin ({count_only} periode, tanpa detail nominal)"
+            else:
+                # Last resort: keep as termin but indicate extraction failed
+                description = "Pembayaran termin terdeteksi (gagal ekstrak detail)"
     
     tata_cara_pembayaran = TataCaraPembayaran(
         method_type=method_type,
