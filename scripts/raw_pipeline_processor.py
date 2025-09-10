@@ -368,6 +368,8 @@ def main():
         # "tests/test_samples/KB SMKN 1 BIREUN TTD 2024 VALIDASI.pdf",
         # "tests/test_samples/KONTRAK PT LKMS MAHIRAH MUAMALAH  2025 VALIDASI.pdf",
         # "tests/test_samples/KONTRAK SMK PENERBANGAN 2025 VALIDASI.pdf"
+        # "tests/test_samples/Kontrak PT MPG 2025.pdf"
+        "tests/test_samples/KONTRAK POLTEKPEL 2025 TTD VALIDASI.pdf"
     ]
     
     processor = None
