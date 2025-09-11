@@ -11,6 +11,16 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     
+    # Database Settings
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/telkom_contracts"
+    
+    # Authentication Settings (from environment variables)
+    auth_username: str  # No default - must be set in .env
+    auth_password: str  # No default - must be set in .env
+    jwt_secret_key: str  # No default - must be set in .env
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_hours: int = 24
+    
     # File Upload Settings
     max_file_size: int = 50 * 1024 * 1024  # 50MB
     allowed_extensions: list = [".pdf", ".png", ".jpg", ".jpeg"]

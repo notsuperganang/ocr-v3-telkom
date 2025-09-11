@@ -12,6 +12,15 @@ python-multipart
 pydantic
 pydantic-settings
 
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+
 # Data Processing
 pandas
 openpyxl
