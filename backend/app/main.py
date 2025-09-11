@@ -14,8 +14,10 @@ from app.database import init_database, get_db, engine
 from app.auth.routes import router as auth_router
 from app.auth.dependencies import get_current_user
 
-# Import other route modules (will be created in future phases)
-# from app.api.routes import files, processing, contracts, health
+# Import API route modules
+from app.api.upload import router as upload_router
+from app.api.processing import router as processing_router
+from app.api.contracts import router as contracts_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -77,7 +79,12 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # React dev server
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",  # Vite dev server
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,6 +92,11 @@ app.add_middleware(
 
 # Include authentication routes
 app.include_router(auth_router)
+
+# Include API routes
+app.include_router(upload_router)
+app.include_router(processing_router)
+app.include_router(contracts_router)
 
 # Health check endpoint (unprotected)
 @app.get("/")
@@ -119,10 +131,7 @@ async def protected_example(current_user: str = Depends(get_current_user)):
         "user": current_user
     }
 
-# Future API routes will be added here in Phase 2:
-# app.include_router(files_router, prefix="/api")
-# app.include_router(processing_router, prefix="/api") 
-# app.include_router(contracts_router, prefix="/api")
+# All API routes are now included above
 
 if __name__ == "__main__":
     import uvicorn
