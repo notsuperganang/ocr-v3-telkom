@@ -5,6 +5,7 @@ Handles PDF upload and creates processing jobs
 
 import os
 import uuid
+import json
 from typing import List
 from pathlib import Path
 from datetime import datetime, timezone
@@ -145,7 +146,8 @@ async def process_file_background(job_id: int, file_path: str):
                     if page2_path:
                         extracted_data = merge_with_page2(extracted_data, page2_path)
                     
-                    job.extracted_data = extracted_data.dict()
+                    # Use json() to handle datetime serialization properly
+                    job.extracted_data = json.loads(extracted_data.json())
                     job.status = JobStatus.AWAITING_REVIEW
                 else:
                     job.status = JobStatus.FAILED
