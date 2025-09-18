@@ -294,9 +294,12 @@ async def delete_contract(
     contract_id: int,
     db_and_user: tuple[Session, str] = Depends(get_db_and_user)
 ):
-    """Delete a contract (admin operation)"""
+    """Delete a contract and associated files (admin operation)"""
     db, current_user = db_and_user
-    
+
+    # Import file manager
+    from app.services.file_manager import file_manager
+
     # Get contract
     contract = db.query(Contract).filter(Contract.id == contract_id).first()
     if not contract:
@@ -304,27 +307,49 @@ async def delete_contract(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Contract not found"
         )
-    
+
     try:
         # Get contract info for logging
         file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
         filename = file_model.original_filename if file_model else "unknown"
-        
+
+        # Delete associated files BEFORE deleting database records
+        file_cleanup_result = file_manager.delete_contract_files(db, contract_id)
+
         # Delete related export history
         db.query(ExportHistory).filter(ExportHistory.contract_id == contract_id).delete()
-        
-        # Delete contract
+
+        # Delete contract first (to avoid foreign key constraint)
         db.delete(contract)
+        db.commit()  # Commit contract deletion before deleting processing job
+
+        # Delete file record if no other contracts reference it
+        if file_model:
+            other_contracts = db.query(Contract).filter(
+                Contract.file_id == file_model.id,
+                Contract.id != contract_id
+            ).count()
+
+            if other_contracts == 0:
+                # Now safe to delete processing jobs for this file
+                db.query(ProcessingJob).filter(ProcessingJob.file_id == file_model.id).delete()
+                db.delete(file_model)
+
         db.commit()
-        
+
         return {
-            "message": "Contract deleted successfully",
+            "message": "Contract and associated files deleted successfully",
             "contract_id": contract_id,
             "filename": filename,
             "deleted_by": current_user,
-            "deleted_at": datetime.now(timezone.utc)
+            "deleted_at": datetime.now(timezone.utc),
+            "file_cleanup": {
+                "deleted_files": len(file_cleanup_result.get("deleted_files", [])),
+                "total_size": file_cleanup_result.get("total_size", 0),
+                "errors": file_cleanup_result.get("errors", [])
+            }
         }
-    
+
     except Exception as e:
         db.rollback()
         raise HTTPException(

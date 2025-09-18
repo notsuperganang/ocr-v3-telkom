@@ -291,9 +291,12 @@ async def discard_job(
     job_id: int,
     db_and_user: tuple[Session, str] = Depends(get_db_and_user)
 ):
-    """Discard a processing job and its data"""
+    """Discard a processing job and clean up its files"""
     db, current_user = db_and_user
-    
+
+    # Import file manager
+    from app.services.file_manager import file_manager
+
     # Get job
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
     if not job:
@@ -301,32 +304,41 @@ async def discard_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Processing job not found"
         )
-    
+
     # Check if job can be discarded
     if job.status == JobStatus.CONFIRMED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot discard confirmed job"
         )
-    
+
     try:
+        # Clean up job files (keep PDF as other jobs might reference it)
+        file_cleanup_result = file_manager.delete_job_files(db, job_id, keep_pdf=True)
+
         # Clear draft data
         job.edited_data = None
+        job.ocr_artifacts = None  # Clear OCR artifacts reference
         job.updated_at = datetime.now(timezone.utc)
-        
+
         # If job is not processing, mark as failed
         if job.status not in [JobStatus.PROCESSING]:
             job.status = JobStatus.FAILED
             job.error_message = f"Job discarded by {current_user}"
-        
+
         db.commit()
-        
+
         return {
-            "message": "Job discarded successfully",
+            "message": "Job discarded and files cleaned up successfully",
             "job_id": job_id,
-            "status": job.status.value
+            "status": job.status.value,
+            "file_cleanup": {
+                "deleted_files": len(file_cleanup_result.get("deleted_files", [])),
+                "total_size": file_cleanup_result.get("total_size", 0),
+                "errors": file_cleanup_result.get("errors", [])
+            }
         }
-    
+
     except Exception as e:
         db.rollback()
         raise HTTPException(

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[tool.pylance]
+extraPaths = ["."]
+
+[tool.pyright]
+extraPaths = ["."]
+pythonPath = "~/miniconda3/envs/ocr-v3/bin/python"
+
+[project]
+name = "telkom-contract-extractor"
+version = "1.0.0"
+dependencies = []

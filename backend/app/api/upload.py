@@ -139,12 +139,18 @@ async def process_file_background(job_id: int, file_path: str):
                 # Extract data from OCR results
                 page1_path = ocr_result.output_paths.get("page_1")
                 if page1_path:
-                    extracted_data = extract_from_page1_one_time(page1_path)
+                    # Load page1 JSON instead of passing file path
+                    with open(page1_path, 'r') as f:
+                        page1_ocr = json.load(f)
+                    extracted_data = extract_from_page1_one_time(page1_ocr)
                     
                     # Merge with page 2 if available
                     page2_path = ocr_result.output_paths.get("page_2")
                     if page2_path:
-                        extracted_data = merge_with_page2(extracted_data, page2_path)
+                        # Load page2 JSON instead of passing file path
+                        with open(page2_path, 'r') as f:
+                            page2_ocr = json.load(f)
+                        extracted_data = merge_with_page2(extracted_data, page2_ocr)
                     
                     # Use json() to handle datetime serialization properly
                     job.extracted_data = json.loads(extracted_data.json())
