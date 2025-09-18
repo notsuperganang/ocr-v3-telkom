@@ -18,6 +18,7 @@ from app.auth.dependencies import get_current_user
 from app.api.upload import router as upload_router
 from app.api.processing import router as processing_router
 from app.api.contracts import router as contracts_router
+from app.api.admin import router as admin_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,6 +98,7 @@ app.include_router(auth_router)
 app.include_router(upload_router)
 app.include_router(processing_router)
 app.include_router(contracts_router)
+app.include_router(admin_router)
 
 # Health check endpoint (unprotected)
 @app.get("/")
