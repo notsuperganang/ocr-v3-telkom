@@ -47,6 +47,13 @@ class JobDataResponse(BaseModel):
 class DataUpdateRequest(BaseModel):
     edited_data: Dict[str, Any]
 
+class JobListResponse(BaseModel):
+    jobs: list[JobStatusResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
 def get_progress_message(job: ProcessingJob) -> str:
     """Generate user-friendly progress message based on job status"""
     status_messages = {
@@ -58,6 +65,67 @@ def get_progress_message(job: ProcessingJob) -> str:
         JobStatus.FAILED: f"Processing failed: {job.error_message or 'Unknown error'}"
     }
     return status_messages.get(job.status, f"Status: {job.status.value}")
+
+@router.get("/jobs", response_model=JobListResponse)
+async def list_all_jobs(
+    page: int = 1,
+    per_page: int = 10,
+    status_filter: Optional[str] = None,
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """List all processing jobs with pagination and optional status filtering"""
+    db, current_user = db_and_user
+
+    # Build query
+    query = db.query(ProcessingJob).join(FileModel, ProcessingJob.file_id == FileModel.id)
+
+    # Apply status filter if provided
+    if status_filter:
+        try:
+            status_enum = JobStatus(status_filter.lower())
+            query = query.filter(ProcessingJob.status == status_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status filter: {status_filter}"
+            )
+
+    # Order by creation date (newest first)
+    query = query.order_by(ProcessingJob.created_at.desc())
+
+    # Get total count
+    total = query.count()
+
+    # Calculate pagination
+    total_pages = (total + per_page - 1) // per_page
+    offset = (page - 1) * per_page
+
+    # Get jobs for current page
+    jobs = query.offset(offset).limit(per_page).all()
+
+    # Convert to response format
+    job_responses = []
+    for job in jobs:
+        file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
+        job_responses.append(JobStatusResponse(
+            job_id=job.id,
+            file_id=job.file_id,
+            filename=file_model.original_filename if file_model else "Unknown",
+            status=job.status.value,
+            progress_message=get_progress_message(job),
+            processing_time_seconds=job.processing_time_seconds,
+            error_message=job.error_message,
+            created_at=job.created_at,
+            updated_at=job.updated_at
+        ))
+
+    return JobListResponse(
+        jobs=job_responses,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
+    )
 
 @router.get("/status/{job_id}", response_model=JobStatusResponse)
 async def get_job_status(
@@ -316,17 +384,50 @@ async def discard_job(
         # Clean up job files (keep PDF as other jobs might reference it)
         file_cleanup_result = file_manager.delete_job_files(db, job_id, keep_pdf=True)
 
-        # Clear draft data
-        job.edited_data = None
-        job.ocr_artifacts = None  # Clear OCR artifacts reference
-        job.updated_at = datetime.now(timezone.utc)
+        # If job is already failed, completely delete it from database
+        if job.status == JobStatus.FAILED:
+            # Get file_id before deleting job
+            file_id = job.file_id
 
-        # If job is not processing, mark as failed
-        if job.status not in [JobStatus.PROCESSING]:
-            job.status = JobStatus.FAILED
-            job.error_message = f"Job discarded by {current_user}"
+            # Delete the job completely
+            db.delete(job)
 
-        db.commit()
+            # Check if any other jobs reference this file
+            other_jobs = db.query(ProcessingJob).filter(
+                ProcessingJob.file_id == file_id,
+                ProcessingJob.id != job_id
+            ).count()
+
+            # If no other jobs reference this file, delete the file record too
+            if other_jobs == 0:
+                file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+                if file_record:
+                    db.delete(file_record)
+
+            db.commit()
+
+            return {
+                "message": "Failed job and associated files deleted completely",
+                "job_id": job_id,
+                "status": "deleted",
+                "file_cleanup": {
+                    "deleted_files": len(file_cleanup_result.get("deleted_files", [])),
+                    "total_size": file_cleanup_result.get("total_size", 0),
+                    "errors": file_cleanup_result.get("errors", [])
+                }
+            }
+        else:
+            # Clear draft data for non-failed jobs
+            job.edited_data = None
+            job.ocr_artifacts = None  # Clear OCR artifacts reference
+            job.updated_at = datetime.now(timezone.utc)
+
+            # If job is not processing, mark as failed
+            if job.status not in [JobStatus.PROCESSING]:
+                job.status = JobStatus.FAILED
+                job.error_message = f"Job discarded by {current_user}"
+
+            db.commit()
 
         return {
             "message": "Job discarded and files cleaned up successfully",

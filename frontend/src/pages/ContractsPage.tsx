@@ -10,9 +10,9 @@ export function ContractsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Contracts</h1>
+          <h1 className="text-3xl font-bold text-foreground">Kontrak</h1>
           <p className="text-muted-foreground">
-            View and manage processed contract data
+            Lihat dan kelola data kontrak yang telah diproses
           </p>
         </div>
       </div>
@@ -25,7 +25,7 @@ export function ContractsPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by filename, contract number, or customer name..."
+                  placeholder="Cari berdasarkan nama file, nomor kontrak, atau nama pelanggan..."
                   className="pl-10"
                 />
               </div>

@@ -243,3 +243,6 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+// Default export for convenience
+export const apiService = apiClient;

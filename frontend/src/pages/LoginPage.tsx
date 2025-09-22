@@ -47,19 +47,19 @@ export function LoginPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Telkom Contract</h1>
-              <p className="text-muted-foreground">Data Extractor</p>
+              <p className="text-muted-foreground">Ekstrator Data</p>
             </div>
           </div>
           <p className="text-center text-muted-foreground">
-            Sign in to access the contract processing dashboard
+            Masuk untuk mengakses dashboard pemrosesan kontrak
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
+            <CardTitle>Selamat Datang Kembali</CardTitle>
             <CardDescription>
-              Enter your credentials to sign in to your account
+              Masukkan kredensial Anda untuk masuk ke akun
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -101,7 +101,7 @@ export function LoginPage() {
                 disabled={isLoading}
               >
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLoading ? 'Signing in...' : 'Sign in'}
+                {isLoading ? 'Masuk...' : 'Masuk'}
               </Button>
             </form>
           </CardContent>
