@@ -27,7 +27,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Upload', href: '/upload', icon: Upload },
-  { name: 'Contracts', href: '/contracts', icon: FolderOpen },
+  { name: 'Kontrak', href: '/contracts', icon: FolderOpen },
 ];
 
 export function Layout({ children }: LayoutProps) {
@@ -40,7 +40,7 @@ export function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div 
@@ -64,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
               </div>
               <div>
                 <h1 className="font-semibold text-sidebar-foreground">Telkom Contract</h1>
-                <p className="text-xs text-muted-foreground">Data Extractor</p>
+                <p className="text-xs text-muted-foreground">Ekstrator Data</p>
               </div>
             </div>
             <Button
@@ -125,14 +125,14 @@ export function Layout({ children }: LayoutProps) {
               className="w-full justify-start gap-2 text-sidebar-foreground hover:bg-sidebar-accent/50"
             >
               <LogOut className="w-4 h-4" />
-              Sign out
+              Keluar
             </Button>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-72">
+      <div className="flex-1 lg:pl-0 min-h-screen">
         {/* Mobile header */}
         <div className="lg:hidden">
           <div className="flex h-16 items-center justify-between px-4 border-b border-border bg-background">
@@ -153,7 +153,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Page content */}
-        <main className="min-h-screen bg-background">
+        <main className="bg-background">
           {children}
         </main>
       </div>
