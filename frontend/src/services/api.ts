@@ -179,7 +179,17 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch PDF');
+      let errorMessage = `Failed to fetch PDF (${response.status})`;
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorMessage;
+        }
+      } catch (e) {
+        errorMessage = `Failed to fetch PDF: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     return response.blob();

@@ -1,13 +1,7 @@
-import React, { useState, useCallback } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
-  ZoomIn,
-  ZoomOut,
-  ChevronLeft,
-  ChevronRight,
   FileText,
   AlertCircle,
   RefreshCw,
@@ -15,117 +9,115 @@ import {
   Minimize2
 } from 'lucide-react';
 import { apiService } from '@/services/api';
-import type { PdfViewerState } from '@/types/extraction';
-
-// Set up PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface PdfPreviewProps {
   jobId: number;
-  maxPages?: number; // Limit to first N pages (default: 2)
   className?: string;
 }
 
-const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2];
-const DEFAULT_ZOOM = 1;
-const MAX_PAGES_DEFAULT = 2;
-
-export function PdfPreview({ jobId, maxPages = MAX_PAGES_DEFAULT, className }: PdfPreviewProps) {
-  const [viewerState, setViewerState] = useState<PdfViewerState>({
-    currentPage: 1,
-    scale: DEFAULT_ZOOM,
-    isLoading: true,
-    error: undefined,
-  });
-
+export function PdfPreview({ jobId, className }: PdfPreviewProps) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // Load PDF blob from API
-  const loadPdf = useCallback(async () => {
-    try {
-      setViewerState(prev => ({ ...prev, isLoading: true, error: undefined }));
-
-      const blob = await apiService.getJobPdf(jobId);
-      const url = URL.createObjectURL(blob);
-      setPdfBlob(url);
-    } catch (error) {
-      console.error('Failed to load PDF:', error);
-      setViewerState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to load PDF'
-      }));
-    }
-  }, [jobId]);
+  // Retry function for failed loads
+  const retryLoad = () => {
+    console.log('Retrying PDF load...');
+    setError(null);
+    setIsLoading(true);
+    setPdfBlob(null);
+    setRetryCount(prev => prev + 1);
+  };
 
   // Load PDF on mount
   React.useEffect(() => {
+    async function loadPdf() {
+      try {
+        console.log(`Loading PDF for job ${jobId}... (attempt ${retryCount + 1})`);
+        setIsLoading(true);
+        setError(null);
+
+        // Clear any existing timeout
+        if (loadTimeout) {
+          clearTimeout(loadTimeout);
+          setLoadTimeout(null);
+        }
+
+        const blob = await apiService.getJobPdf(jobId);
+        console.log(`PDF blob received: ${blob.size} bytes, type: ${blob.type}`);
+
+        if (blob.size === 0) {
+          throw new Error('Received empty PDF file');
+        }
+
+        const url = URL.createObjectURL(blob);
+        setPdfBlob(url);
+        console.log('PDF blob URL created successfully');
+
+        // Set timeout fallback in case iframe doesn't trigger load events
+        const timeout = setTimeout(() => {
+          console.warn('PDF iframe load timeout - assuming loaded');
+          setIsLoading(false);
+        }, 5000);
+        setLoadTimeout(timeout);
+
+      } catch (error) {
+        console.error('Failed to load PDF:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load PDF');
+        setIsLoading(false);
+      }
+    }
+
     loadPdf();
 
-    // Cleanup blob URL on unmount
+    // Cleanup blob URL and timeout on unmount
     return () => {
       if (pdfBlob) {
         URL.revokeObjectURL(pdfBlob);
       }
+      if (loadTimeout) {
+        clearTimeout(loadTimeout);
+      }
     };
-  }, [loadPdf]);
+  }, [jobId, retryCount]); // Re-run when jobId changes or when retrying
 
-  // PDF document load success
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setViewerState(prev => ({
-      ...prev,
-      numPages: Math.min(numPages, maxPages),
-      isLoading: false,
-      error: undefined,
-    }));
-  };
+  // Handle iframe load success
+  const handleIframeLoad = () => {
+    console.log('✅ PDF iframe loaded successfully');
 
-  // PDF document load error
-  const onDocumentLoadError = (error: Error) => {
-    console.error('PDF load error:', error);
-    setViewerState(prev => ({
-      ...prev,
-      isLoading: false,
-      error: 'Failed to load PDF document',
-    }));
-  };
-
-  // Page navigation
-  const goToPage = (page: number) => {
-    const maxPage = viewerState.numPages || maxPages;
-    const newPage = Math.max(1, Math.min(page, maxPage));
-    setViewerState(prev => ({ ...prev, currentPage: newPage }));
-  };
-
-  // Zoom controls
-  const zoomIn = () => {
-    const currentIndex = ZOOM_LEVELS.indexOf(viewerState.scale);
-    if (currentIndex < ZOOM_LEVELS.length - 1) {
-      setViewerState(prev => ({ ...prev, scale: ZOOM_LEVELS[currentIndex + 1] }));
+    // Clear timeout since iframe loaded successfully
+    if (loadTimeout) {
+      clearTimeout(loadTimeout);
+      setLoadTimeout(null);
     }
+
+    setIsLoading(false);
+    setError(null);
   };
 
-  const zoomOut = () => {
-    const currentIndex = ZOOM_LEVELS.indexOf(viewerState.scale);
-    if (currentIndex > 0) {
-      setViewerState(prev => ({ ...prev, scale: ZOOM_LEVELS[currentIndex - 1] }));
+  // Handle iframe load error
+  const handleIframeError = () => {
+    console.error('❌ PDF iframe failed to load');
+
+    // Clear timeout since we got an error
+    if (loadTimeout) {
+      clearTimeout(loadTimeout);
+      setLoadTimeout(null);
     }
-  };
 
-  const resetZoom = () => {
-    setViewerState(prev => ({ ...prev, scale: DEFAULT_ZOOM }));
+    setError('Failed to load PDF in browser viewer');
+    setIsLoading(false);
   };
-
-  // Get zoom percentage
-  const zoomPercentage = Math.round(viewerState.scale * 100);
 
   // Toggle fullscreen
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen);
   };
 
-  if (viewerState.error) {
+  if (error) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -136,8 +128,8 @@ export function PdfPreview({ jobId, maxPages = MAX_PAGES_DEFAULT, className }: P
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center gap-4 py-8">
-            <p className="text-muted-foreground text-center">{viewerState.error}</p>
-            <Button variant="outline" onClick={loadPdf}>
+            <p className="text-muted-foreground text-center">{error}</p>
+            <Button variant="outline" onClick={retryLoad}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Retry
             </Button>
@@ -154,11 +146,6 @@ export function PdfPreview({ jobId, maxPages = MAX_PAGES_DEFAULT, className }: P
           <CardTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
             PDF Preview
-            {viewerState.numPages && (
-              <Badge variant="secondary">
-                {viewerState.numPages} page{viewerState.numPages !== 1 ? 's' : ''}
-              </Badge>
-            )}
           </CardTitle>
 
           <Button
@@ -174,73 +161,11 @@ export function PdfPreview({ jobId, maxPages = MAX_PAGES_DEFAULT, className }: P
             )}
           </Button>
         </div>
-
-        {/* Controls */}
-        <div className="flex items-center justify-between gap-2 text-sm">
-          {/* Page navigation */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => goToPage(viewerState.currentPage - 1)}
-              disabled={viewerState.currentPage <= 1}
-              className="p-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-
-            <span className="px-2 py-1 bg-muted rounded text-xs min-w-[60px] text-center">
-              {viewerState.currentPage} / {viewerState.numPages || maxPages}
-            </span>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => goToPage(viewerState.currentPage + 1)}
-              disabled={viewerState.currentPage >= (viewerState.numPages || maxPages)}
-              className="p-1"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* Zoom controls */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={zoomOut}
-              disabled={viewerState.scale <= ZOOM_LEVELS[0]}
-              className="p-1"
-            >
-              <ZoomOut className="w-4 h-4" />
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetZoom}
-              className="px-2 py-1 text-xs min-w-[50px]"
-            >
-              {zoomPercentage}%
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={zoomIn}
-              disabled={viewerState.scale >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-              className="p-1"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
       </CardHeader>
 
       <CardContent className="p-0">
-        <div className={`overflow-auto ${isFullscreen ? 'h-[calc(100vh-120px)]' : 'h-[calc(100vh-280px)]'}`}>
-          {viewerState.isLoading ? (
+        <div className={`${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-240px)]'}`}>
+          {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <div className="flex items-center gap-3">
                 <RefreshCw className="w-6 h-6 animate-spin text-primary" />
@@ -248,52 +173,13 @@ export function PdfPreview({ jobId, maxPages = MAX_PAGES_DEFAULT, className }: P
               </div>
             </div>
           ) : pdfBlob ? (
-            <Document
-              file={pdfBlob}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
-              loading={
-                <div className="flex items-center justify-center h-64">
-                  <div className="flex items-center gap-3">
-                    <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                    <span>Loading PDF...</span>
-                  </div>
-                </div>
-              }
-              error={
-                <div className="flex items-center justify-center h-64">
-                  <div className="flex items-center gap-3 text-red-500">
-                    <AlertCircle className="w-6 h-6" />
-                    <span>Failed to load PDF</span>
-                  </div>
-                </div>
-              }
-              className="flex flex-col items-center"
-            >
-              <Page
-                pageNumber={viewerState.currentPage}
-                scale={viewerState.scale}
-                loading={
-                  <div className="flex items-center justify-center h-64 border border-dashed border-gray-300 rounded">
-                    <div className="flex items-center gap-3">
-                      <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                      <span>Loading page...</span>
-                    </div>
-                  </div>
-                }
-                error={
-                  <div className="flex items-center justify-center h-64 border border-dashed border-red-300 rounded">
-                    <div className="flex items-center gap-3 text-red-500">
-                      <AlertCircle className="w-6 h-6" />
-                      <span>Failed to load page</span>
-                    </div>
-                  </div>
-                }
-                className="border border-gray-200 rounded shadow-sm mb-4"
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
-              />
-            </Document>
+            <iframe
+              src={pdfBlob}
+              className="w-full h-full border-0"
+              title="PDF Preview"
+              onLoad={handleIframeLoad}
+              onError={handleIframeError}
+            />
           ) : null}
         </div>
       </CardContent>

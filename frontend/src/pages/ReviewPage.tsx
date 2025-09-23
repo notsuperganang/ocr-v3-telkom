@@ -249,7 +249,6 @@ export function ReviewPage() {
         <div className="space-y-4">
           <PdfPreview
             jobId={numericJobId}
-            maxPages={2}
             className="h-full"
           />
         </div>
