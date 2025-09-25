@@ -44,10 +44,10 @@ export function MainServicesSection({
     >
       <div className="space-y-6">
         {/* Service Type Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
           {/* Connectivity Services */}
-          <div className="border rounded-lg p-4 bg-blue-50/50">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="border rounded-lg p-4 bg-blue-50/50 min-h-[140px] flex flex-col">
+            <div className="flex items-center gap-3 mb-3 flex-1">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Network className="w-5 h-5 text-blue-600" />
               </div>
@@ -61,6 +61,7 @@ export function MainServicesSection({
               </div>
             </div>
 
+            <div className="mt-auto">
             <Input
               id="connectivity"
               type="number"
@@ -77,11 +78,12 @@ export function MainServicesSection({
                 {errors.layanan_utama.connectivity_telkom.message}
               </p>
             )}
+            </div>
           </div>
 
           {/* Non-Connectivity Services */}
-          <div className="border rounded-lg p-4 bg-green-50/50">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="border rounded-lg p-4 bg-green-50/50 min-h-[140px] flex flex-col">
+            <div className="flex items-center gap-3 mb-3 flex-1">
               <div className="p-2 bg-green-100 rounded-lg">
                 <Globe className="w-5 h-5 text-green-600" />
               </div>
@@ -95,6 +97,7 @@ export function MainServicesSection({
               </div>
             </div>
 
+            <div className="mt-auto">
             <Input
               id="non_connectivity"
               type="number"
@@ -111,11 +114,12 @@ export function MainServicesSection({
                 {errors.layanan_utama.non_connectivity_telkom.message}
               </p>
             )}
+            </div>
           </div>
 
           {/* Bundling Services */}
-          <div className="border rounded-lg p-4 bg-purple-50/50">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="border rounded-lg p-4 bg-purple-50/50 min-h-[140px] flex flex-col">
+            <div className="flex items-center gap-3 mb-3 flex-1">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Package className="w-5 h-5 text-purple-600" />
               </div>
@@ -129,6 +133,7 @@ export function MainServicesSection({
               </div>
             </div>
 
+            <div className="mt-auto">
             <Input
               id="bundling"
               type="number"
@@ -145,6 +150,7 @@ export function MainServicesSection({
                 {errors.layanan_utama.bundling.message}
               </p>
             )}
+            </div>
           </div>
         </div>
 

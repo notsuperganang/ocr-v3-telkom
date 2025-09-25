@@ -84,19 +84,19 @@ export function PaymentMethodSection({
         {/* Payment Method Selection */}
         <div className="space-y-3">
           <Label className="text-sm font-medium">Metode Pembayaran</Label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
             {paymentOptions.map((option) => (
               <Card
                 key={option.value}
-                className={`cursor-pointer transition-all hover:shadow-md ${
+                className={`cursor-pointer transition-all hover:shadow-md min-h-[100px] flex flex-col ${
                   methodType === option.value
                     ? option.color + ' border-2'
                     : 'border hover:border-primary/50'
                 }`}
                 onClick={() => handleMethodTypeChange(option.value)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
+                <CardContent className="p-4 flex-1 flex items-center">
+                  <div className="flex items-center gap-3 w-full">
                     <div className={`p-2 rounded-lg ${
                       methodType === option.value ? 'bg-white/50' : 'bg-gray-100'
                     }`}>
