@@ -324,17 +324,17 @@ export function FormSummary({ sections, className = '' }: FormSummaryProps) {
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div className="text-center">
               <div className="font-medium text-lg">{totalStats.completed}</div>
-              <div className="text-muted-foreground">Completed</div>
+              <div className="text-muted-foreground">Selesai</div>
             </div>
             <div className="text-center">
               <div className="font-medium text-lg">{totalStats.total}</div>
-              <div className="text-muted-foreground">Total Fields</div>
+              <div className="text-muted-foreground">Total Field</div>
             </div>
             <div className="text-center">
               <div className={`font-medium text-lg ${totalStats.errors > 0 ? 'text-red-500' : 'text-green-500'}`}>
                 {totalStats.errors}
               </div>
-              <div className="text-muted-foreground">Errors</div>
+              <div className="text-muted-foreground">Kesalahan</div>
             </div>
           </div>
 
@@ -353,8 +353,8 @@ export function FormSummary({ sections, className = '' }: FormSummaryProps) {
 
           <div className="text-xs text-muted-foreground text-center">
             {canSubmit
-              ? 'Ready for confirmation'
-              : `${totalStats.requiredSections - totalStats.completedRequiredSections} required sections remaining`
+              ? 'Siap untuk konfirmasi'
+              : `${totalStats.requiredSections - totalStats.completedRequiredSections} bagian wajib tersisa`
             }
           </div>
         </div>

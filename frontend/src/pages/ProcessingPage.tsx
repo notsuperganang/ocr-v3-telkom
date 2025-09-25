@@ -304,9 +304,9 @@ export function ProcessingPage() {
                 <div className="space-y-2">
                   <h4 className="font-medium">Layanan Utama</h4>
                   <div className="grid grid-cols-2 gap-4 pl-4">
-                    <div className="text-sm text-muted-foreground">Connectivity:</div>
+                    <div className="text-sm text-muted-foreground">Connectivity Telkom:</div>
                     <div className="text-sm">{extractedData.layanan_utama.connectivity_telkom || 0}</div>
-                    <div className="text-sm text-muted-foreground">Non-Connectivity:</div>
+                    <div className="text-sm text-muted-foreground">Non-Connectivity Telkom:</div>
                     <div className="text-sm">{extractedData.layanan_utama.non_connectivity_telkom || 0}</div>
                     <div className="text-sm text-muted-foreground">Bundling:</div>
                     <div className="text-sm">{extractedData.layanan_utama.bundling || 0}</div>
