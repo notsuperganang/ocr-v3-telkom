@@ -30,7 +30,7 @@ export function ContractPeriodSection({
     setValue('jangka_waktu.akhir', value);
   };
 
-  // Calculate contract duration
+  // Calculate contract duration with smart rounding
   const calculateDuration = () => {
     if (!startDate || !endDate) return null;
 
@@ -41,10 +41,20 @@ export function ContractPeriodSection({
       if (!isValid(start) || !isValid(end)) return null;
 
       const days = differenceInDays(end, start);
-      const months = differenceInMonths(end, start);
+      const rawMonths = differenceInMonths(end, start);
       const years = differenceInYears(end, start);
 
       if (days < 0) return { error: 'Tanggal akhir harus setelah tanggal mulai' };
+
+      // Smart rounding logic: if the difference is less than 7 days from a full month, round up
+      const exactMonthEnd = new Date(start);
+      exactMonthEnd.setMonth(exactMonthEnd.getMonth() + rawMonths + 1);
+      const daysDifferenceFromFullMonth = differenceInDays(exactMonthEnd, end);
+
+      // If we're within 7 days of the next full month, round up
+      const months = (daysDifferenceFromFullMonth <= 7 && daysDifferenceFromFullMonth >= 0)
+        ? rawMonths + 1
+        : rawMonths;
 
       return { days, months, years };
     } catch {
@@ -166,50 +176,71 @@ export function ContractPeriodSection({
             <div className="space-y-3">
               <h5 className="font-medium text-sm">Timeline Kontrak:</h5>
 
-              <div className="relative">
-                {/* Timeline bar */}
-                <div className="h-2 bg-gradient-to-r from-green-200 via-blue-200 to-red-200 rounded-full"></div>
+              <div className="relative pb-16">
+                {/* Timeline container with proper spacing */}
+                <div className="mx-8">
+                  {/* Timeline bar */}
+                  <div className="h-2 bg-gradient-to-r from-green-200 via-blue-200 to-red-200 rounded-full"></div>
 
-                {/* Start marker */}
-                <div className="absolute left-0 top-6 transform -translate-x-1/2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <div className="text-xs text-center mt-1 w-20 transform -translate-x-1/2">
+                  {/* Start marker */}
+                  <div className="absolute left-0 top-0">
+                    <div className="w-3 h-3 bg-green-500 rounded-full ml-6"></div>
+                  </div>
+
+                  {/* End marker */}
+                  <div className="absolute right-0 top-0">
+                    <div className="w-3 h-3 bg-red-500 rounded-full mr-6"></div>
+                  </div>
+
+                  {/* Current time marker (if within contract period) */}
+                  {(() => {
+                    const now = new Date();
+                    const start = parse(startDate, 'yyyy-MM-dd', new Date());
+                    const end = parse(endDate, 'yyyy-MM-dd', new Date());
+
+                    if (now >= start && now <= end) {
+                      const totalDays = differenceInDays(end, start);
+                      const daysPassed = differenceInDays(now, start);
+                      const percentage = Math.max(15, Math.min(85, (daysPassed / totalDays) * 100));
+
+                      return (
+                        <div className="absolute top-0" style={{ left: `calc(${percentage}% + 32px)` }}>
+                          <div className="w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow transform -translate-x-1/2"></div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+
+                {/* Labels row - positioned below timeline */}
+                <div className="flex justify-between mt-6 text-xs">
+                  <div className="text-left">
                     <div className="font-medium">Mulai</div>
                     <div className="text-muted-foreground">{format(parse(startDate, 'yyyy-MM-dd', new Date()), 'dd/MM/yy')}</div>
                   </div>
-                </div>
 
-                {/* End marker */}
-                <div className="absolute right-0 top-6 transform translate-x-1/2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <div className="text-xs text-center mt-1 w-20 transform translate-x-1/2">
+                  {(() => {
+                    const now = new Date();
+                    const start = parse(startDate, 'yyyy-MM-dd', new Date());
+                    const end = parse(endDate, 'yyyy-MM-dd', new Date());
+
+                    if (now >= start && now <= end) {
+                      return (
+                        <div className="text-center">
+                          <div className="font-medium text-blue-600">Sekarang</div>
+                          <div className="text-muted-foreground">{format(now, 'dd/MM/yy')}</div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  <div className="text-right">
                     <div className="font-medium">Berakhir</div>
                     <div className="text-muted-foreground">{format(parse(endDate, 'yyyy-MM-dd', new Date()), 'dd/MM/yy')}</div>
                   </div>
                 </div>
-
-                {/* Current time marker (if within contract period) */}
-                {(() => {
-                  const now = new Date();
-                  const start = parse(startDate, 'yyyy-MM-dd', new Date());
-                  const end = parse(endDate, 'yyyy-MM-dd', new Date());
-
-                  if (now >= start && now <= end) {
-                    const totalDays = differenceInDays(end, start);
-                    const daysPassed = differenceInDays(now, start);
-                    const percentage = (daysPassed / totalDays) * 100;
-
-                    return (
-                      <div className="absolute top-6 transform -translate-x-1/2" style={{ left: `${percentage}%` }}>
-                        <div className="w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow"></div>
-                        <div className="text-xs text-center mt-1 w-16 transform -translate-x-1/2">
-                          <div className="font-medium text-blue-600">Sekarang</div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
               </div>
             </div>
           </div>
