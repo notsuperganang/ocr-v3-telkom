@@ -2,11 +2,8 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  FileText,
   AlertCircle,
-  RefreshCw,
-  Maximize2,
-  Minimize2
+  RefreshCw
 } from 'lucide-react';
 import { apiService } from '@/services/api';
 
@@ -19,7 +16,6 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
 
@@ -112,10 +108,6 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
     setIsLoading(false);
   };
 
-  // Toggle fullscreen
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
 
   if (error) {
     return (
@@ -140,49 +132,23 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
   }
 
   return (
-    <Card className={`${className} ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            PDF Preview
-          </CardTitle>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleFullscreen}
-            className="p-1"
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4" />
-            ) : (
-              <Maximize2 className="w-4 h-4" />
-            )}
-          </Button>
+    <div className={`${className} border border-gray-200 rounded-lg overflow-hidden bg-white dark:border-gray-700 dark:bg-gray-800`}>
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="w-6 h-6 animate-spin text-primary" />
+            <span>Loading PDF...</span>
+          </div>
         </div>
-      </CardHeader>
-
-      <CardContent className="p-0">
-        <div className={`${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-240px)]'}`}>
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="flex items-center gap-3">
-                <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                <span>Loading PDF...</span>
-              </div>
-            </div>
-          ) : pdfBlob ? (
-            <iframe
-              src={pdfBlob}
-              className="w-full h-full border-0"
-              title="PDF Preview"
-              onLoad={handleIframeLoad}
-              onError={handleIframeError}
-            />
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+      ) : pdfBlob ? (
+        <iframe
+          src={pdfBlob}
+          className="w-full h-full border-0"
+          title="PDF Preview"
+          onLoad={handleIframeLoad}
+          onError={handleIframeError}
+        />
+      ) : null}
+    </div>
   );
 }

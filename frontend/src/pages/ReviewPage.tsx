@@ -1,4 +1,3 @@
-import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FileText,
@@ -7,9 +6,7 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  Download,
-  Maximize2,
-  Minimize2
+  Download
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +18,6 @@ import { useFormData, useJobStatus } from '@/hooks/useExtraction';
 export function ReviewPage() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
 
   const numericJobId = jobId ? parseInt(jobId, 10) : 0;
 
@@ -47,10 +43,6 @@ export function ReviewPage() {
     navigate('/upload');
   };
 
-  // Toggle fullscreen mode
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
 
   // Show loading state
   if (isLoading) {
@@ -176,77 +168,57 @@ export function ReviewPage() {
   }
 
   return (
-    <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-white' : 'p-6'} space-y-6`}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Kembali ke Upload
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleFullscreen}
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-4 h-4" />
-            ) : (
-              <Maximize2 className="w-4 h-4" />
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Status Header */}
+    <div className="p-4 space-y-3">
+      {/* Status Header with Back Button */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className="w-6 h-6 text-primary" />
-              <div>
-                <CardTitle>Review Data Ekstraksi</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {extractionData.filename}
-                </p>
-              </div>
-            </div>
+        <CardHeader className="py-2">
+          <div className="flex items-center justify-between mb-1">
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              size="sm"
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground -ml-2 h-7"
+            >
+              <ArrowLeft className="w-3 h-3" />
+              <span className="text-xs">Kembali ke Upload</span>
+            </Button>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
-                className="text-blue-600 border-blue-600"
+                className="text-blue-600 border-blue-600 text-xs py-0 px-1.5 h-5"
               >
-                <CheckCircle className="w-3 h-3 mr-1" />
+                <CheckCircle className="w-2.5 h-2.5 mr-1" />
                 Siap Review
               </Badge>
 
               {statusData?.processing_time_seconds && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4" />
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
                   {statusData.processing_time_seconds}s
                 </div>
               )}
 
-              <Badge variant="secondary">2 halaman</Badge>
+              <Badge variant="secondary" className="text-xs py-0 px-1.5 h-5">2 halaman</Badge>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            <div>
+              <CardTitle className="text-base leading-tight">Review Data Ekstraksi</CardTitle>
+              <p className="text-xs text-muted-foreground leading-tight">
+                {extractionData.filename}
+              </p>
             </div>
           </div>
         </CardHeader>
       </Card>
 
       {/* Main Content - 2 Pane Layout */}
-      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${
-        isFullscreen ? 'h-[calc(100vh-200px)]' : 'min-h-[800px]'
-      }`}>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-140px)]">
         {/* Left Pane - PDF Preview */}
-        <div className="space-y-4">
+        <div className="h-full">
           <PdfPreview
             jobId={numericJobId}
             className="h-full"
@@ -254,7 +226,7 @@ export function ReviewPage() {
         </div>
 
         {/* Right Pane - Extraction Form */}
-        <div className="space-y-4 overflow-y-auto">
+        <div className="h-full overflow-y-auto">
           <ExtractionForm
             jobId={numericJobId}
             initialData={formData}
@@ -271,29 +243,22 @@ export function ReviewPage() {
         </div>
       </div>
 
-      {/* Footer Actions (if not fullscreen) */}
-      {!isFullscreen && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <div className="flex items-center gap-4">
-                <span>💡 Tips: Data akan tersimpan otomatis saat Anda mengedit</span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Export PDF
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Footer Actions */}
+      <Card>
+        <CardContent className="p-2">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>💡 Data akan tersimpan otomatis saat Anda mengedit</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1 text-xs h-7"
+            >
+              <Download className="w-3 h-3" />
+              Export PDF
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
