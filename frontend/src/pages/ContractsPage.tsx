@@ -1,10 +1,53 @@
 // Contracts listing and management page
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { FolderOpen, Search, Download, Eye, FileText } from 'lucide-react';
+import { Search, FileText, Clock, TrendingUp } from 'lucide-react';
+import { ContractsTable } from '@/components/contracts/ContractsTable';
+import { useContracts, useContractStats } from '@/hooks/useContracts';
 
 export function ContractsPage() {
+  // State for search and pagination
+  const [page, setPage] = React.useState(1);
+  const [search, setSearch] = React.useState('');
+  const [debouncedSearch, setDebouncedSearch] = React.useState('');
+
+  // Debounce search input
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset to first page when searching
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Query for contracts data
+  const {
+    data: contractsData,
+    isLoading: isLoadingContracts,
+    error: contractsError,
+  } = useContracts({
+    page,
+    per_page: 10,
+    search: debouncedSearch || undefined,
+  });
+
+  // Query for statistics
+  const {
+    data: statsData,
+    isLoading: isLoadingStats,
+  } = useContractStats();
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -12,9 +55,72 @@ export function ContractsPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Kontrak</h1>
           <p className="text-muted-foreground">
-            Lihat dan kelola data kontrak yang telah diproses
+            Lihat dan kelola data kontrak yang telah dikonfirmasi
           </p>
         </div>
+        <Button onClick={() => window.location.href = '/upload'}>
+          Upload File Baru
+        </Button>
+      </div>
+
+      {/* Contract Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Kontrak</CardTitle>
+            <FileText className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoadingStats ? (
+                <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+              ) : (
+                statsData?.total ?? 0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Kontrak dikonfirmasi
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Bulan Ini</CardTitle>
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoadingStats ? (
+                <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+              ) : (
+                statsData?.thisMonth ?? 0
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Kontrak diproses
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rata-rata Proses</CardTitle>
+            <Clock className="w-4 h-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isLoadingStats ? (
+                <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
+              ) : (
+                statsData?.avgProcessingTime ?? '--'
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Waktu per kontrak
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search and Filters */}
@@ -27,12 +133,11 @@ export function ContractsPage() {
                 <Input
                   placeholder="Cari berdasarkan nama file, nomor kontrak, atau nama pelanggan..."
                   className="pl-10"
+                  value={search}
+                  onChange={handleSearchChange}
                 />
               </div>
             </div>
-            <Button variant="outline">
-              Filter
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -40,69 +145,33 @@ export function ContractsPage() {
       {/* Contracts Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Confirmed Contracts</CardTitle>
+          <CardTitle>Kontrak Dikonfirmasi</CardTitle>
           <CardDescription>
-            All contracts that have been processed and confirmed
+            Semua kontrak yang telah diproses dan dikonfirmasi
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Empty state */}
-          <div className="text-center py-12">
-            <div className="flex justify-center mb-4">
-              <FolderOpen className="w-12 h-12 text-muted-foreground" />
+          {contractsError ? (
+            <div className="text-center py-12">
+              <div className="text-red-500 mb-4">
+                Gagal memuat data kontrak
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => window.location.reload()}
+              >
+                Muat Ulang
+              </Button>
             </div>
-            <h3 className="text-lg font-medium text-foreground mb-2">No contracts yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-              Upload and process contract files to see them listed here. Confirmed contracts will appear in this table.
-            </p>
-            <Button>
-              Upload Files
-            </Button>
-          </div>
+          ) : (
+            <ContractsTable
+              data={contractsData || { contracts: [], total: 0, page: 1, per_page: 10, total_pages: 0 }}
+              isLoading={isLoadingContracts}
+              onPageChange={handlePageChange}
+            />
+          )}
         </CardContent>
       </Card>
-
-      {/* Contract Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Contracts</CardTitle>
-            <FileText className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">
-              Confirmed contracts
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <Download className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">
-              Contracts processed
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Processing</CardTitle>
-            <Eye className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">
-              Time per contract
-            </p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

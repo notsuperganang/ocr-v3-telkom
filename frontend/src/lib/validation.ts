@@ -1,61 +1,181 @@
 import { z } from 'zod';
 
-// NPWP validation - should be 15 digits
-const npwpRegex = /^\d{15}$/;
+// =============================================================================
+// DATA PREPROCESSING UTILITIES
+// =============================================================================
 
-// Email validation - make it properly optional
-const emailSchema = z.union([
-  z.string().email('Format email tidak valid'),
-  z.string().length(0),
-  z.undefined()
-]).optional();
+// Helper to convert null to undefined for consistent Zod handling
+function nullToUndefined<T>(value: T | null | undefined): T | undefined {
+  return value === null ? undefined : value;
+}
 
-// Phone validation - Indonesian phone numbers
-const phoneRegex = /^(\+62|62|0)[0-9]{8,12}$/;
-const phoneSchema = z.union([
-  z.string().regex(phoneRegex, 'Format nomor telepon tidak valid'),
-  z.string().length(0),
-  z.undefined()
-]).optional();
+// Enhanced NPWP cleaning with format validation
+function cleanNPWP(value: string): { cleaned: string; isValid: boolean; error?: string } {
+  const input = value.trim();
 
-// Date validation - YYYY-MM-DD format
-const dateSchema = z.union([
-  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
-  z.string().length(0),
-  z.undefined()
-]).optional();
+  // Check if it matches expected NPWP format patterns
+  const npwpFormatRegex = /^(\d{2})\.(\d{3})\.(\d{3})\.(\d{1})-(\d{3})\.(\d{3})$/;
+  const nikFormatRegex = /^\d{16}$/;
+  const digitsOnlyRegex = /^\d{15}$/;
+
+  // If it's already 16 digits (NIK format), return as-is
+  if (nikFormatRegex.test(input)) {
+    return { cleaned: input, isValid: true };
+  }
+
+  // If it's already 15 digits, return as-is
+  if (digitsOnlyRegex.test(input)) {
+    return { cleaned: input, isValid: true };
+  }
+
+  // Try to match formatted NPWP pattern
+  const formatMatch = input.match(npwpFormatRegex);
+  if (formatMatch) {
+    const cleaned = formatMatch.slice(1).join(''); // Join all captured groups
+    if (cleaned.length === 15) {
+      return { cleaned, isValid: true };
+    } else {
+      return {
+        cleaned: '',
+        isValid: false,
+        error: `NPWP memiliki ${cleaned.length} digit, harus 15 digit`
+      };
+    }
+  }
+
+  // If no format matches, try basic digit extraction with validation
+  let cleaned = input.replace(/[^\d]/g, '');
+
+  // Handle common OCR noise patterns only after format validation
+  cleaned = cleaned.replace(/[Oo]/g, '0')
+                  .replace(/[Il|]/g, '1')
+                  .replace(/[S]/g, '5')
+                  .replace(/[B]/g, '8');
+
+  // Validate digit count
+  if (cleaned.length === 0) {
+    return { cleaned: '', isValid: true }; // Empty is valid (optional field)
+  } else if (cleaned.length === 15 || cleaned.length === 16) {
+    return { cleaned, isValid: true };
+  } else {
+    return {
+      cleaned: '',
+      isValid: false,
+      error: `NPWP memiliki ${cleaned.length} digit, harus 15 atau 16 digit`
+    };
+  }
+}
+
+// Normalize Indonesian phone numbers to a consistent format
+function normalizePhoneNumber(value: string): string {
+  // Remove all non-digit characters except +
+  const cleaned = value.replace(/[^+\d]/g, '');
+
+  // Handle various Indonesian phone formats:
+  // +62812345678, 62812345678, 0812345678, 812345678, (021)12345678
+  if (cleaned.startsWith('+62')) {
+    return cleaned; // Already in international format
+  }
+  if (cleaned.startsWith('62')) {
+    return `+${cleaned}`; // Add + to make it international
+  }
+  if (cleaned.startsWith('0')) {
+    return `+62${cleaned.slice(1)}`; // Replace 0 with +62
+  }
+  // Assume it's a local number starting with area code
+  return `+62${cleaned}`;
+}
+
+// =============================================================================
+// VALIDATION SCHEMAS WITH ROBUST NULL/UNDEFINED HANDLING
+// =============================================================================
+
+// Enhanced NPWP validation supporting both legacy (15-digit) and new (16-digit) formats
+const npwpLegacyRegex = /^\d{15}$/; // Legacy format: 15 digits
+const npwpNewRegex = /^\d{16}$/;    // New format: 16 digits (NIK or 0+15digits)
+
+const npwpSchema = z.preprocess(
+  (val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    const cleaned = cleanNPWP(String(val));
+    return cleaned.length === 0 ? undefined : cleaned;
+  },
+  z.union([
+    z.string().regex(npwpLegacyRegex, 'NPWP harus berisi 15 digit angka (format lama)'),
+    z.string().regex(npwpNewRegex, 'NPWP/NIK harus berisi 16 digit angka (format baru)'),
+    z.undefined()
+  ]).optional().refine((val) => {
+    if (!val) return true; // Allow empty/undefined
+    const length = val.length;
+    return length === 15 || length === 16;
+  }, {
+    message: 'NPWP harus berisi 15 digit (format lama) atau 16 digit (NIK/format baru)'
+  })
+);
+
+// Email validation with proper null handling
+const emailSchema = z.preprocess(
+  (val) => nullToUndefined(val),
+  z.union([
+    z.string().email('Format email tidak valid'),
+    z.string().length(0),
+    z.undefined()
+  ]).optional()
+);
+
+// Enhanced phone validation - comprehensive Indonesian phone number support
+const phoneRegex = /^\+62[0-9]{8,13}$/; // International format: +62 followed by 8-13 digits
+const phoneSchema = z.preprocess(
+  (val) => {
+    if (val === null || val === undefined || val === '') return undefined;
+    const normalized = normalizePhoneNumber(String(val));
+    return normalized.length <= 4 ? undefined : normalized; // Minimum viable phone length
+  },
+  z.union([
+    z.string().regex(phoneRegex, 'Format nomor telepon tidak valid (gunakan format: 0812345678, +62812345678, atau 62812345678)'),
+    z.undefined()
+  ]).optional()
+);
+
+// Date validation - YYYY-MM-DD format with null handling
+const dateSchema = z.preprocess(
+  (val) => nullToUndefined(val),
+  z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD'),
+    z.string().length(0),
+    z.undefined()
+  ]).optional()
+);
 
 // Currency/amount validation - moved inline to avoid unused variable
 
-// Representative schema
+// Representative schema with null handling
 const perwakilanSchema = z.object({
-  nama: z.string().optional(),
-  jabatan: z.string().optional(),
+  nama: z.preprocess(nullToUndefined, z.string().optional()),
+  jabatan: z.preprocess(nullToUndefined, z.string().optional()),
 });
 
-// Customer contact person schema
+// Customer contact person schema with null handling
 const kontakPersonPelangganSchema = z.object({
-  nama: z.string().optional(),
-  jabatan: z.string().optional(),
+  nama: z.preprocess(nullToUndefined, z.string().optional()),
+  jabatan: z.preprocess(nullToUndefined, z.string().optional()),
   email: emailSchema,
   telepon: phoneSchema,
 });
 
-// Customer information schema
+// Customer information schema with enhanced null handling
 const informasiPelangganSchema = z.object({
-  nama_pelanggan: z.string()
-    .max(255, 'Nama pelanggan terlalu panjang')
-    .optional(),
-  alamat: z.string()
-    .max(500, 'Alamat terlalu panjang')
-    .optional(),
-  npwp: z.union([
-    z.string().regex(npwpRegex, 'NPWP harus 15 digit angka'),
-    z.string().length(0),
-    z.undefined()
-  ]).optional(),
-  perwakilan: perwakilanSchema.optional(),
-  kontak_person: kontakPersonPelangganSchema.optional(),
+  nama_pelanggan: z.preprocess(
+    nullToUndefined,
+    z.string().max(255, 'Nama pelanggan terlalu panjang').optional()
+  ),
+  alamat: z.preprocess(
+    nullToUndefined,
+    z.string().max(500, 'Alamat terlalu panjang').optional()
+  ),
+  npwp: npwpSchema,
+  perwakilan: z.preprocess(nullToUndefined, perwakilanSchema.optional()),
+  kontak_person: z.preprocess(nullToUndefined, kontakPersonPelangganSchema.optional()),
 });
 
 // Contract period schema
@@ -72,28 +192,26 @@ const jangkaWaktuSchema = z.object({
   path: ['akhir'],
 });
 
-// Telkom contact person schema
+// Telkom contact person schema with null handling
 const kontakPersonTelkomSchema = z.object({
-  nama: z.string().optional(),
-  jabatan: z.string().optional(),
+  nama: z.preprocess(nullToUndefined, z.string().optional()),
+  jabatan: z.preprocess(nullToUndefined, z.string().optional()),
   email: emailSchema,
   telepon: phoneSchema,
 });
 
 // Main services schema
 const layananUtamaSchema = z.object({
-  connectivity_telkom: z.number()
-    .int('Harus berupa bilangan bulat')
-    .min(0, 'Tidak boleh negatif'),
-  non_connectivity_telkom: z.number()
-    .int('Harus berupa bilangan bulat')
-    .min(0, 'Tidak boleh negatif'),
-  bundling: z.number()
-    .int('Harus berupa bilangan bulat')
-    .min(0, 'Tidak boleh negatif'),
-});
+  connectivity_telkom: z.coerce.number().int('Harus berupa bilangan bulat').min(0, 'Tidak boleh negatif').default(0),
+  non_connectivity_telkom: z.coerce.number().int('Harus berupa bilangan bulat').min(0, 'Tidak boleh negatif').default(0),
+  bundling: z.coerce.number().int('Harus berupa bilangan bulat').min(0, 'Tidak boleh negatif').default(0),
+}).transform((data) => ({
+  connectivity_telkom: data.connectivity_telkom ?? 0,
+  non_connectivity_telkom: data.non_connectivity_telkom ?? 0,
+  bundling: data.bundling ?? 0,
+}));
 
-// Termin payment schema
+// Termin payment schema with null handling
 const terminPaymentSchema = z.object({
   termin_number: z.number()
     .int('Harus berupa bilangan bulat')
@@ -105,19 +223,25 @@ const terminPaymentSchema = z.object({
     .refine((val) => val > 0, {
       message: 'Jumlah pembayaran harus lebih dari 0',
     }),
-  raw_text: z.string().optional(),
+  raw_text: z.preprocess(nullToUndefined, z.string().optional()),
 });
 
-// Payment method schema
+// Payment method schema with enhanced null handling
 const tataCaraPembayaranSchema = z.object({
   method_type: z.enum(['one_time_charge', 'recurring', 'termin'], {
     message: 'Tipe pembayaran wajib dipilih',
-  }),
-  description: z.string().optional(),
-  termin_payments: z.array(terminPaymentSchema).optional(),
-  total_termin_count: z.number().int().min(0).optional(),
-  total_amount: z.number().min(0).optional(),
-  raw_text: z.string().optional(),
+  }).default('one_time_charge'),
+  description: z.preprocess(nullToUndefined, z.string().optional()),
+  termin_payments: z.array(terminPaymentSchema).default([]),
+  total_termin_count: z.preprocess(
+    nullToUndefined,
+    z.coerce.number().int().min(0).optional()
+  ),
+  total_amount: z.preprocess(
+    nullToUndefined,
+    z.coerce.number().min(0).optional()
+  ),
+  raw_text: z.preprocess(nullToUndefined, z.string().optional()),
 }).refine((data) => {
   // If method is termin, must have termin_payments
   if (data.method_type === 'termin') {
@@ -143,42 +267,135 @@ const tataCaraPembayaranSchema = z.object({
   path: ['termin_payments'],
 });
 
-// Service details schema
+// Service details schema with proper nested null handling
 const rincianLayananSchema = z.object({
-  biaya_instalasi: z.number().min(0, 'Biaya instalasi tidak boleh negatif'),
-  biaya_langganan_tahunan: z.number().min(0, 'Biaya langganan tidak boleh negatif'),
-  tata_cara_pembayaran: tataCaraPembayaranSchema.optional(),
-});
+  biaya_instalasi: z.coerce.number().min(0, 'Biaya instalasi tidak boleh negatif').default(0),
+  biaya_langganan_tahunan: z.coerce.number().min(0, 'Biaya langganan tidak boleh negatif').default(0),
+  tata_cara_pembayaran: z.preprocess(
+    nullToUndefined,
+    tataCaraPembayaranSchema.nullable().optional()
+  ),
+}).transform((data) => ({
+  biaya_instalasi: data.biaya_instalasi ?? 0,
+  biaya_langganan_tahunan: data.biaya_langganan_tahunan ?? 0,
+  tata_cara_pembayaran: data.tata_cara_pembayaran,
+}));
 
 // Main contract data schema
 export const telkomContractDataSchema = z.object({
-  informasi_pelanggan: informasiPelangganSchema.optional(),
-  layanan_utama: layananUtamaSchema.optional(),
-  rincian_layanan: z.array(rincianLayananSchema).optional(),
-  tata_cara_pembayaran: tataCaraPembayaranSchema.optional(),
-  kontak_person_telkom: kontakPersonTelkomSchema.optional(),
-  jangka_waktu: jangkaWaktuSchema.optional(),
+  informasi_pelanggan: informasiPelangganSchema.nullable().optional(),
+  layanan_utama: layananUtamaSchema.nullable().optional(),
+  rincian_layanan: z.array(rincianLayananSchema).default([]),
+  tata_cara_pembayaran: tataCaraPembayaranSchema.nullable().optional(),
+  kontak_person_telkom: kontakPersonTelkomSchema.nullable().optional(),
+  jangka_waktu: jangkaWaktuSchema.nullable().optional(),
+  extraction_timestamp: z.string().optional(),
+  processing_time_seconds: z.coerce.number().optional(),
+}).transform((data) => ({
+  ...data,
+  rincian_layanan: Array.isArray(data.rincian_layanan) ? data.rincian_layanan : [],
+  layanan_utama: data.layanan_utama || { connectivity_telkom: 0, non_connectivity_telkom: 0, bundling: 0 },
+  tata_cara_pembayaran: data.tata_cara_pembayaran || { method_type: 'one_time_charge' as const, termin_payments: [] },
+}));
+
+// Validation schema for required fields before confirmation
+export const contractConfirmationSchema = telkomContractDataSchema.refine((data) => {
+  return data.informasi_pelanggan?.nama_pelanggan && data.informasi_pelanggan.nama_pelanggan.trim().length > 0;
+}, {
+  message: 'Nama pelanggan wajib diisi untuk konfirmasi',
+  path: ['informasi_pelanggan', 'nama_pelanggan'],
+}).refine((data) => {
+  const services = data.layanan_utama || { connectivity_telkom: 0, non_connectivity_telkom: 0, bundling: 0 };
+  return services.connectivity_telkom + services.non_connectivity_telkom + services.bundling > 0;
+}, {
+  message: 'Minimal harus ada 1 layanan',
+  path: ['layanan_utama'],
+});
+
+// =============================================================================
+// FORM VALIDATION SCHEMAS (WITHOUT PREPROCESSING FOR REACT HOOK FORM)
+// =============================================================================
+
+// Simple schemas without preprocessing for React Hook Form compatibility
+const simpleNpwpSchema = z.string().optional();
+const simpleEmailSchema = z.string().email('Format email tidak valid').optional().or(z.literal(''));
+const simplePhoneSchema = z.string().optional();
+
+const simplePerwakilanSchema = z.object({
+  nama: z.string().optional(),
+  jabatan: z.string().optional(),
+});
+
+const simpleKontakPersonPelangganSchema = z.object({
+  nama: z.string().optional(),
+  jabatan: z.string().optional(),
+  email: simpleEmailSchema,
+  telepon: simplePhoneSchema,
+});
+
+const simpleInformasiPelangganSchema = z.object({
+  nama_pelanggan: z.string().max(255, 'Nama pelanggan terlalu panjang').optional(),
+  alamat: z.string().max(500, 'Alamat terlalu panjang').optional(),
+  npwp: simpleNpwpSchema,
+  perwakilan: simplePerwakilanSchema.optional(),
+  kontak_person: simpleKontakPersonPelangganSchema.optional(),
+});
+
+const simpleJangkaWaktuSchema = z.object({
+  mulai: z.string().optional(),
+  akhir: z.string().optional(),
+});
+
+const simpleKontakPersonTelkomSchema = z.object({
+  nama: z.string().optional(),
+  jabatan: z.string().optional(),
+  email: simpleEmailSchema,
+  telepon: simplePhoneSchema,
+});
+
+const simpleLayananUtamaSchema = z.object({
+  connectivity_telkom: z.number().int().min(0).default(0),
+  non_connectivity_telkom: z.number().int().min(0).default(0),
+  bundling: z.number().int().min(0).default(0),
+});
+
+const simpleTerminPaymentSchema = z.object({
+  termin_number: z.number().int().min(1),
+  period: z.string().min(1),
+  amount: z.number().min(0),
+  raw_text: z.string().optional(),
+});
+
+const simpleTataCaraPembayaranSchema = z.object({
+  method_type: z.enum(['one_time_charge', 'recurring', 'termin']).default('one_time_charge'),
+  description: z.string().optional(),
+  termin_payments: z.array(simpleTerminPaymentSchema).default([]),
+  total_termin_count: z.number().int().min(0).optional(),
+  total_amount: z.number().min(0).optional(),
+  raw_text: z.string().optional(),
+});
+
+const simpleRincianLayananSchema = z.object({
+  biaya_instalasi: z.number().min(0).default(0),
+  biaya_langganan_tahunan: z.number().min(0).default(0),
+  tata_cara_pembayaran: simpleTataCaraPembayaranSchema.optional(),
+});
+
+// Form schema for React Hook Form (without preprocessing)
+export const telkomContractFormSchema = z.object({
+  informasi_pelanggan: simpleInformasiPelangganSchema.nullable().optional(),
+  layanan_utama: simpleLayananUtamaSchema.nullable().optional(),
+  rincian_layanan: z.array(simpleRincianLayananSchema).default([]),
+  tata_cara_pembayaran: simpleTataCaraPembayaranSchema.nullable().optional(),
+  kontak_person_telkom: simpleKontakPersonTelkomSchema.nullable().optional(),
+  jangka_waktu: simpleJangkaWaktuSchema.nullable().optional(),
   extraction_timestamp: z.string().optional(),
   processing_time_seconds: z.number().optional(),
 });
 
-// Validation schema for required fields before confirmation
-export const contractConfirmationSchema = telkomContractDataSchema.extend({
-  informasi_pelanggan: informasiPelangganSchema.refine((data) => {
-    return data?.nama_pelanggan && data.nama_pelanggan.trim().length > 0;
-  }, {
-    message: 'Nama pelanggan wajib diisi untuk konfirmasi',
-  }),
-  layanan_utama: layananUtamaSchema.refine((data) => {
-    if (!data) return false;
-    return data.connectivity_telkom + data.non_connectivity_telkom + data.bundling > 0;
-  }, {
-    message: 'Minimal harus ada 1 layanan',
-  }),
-});
-
 // Export inferred TypeScript types from Zod schemas
 export type TelkomContractData = z.infer<typeof telkomContractDataSchema>;
+export type TelkomContractFormData = z.infer<typeof telkomContractFormSchema>;
 export type InformasiPelanggan = z.infer<typeof informasiPelangganSchema>;
 export type LayananUtama = z.infer<typeof layananUtamaSchema>;
 export type RincianLayanan = z.infer<typeof rincianLayananSchema>;
@@ -193,11 +410,7 @@ export type KontakPersonPelanggan = z.infer<typeof kontakPersonPelangganSchema>;
 export const fieldValidationSchemas = {
   nama_pelanggan: z.string().min(1, 'Nama pelanggan wajib diisi'),
   alamat: z.string().min(1, 'Alamat wajib diisi'),
-  npwp: z.union([
-    z.string().regex(npwpRegex, 'NPWP harus 15 digit angka'),
-    z.string().length(0),
-    z.undefined()
-  ]).optional(),
+  npwp: npwpSchema,
   email: emailSchema,
   telepon: phoneSchema,
   connectivity_telkom: z.number().int().min(0),
@@ -240,11 +453,13 @@ export function getFormErrors(data: any): Record<string, string[]> {
         if (!errors[path]) {
           errors[path] = [];
         }
-        errors[path].push(err.message);
+        // Provide more user-friendly error messages
+        const message = err.message === 'Required' ? 'Field ini wajib diisi' : err.message;
+        errors[path].push(message);
       });
       return errors;
     }
-    return {};
+    return { general: ['Terjadi kesalahan validasi'] };
   }
 }
 
@@ -255,12 +470,17 @@ export function canConfirmContract(data: any): { canConfirm: boolean; errors: st
     return { canConfirm: true, errors: [] };
   } catch (error) {
     if (error instanceof z.ZodError) {
+      const friendlyErrors = error.issues.map((err: any) => {
+        // Convert path to more readable format
+        const path = err.path.join(' → ');
+        return path ? `${path}: ${err.message}` : err.message;
+      });
       return {
         canConfirm: false,
-        errors: error.issues.map((err: any) => err.message),
+        errors: friendlyErrors,
       };
     }
-    return { canConfirm: false, errors: ['Validation failed'] };
+    return { canConfirm: false, errors: ['Terjadi kesalahan validasi'] };
   }
 }
 

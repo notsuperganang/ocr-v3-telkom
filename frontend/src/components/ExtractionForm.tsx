@@ -13,7 +13,7 @@ import { TelkomContactSection } from '@/components/form/TelkomContactSection';
 import { ContractPeriodSection } from '@/components/form/ContractPeriodSection';
 import { FormSummary } from '@/components/ui/form-section';
 import type { TelkomContractData } from '@/types/extraction';
-import { telkomContractDataSchema, canConfirmContract } from '@/lib/validation';
+import { telkomContractFormSchema, canConfirmContract, type TelkomContractFormData } from '@/lib/validation';
 import { useAutoSave, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
 
 interface ExtractionFormProps {
@@ -36,8 +36,8 @@ export function ExtractionForm({
   const [lastSaveTime, setLastSaveTime] = React.useState<Date | null>(null);
 
   // Form setup with react-hook-form
-  const form = useForm({
-    resolver: zodResolver(telkomContractDataSchema),
+  const form = useForm<TelkomContractFormData>({
+    resolver: zodResolver(telkomContractFormSchema),
     defaultValues: initialData,
     mode: 'onChange',
   });

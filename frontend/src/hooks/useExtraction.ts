@@ -108,6 +108,9 @@ export function useConfirmExtraction() {
       // Invalidate all extraction-related queries
       queryClient.invalidateQueries({ queryKey: extractionKeys.all });
 
+      // Invalidate contracts queries to show new contract immediately
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+
       // Navigate to contracts page with success message
       navigate('/contracts', {
         state: {
@@ -179,43 +182,41 @@ export function useFormData(jobId: number) {
     return {
       ...data,
       informasi_pelanggan: {
-        nama_pelanggan: '',
-        alamat: '',
-        npwp: '',
+        nama_pelanggan: data.informasi_pelanggan?.nama_pelanggan ?? '',
+        alamat: data.informasi_pelanggan?.alamat ?? '',
+        npwp: data.informasi_pelanggan?.npwp ?? '',
         perwakilan: {
-          nama: '',
-          jabatan: '',
+          nama: data.informasi_pelanggan?.perwakilan?.nama ?? '',
+          jabatan: data.informasi_pelanggan?.perwakilan?.jabatan ?? '',
         },
         kontak_person: {
-          nama: '',
-          jabatan: '',
-          email: '',
-          telepon: '',
+          nama: data.informasi_pelanggan?.kontak_person?.nama ?? '',
+          jabatan: data.informasi_pelanggan?.kontak_person?.jabatan ?? '',
+          email: data.informasi_pelanggan?.kontak_person?.email ?? '',
+          telepon: data.informasi_pelanggan?.kontak_person?.telepon ?? '',
         },
-        ...data.informasi_pelanggan,
       },
       layanan_utama: {
-        connectivity_telkom: 0,
-        non_connectivity_telkom: 0,
-        bundling: 0,
-        ...data.layanan_utama,
+        connectivity_telkom: data.layanan_utama?.connectivity_telkom ?? 0,
+        non_connectivity_telkom: data.layanan_utama?.non_connectivity_telkom ?? 0,
+        bundling: data.layanan_utama?.bundling ?? 0,
       },
-      rincian_layanan: data.rincian_layanan || [],
+      rincian_layanan: Array.isArray(data.rincian_layanan) && data.rincian_layanan.length > 0
+        ? data.rincian_layanan
+        : [{ biaya_instalasi: 0, biaya_langganan_tahunan: 0 }],
       tata_cara_pembayaran: data.tata_cara_pembayaran || {
         method_type: 'one_time_charge' as const,
         description: '',
       },
       kontak_person_telkom: {
-        nama: '',
-        jabatan: '',
-        email: '',
-        telepon: '',
-        ...data.kontak_person_telkom,
+        nama: data.kontak_person_telkom?.nama ?? '',
+        jabatan: data.kontak_person_telkom?.jabatan ?? '',
+        email: data.kontak_person_telkom?.email ?? '',
+        telepon: data.kontak_person_telkom?.telepon ?? '',
       },
       jangka_waktu: {
-        mulai: '',
-        akhir: '',
-        ...data.jangka_waktu,
+        mulai: data.jangka_waktu?.mulai ?? '',
+        akhir: data.jangka_waktu?.akhir ?? '',
       },
       extraction_timestamp: data.extraction_timestamp || new Date().toISOString(),
       processing_time_seconds: data.processing_time_seconds,

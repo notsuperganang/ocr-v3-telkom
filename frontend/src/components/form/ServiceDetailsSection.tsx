@@ -26,7 +26,18 @@ export function ServiceDetailsSection({
   React.useEffect(() => {
     const currentDetail = watch('rincian_layanan.0');
     if (!currentDetail) {
-      setValue('rincian_layanan.0', { biaya_instalasi: 0, biaya_langganan_tahunan: 0 });
+      setValue('rincian_layanan.0', {
+        biaya_instalasi: 0,
+        biaya_langganan_tahunan: 0,
+        tata_cara_pembayaran: {
+          method_type: 'one_time_charge' as const,
+          termin_payments: [],
+          description: undefined,
+          total_termin_count: undefined,
+          total_amount: undefined,
+          raw_text: undefined,
+        }
+      });
     }
   }, [setValue, watch]);
 
