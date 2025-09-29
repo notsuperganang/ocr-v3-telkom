@@ -248,7 +248,7 @@ export function useAutoSave(jobId: number, delay = 1000) {
     timeoutRef.current = setTimeout(() => {
       updateMutation.mutate(data);
     }, delay);
-  }, [updateMutation, delay]);
+  }, [updateMutation.mutate, delay]);
 
   // Cleanup on unmount
   React.useEffect(() => {
