@@ -12,14 +12,20 @@ import { PaymentMethodSection } from '@/components/form/PaymentMethodSection';
 import { TelkomContactSection } from '@/components/form/TelkomContactSection';
 import { ContractPeriodSection } from '@/components/form/ContractPeriodSection';
 import { FormSummary } from '@/components/ui/form-section';
-import type { TelkomContractData } from '@/types/extraction';
-import { telkomContractFormSchema, canConfirmContract, type TelkomContractFormData } from '@/lib/validation';
+import {
+  telkomContractFormSchema,
+  canConfirmContract,
+  backendToForm,
+  formToBackend,
+  type TelkomContractFormData,
+  type TelkomContractData
+} from '@/lib/validation';
 import { useAutoSave, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
 
 interface ExtractionFormProps {
   jobId: number;
-  initialData: TelkomContractData;
-  onSave?: (data: TelkomContractData) => void;
+  initialData: TelkomContractData; // Backend data format
+  onSave?: (data: TelkomContractData) => void; // Save as backend format
   onConfirm?: () => void;
   onDiscard?: () => void;
   disabled?: boolean;
@@ -35,10 +41,13 @@ export function ExtractionForm({
 }: ExtractionFormProps) {
   const [lastSaveTime, setLastSaveTime] = React.useState<Date | null>(null);
 
+  // Transform backend data to clean form data
+  const formData = React.useMemo(() => backendToForm(initialData), [initialData]);
+
   // Form setup with react-hook-form
   const form = useForm<TelkomContractFormData>({
     resolver: zodResolver(telkomContractFormSchema),
-    defaultValues: initialData,
+    defaultValues: formData,
     mode: 'onChange',
   });
 
@@ -59,19 +68,34 @@ export function ExtractionForm({
   const discardMutation = useDiscardExtraction();
 
   // Watch all form data for auto-save
-  const formData = watch();
+  const currentFormData = watch();
 
-  // Auto-save when form data changes
+  // Stabilize form data to prevent infinite loops
+  const stableFormData = React.useMemo(() => {
+    return JSON.stringify(currentFormData);
+  }, [currentFormData]);
+
+  // Auto-save when form data changes (transform to backend format)
   React.useEffect(() => {
     if (isDirty && isValid) {
-      autoSave(formData);
+      const backendData = formToBackend(currentFormData);
+      autoSave(backendData);
+    }
+  }, [stableFormData, isDirty, isValid, autoSave]);
+
+  // Update last save time when saving completes
+  const prevIsSaving = React.useRef(isSaving);
+  React.useEffect(() => {
+    if (prevIsSaving.current && !isSaving) {
       setLastSaveTime(new Date());
     }
-  }, [formData, isDirty, isValid, autoSave]);
+    prevIsSaving.current = isSaving;
+  }, [isSaving]);
 
-  // Reset form when initial data changes
+  // Reset form when initial data changes (transform to form format)
   React.useEffect(() => {
-    reset(initialData);
+    const newFormData = backendToForm(initialData);
+    reset(newFormData);
   }, [initialData, reset]);
 
   // Manual save handler
@@ -79,7 +103,9 @@ export function ExtractionForm({
     try {
       const isFormValid = await form.trigger();
       if (isFormValid) {
-        onSave?.(formData);
+        const currentFormData = form.getValues();
+        const backendData = formToBackend(currentFormData);
+        onSave?.(backendData);
         setLastSaveTime(new Date());
       }
     } catch (error) {
@@ -95,7 +121,9 @@ export function ExtractionForm({
         return;
       }
 
-      const { canConfirm, errors: validationErrors } = canConfirmContract(formData);
+      const currentFormData = form.getValues();
+      const backendData = formToBackend(currentFormData);
+      const { canConfirm, errors: validationErrors } = canConfirmContract(backendData);
       if (!canConfirm) {
         alert(`Tidak dapat mengkonfirmasi:\n${validationErrors.join('\n')}`);
         return;
@@ -118,13 +146,13 @@ export function ExtractionForm({
 
   // Calculate form completion statistics
   const formSections = React.useMemo(() => {
-    const hasCustomerInfo = formData.informasi_pelanggan?.nama_pelanggan;
-    const hasServices = (formData.layanan_utama?.connectivity_telkom || 0) +
-                       (formData.layanan_utama?.non_connectivity_telkom || 0) +
-                       (formData.layanan_utama?.bundling || 0) > 0;
-    const hasPayment = formData.tata_cara_pembayaran?.method_type;
-    const hasContact = formData.kontak_person_telkom?.nama;
-    const hasPeriod = formData.jangka_waktu?.mulai && formData.jangka_waktu?.akhir;
+    const hasCustomerInfo = currentFormData.informasi_pelanggan?.nama_pelanggan;
+    const hasServices = (currentFormData.layanan_utama?.connectivity_telkom || 0) +
+                       (currentFormData.layanan_utama?.non_connectivity_telkom || 0) +
+                       (currentFormData.layanan_utama?.bundling || 0) > 0;
+    const hasPayment = currentFormData.tata_cara_pembayaran?.method_type;
+    const hasContact = currentFormData.kontak_person_telkom?.nama;
+    const hasPeriod = currentFormData.jangka_waktu?.mulai && currentFormData.jangka_waktu?.akhir;
 
     return [
       {
@@ -143,8 +171,8 @@ export function ExtractionForm({
       },
       {
         name: 'Rincian Layanan',
-        completed: formData.rincian_layanan?.length || 0,
-        total: Math.max(1, formData.rincian_layanan?.length || 0),
+        completed: currentFormData.rincian_layanan?.length || 0,
+        total: Math.max(1, currentFormData.rincian_layanan?.length || 0),
         errors: errors.rincian_layanan ? 1 : 0,
         required: false,
       },
@@ -170,9 +198,9 @@ export function ExtractionForm({
         required: false,
       },
     ];
-  }, [formData, errors]);
+  }, [currentFormData, errors]);
 
-  const canConfirmData = canConfirmContract(formData);
+  const canConfirmData = canConfirmContract(formToBackend(currentFormData));
 
   return (
     <FormProvider {...form}>
