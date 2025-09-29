@@ -4,14 +4,14 @@ import { Receipt } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { TelkomContractData } from '@/types/extraction';
+import type { TelkomContractFormData } from '@/lib/validation';
 
 interface ServiceDetailsSectionProps {
-  register: UseFormRegister<TelkomContractData>;
-  errors: FieldErrors<TelkomContractData>;
-  setValue: UseFormSetValue<TelkomContractData>;
-  watch: UseFormWatch<TelkomContractData>;
-  control: Control<TelkomContractData>;
+  register: UseFormRegister<TelkomContractFormData>;
+  errors: FieldErrors<TelkomContractFormData>;
+  setValue: UseFormSetValue<TelkomContractFormData>;
+  watch: UseFormWatch<TelkomContractFormData>;
+  control: Control<TelkomContractFormData>;
 }
 
 export function ServiceDetailsSection({

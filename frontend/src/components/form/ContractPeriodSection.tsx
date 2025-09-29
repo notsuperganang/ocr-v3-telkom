@@ -2,15 +2,15 @@ import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from
 import { Calendar, Clock } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { DateRangePicker } from '@/components/ui/date-picker';
-import type { TelkomContractData } from '@/types/extraction';
+import type { TelkomContractFormData } from '@/lib/validation';
 import { format, parse, differenceInDays, differenceInMonths, differenceInYears, isValid } from 'date-fns';
 import { id } from 'date-fns/locale';
 
 interface ContractPeriodSectionProps {
-  register: UseFormRegister<TelkomContractData>;
-  errors: FieldErrors<TelkomContractData>;
-  setValue: UseFormSetValue<TelkomContractData>;
-  watch: UseFormWatch<TelkomContractData>;
+  register: UseFormRegister<TelkomContractFormData>;
+  errors: FieldErrors<TelkomContractFormData>;
+  setValue: UseFormSetValue<TelkomContractFormData>;
+  watch: UseFormWatch<TelkomContractFormData>;
 }
 
 export function ContractPeriodSection({

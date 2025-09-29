@@ -4,14 +4,14 @@ import { Phone, Mail, User, Building2 } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { TelkomContractData } from '@/types/extraction';
+import type { TelkomContractFormData } from '@/lib/validation';
 import { formatPhone } from '@/lib/validation';
 
 interface TelkomContactSectionProps {
-  register: UseFormRegister<TelkomContractData>;
-  errors: FieldErrors<TelkomContractData>;
-  setValue: UseFormSetValue<TelkomContractData>;
-  watch: UseFormWatch<TelkomContractData>;
+  register: UseFormRegister<TelkomContractFormData>;
+  errors: FieldErrors<TelkomContractFormData>;
+  setValue: UseFormSetValue<TelkomContractFormData>;
+  watch: UseFormWatch<TelkomContractFormData>;
 }
 
 export function TelkomContactSection({
