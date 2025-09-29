@@ -3,13 +3,13 @@ import { Network, Globe, Package } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { TelkomContractData } from '@/types/extraction';
+import type { TelkomContractFormData } from '@/lib/validation';
 
 interface MainServicesSectionProps {
-  register: UseFormRegister<TelkomContractData>;
-  errors: FieldErrors<TelkomContractData>;
-  setValue: UseFormSetValue<TelkomContractData>;
-  watch: UseFormWatch<TelkomContractData>;
+  register: UseFormRegister<TelkomContractFormData>;
+  errors: FieldErrors<TelkomContractFormData>;
+  setValue: UseFormSetValue<TelkomContractFormData>;
+  watch: UseFormWatch<TelkomContractFormData>;
 }
 
 export function MainServicesSection({

@@ -3,14 +3,14 @@ import { User, Building, Phone, Mail, IdCard } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { TelkomContractData } from '@/types/extraction';
+import type { TelkomContractFormData } from '@/lib/validation';
 import { formatNPWP, formatPhone } from '@/lib/validation';
 
 interface CustomerInfoSectionProps {
-  register: UseFormRegister<TelkomContractData>;
-  errors: FieldErrors<TelkomContractData>;
-  setValue: UseFormSetValue<TelkomContractData>;
-  watch: UseFormWatch<TelkomContractData>;
+  register: UseFormRegister<TelkomContractFormData>;
+  errors: FieldErrors<TelkomContractFormData>;
+  setValue: UseFormSetValue<TelkomContractFormData>;
+  watch: UseFormWatch<TelkomContractFormData>;
 }
 
 export function CustomerInfoSection({
@@ -25,7 +25,7 @@ export function CustomerInfoSection({
   // Handle NPWP formatting
   const handleNPWPChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    if (value.length <= 15) {
+    if (value.length <= 19) {
       setValue('informasi_pelanggan.npwp', value);
     }
   };
@@ -103,8 +103,8 @@ export function CustomerInfoSection({
             id="npwp"
             value={npwpValue || ''}
             onChange={handleNPWPChange}
-            placeholder="15 digit NPWP"
-            maxLength={15}
+            placeholder="15-19 digit NPWP"
+            maxLength={19}
             className={errors.informasi_pelanggan?.npwp ? 'border-red-500' : ''}
           />
           {displayNPWP && displayNPWP !== npwpValue && (

@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { TerminTable } from './TerminTable';
-import type { TelkomContractData, PaymentMethodType, TerminPayment } from '@/types/extraction';
+import type { PaymentMethodType, TerminPayment } from '@/types/extraction';
+import type { TelkomContractFormData } from '@/lib/validation';
 
 interface PaymentMethodSectionProps {
-  register: UseFormRegister<TelkomContractData>;
-  errors: FieldErrors<TelkomContractData>;
-  setValue: UseFormSetValue<TelkomContractData>;
-  watch: UseFormWatch<TelkomContractData>;
+  register: UseFormRegister<TelkomContractFormData>;
+  errors: FieldErrors<TelkomContractFormData>;
+  setValue: UseFormSetValue<TelkomContractFormData>;
+  watch: UseFormWatch<TelkomContractFormData>;
 }
 
 export function PaymentMethodSection({
