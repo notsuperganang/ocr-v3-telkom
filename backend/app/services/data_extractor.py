@@ -600,9 +600,11 @@ def _extract_cost_from_biaya_section(texts: List[str], cost_type: str) -> float:
                 i += 2  # Skip the money token
                 continue
         
-        # Look for langganan cost
-        if (("Biaya Langganan Tahunan" in current_text or 
+        # Look for langganan cost with more pattern variations
+        if (("Biaya Langganan Tahunan" in current_text or
              "BiayaLanggananTahunan" in current_text or
+             "BiayaLangganan12Bulan" in current_text or  # PT MIFA format
+             "Biaya Langganan 12 Bulan" in current_text or
              "Biaya Langganan Selama" in current_text) and i + 1 < len(texts)):
             next_token = texts[i + 1].strip()
             if _MONEY_TOKEN.match(next_token):
@@ -763,14 +765,18 @@ def _extract_cost_special_cases(texts: List[str]) -> tuple[float, float]:
                     biaya_langganan = parsed_amount
                     return biaya_instalasi, biaya_langganan
             
-            # Fallback to enhanced pattern matching
-            langganan_patterns = [
-                "Biaya Langganan Tahunan", "Langganan Tahunan", "Langganan Selama",
-                "Biaya Langganan Selama1Tahun", "Biaya Langganan Selama1tahun",
-                "Biaya Langganan Selama 1Tahun", "Biaya Langganan Selama 1tahun",
-                "Biaya Langganan Bulanan"  # Handle PT MPG edge case
-            ]
-            biaya_langganan = _extract_cost_robust(texts, langganan_patterns)
+            # Try structured extraction first (more reliable)
+            biaya_langganan = _extract_cost_from_biaya_section(texts, "langganan")
+
+            # Fallback to enhanced pattern matching if structured extraction fails
+            if biaya_langganan == 0.0:
+                langganan_patterns = [
+                    "Biaya Langganan Tahunan", "Langganan Tahunan", "Langganan Selama",
+                    "Biaya Langganan Selama1Tahun", "Biaya Langganan Selama1tahun",
+                    "Biaya Langganan Selama 1Tahun", "Biaya Langganan Selama 1tahun",
+                    "Biaya Langganan Bulanan"  # Handle PT MPG edge case
+                ]
+                biaya_langganan = _extract_cost_robust(texts, langganan_patterns)
             return biaya_instalasi, biaya_langganan
         elif "langganan" in full_text and "free" in full_text:
             # Langganan free, cari instalasi amount  
