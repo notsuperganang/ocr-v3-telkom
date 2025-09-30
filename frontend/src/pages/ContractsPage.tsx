@@ -131,7 +131,7 @@ export function ContractsPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Cari berdasarkan nama file, nomor kontrak, atau nama pelanggan..."
+                  placeholder="Cari berdasarkan nama file atau nama pelanggan..."
                   className="pl-10"
                   value={search}
                   onChange={handleSearchChange}

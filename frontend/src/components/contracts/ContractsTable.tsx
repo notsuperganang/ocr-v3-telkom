@@ -106,7 +106,8 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
             <TableRow>
               <TableHead>File</TableHead>
               <TableHead>Pelanggan</TableHead>
-              <TableHead>Nomor Kontrak</TableHead>
+              <TableHead>Periode Kontrak</TableHead>
+              <TableHead>Metode Pembayaran</TableHead>
               <TableHead>Dikonfirmasi</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[100px]">Aksi</TableHead>
@@ -137,11 +138,43 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                   </div>
                 </TableCell>
 
-                {/* Contract Number */}
+                {/* Contract Period */}
                 <TableCell>
-                  <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                    {contract.contract_number || '-'}
-                  </code>
+                  {contract.contract_start_date && contract.contract_end_date ? (
+                    <div className="text-sm">
+                      <div className="font-medium">
+                        {format(new Date(contract.contract_start_date), 'dd MMM yyyy', {
+                          locale: id,
+                        })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        s/d {format(new Date(contract.contract_end_date), 'dd MMM yyyy', {
+                          locale: id,
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">-</span>
+                  )}
+                </TableCell>
+
+                {/* Payment Method */}
+                <TableCell>
+                  {contract.payment_method ? (
+                    <Badge
+                      variant={
+                        contract.payment_method === 'OTC'
+                          ? 'default'
+                          : contract.payment_method === 'Termin'
+                          ? 'secondary'
+                          : 'outline'
+                      }
+                    >
+                      {contract.payment_method}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">-</span>
+                  )}
                 </TableCell>
 
                 {/* Confirmed Date */}

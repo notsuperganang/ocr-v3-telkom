@@ -28,9 +28,11 @@ class ContractSummary(BaseModel):
     confirmed_by: str
     confirmed_at: datetime
     created_at: datetime
-    contract_number: Optional[str] = None
+    contract_start_date: Optional[str] = None
+    contract_end_date: Optional[str] = None
+    payment_method: Optional[str] = None
     customer_name: Optional[str] = None
-    
+
     class Config:
         from_attributes = True
 
@@ -61,23 +63,35 @@ class ContractListResponse(BaseModel):
 def extract_contract_summary_data(final_data: Dict[str, Any]) -> Dict[str, str]:
     """Extract key fields for contract summary display"""
     result = {}
-    
-    # Try to extract contract number
+
     if isinstance(final_data, dict):
-        # Look for contract number in various possible locations
-        contract_info = final_data.get('contract_info', {})
-        if isinstance(contract_info, dict):
-            result['contract_number'] = contract_info.get('contract_number', '')
-        
-        # Look for customer name
+        # Extract customer name
         customer_info = final_data.get('customer_info', {}) or final_data.get('informasi_pelanggan', {})
         if isinstance(customer_info, dict):
             result['customer_name'] = (
-                customer_info.get('nama_pelanggan', '') or 
+                customer_info.get('nama_pelanggan', '') or
                 customer_info.get('customer_name', '') or
                 customer_info.get('nama', '')
             )
-    
+
+        # Extract contract period (jangka_waktu)
+        jangka_waktu = final_data.get('jangka_waktu', {})
+        if isinstance(jangka_waktu, dict):
+            result['contract_start_date'] = jangka_waktu.get('mulai', '')
+            result['contract_end_date'] = jangka_waktu.get('akhir', '')
+
+        # Extract payment method (tata_cara_pembayaran)
+        tata_cara = final_data.get('tata_cara_pembayaran', {})
+        if isinstance(tata_cara, dict):
+            method_type = tata_cara.get('method_type', '')
+            # Map to friendly labels
+            payment_method_map = {
+                'one_time_charge': 'OTC',
+                'recurring': 'Recurring',
+                'termin': 'Termin'
+            }
+            result['payment_method'] = payment_method_map.get(method_type, '')
+
     return result
 
 @router.get("", response_model=ContractListResponse)
@@ -132,7 +146,9 @@ async def list_contracts(
             confirmed_by=contract.confirmed_by,
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
-            contract_number=summary_data.get('contract_number'),
+            contract_start_date=summary_data.get('contract_start_date'),
+            contract_end_date=summary_data.get('contract_end_date'),
+            payment_method=summary_data.get('payment_method'),
             customer_name=summary_data.get('customer_name')
         ))
     

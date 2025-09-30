@@ -67,7 +67,9 @@ export interface ContractSummary {
   confirmed_by: string;
   confirmed_at: string;
   created_at: string;
-  contract_number?: string;
+  contract_start_date?: string;
+  contract_end_date?: string;
+  payment_method?: string;
   customer_name?: string;
 }
 
