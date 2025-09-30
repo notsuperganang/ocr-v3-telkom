@@ -374,8 +374,49 @@ def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int
     
     # Sort berdasarkan nomor termin
     termin_payments.sort(key=lambda t: t.termin_number)
-    
+
     return termin_payments, len(termin_payments), total_amount
+
+def _auto_generate_termin_payments(count: int, total_amount: float) -> List[TerminPayment]:
+    """
+    Auto-generate equal termin payment splits when explicit breakdown not found.
+
+    This function creates placeholder termin payments by evenly dividing the total
+    contract cost (biaya_instalasi + biaya_langganan_tahunan) across the specified
+    number of termin periods.
+
+    Args:
+        count: Number of termin periods (e.g., 4 for "Termin 4X")
+        total_amount: Total contract amount to split (biaya_instalasi + biaya_langganan_tahunan)
+
+    Returns:
+        List of auto-generated TerminPayment objects with equal splits.
+        Returns empty list if count or total_amount is invalid.
+
+    Example:
+        >>> _auto_generate_termin_payments(4, 100000000)
+        [
+            TerminPayment(termin_number=1, period="Termin 1", amount=25000000, ...),
+            TerminPayment(termin_number=2, period="Termin 2", amount=25000000, ...),
+            ...
+        ]
+    """
+    if count <= 0 or total_amount <= 0:
+        return []
+
+    # Calculate equal split amount per termin
+    amount_per_termin = total_amount / count
+
+    # Generate termin payment entries
+    return [
+        TerminPayment(
+            termin_number=i + 1,
+            period=f"Termin {i + 1}",
+            amount=amount_per_termin,
+            raw_text=f"Auto-generated: dibagi rata dari total Rp {total_amount:,.0f}"
+        )
+        for i in range(count)
+    ]
 
 # -------------------- Robust Text Matching Utilities --------------------
 
@@ -946,11 +987,24 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
         else:
             # Fallback: extract termin count only (for edge cases without amounts)
             count_only = _extract_termin_count_only(texts)
+
             if count_only:
-                total_termin_count = count_only
-                description = f"Pembayaran termin ({count_only} periode, tanpa detail nominal)"
+                # Calculate total contract cost for auto-generation
+                total_contract_cost = biaya_langganan_tahunan + biaya_instalasi
+
+                if total_contract_cost > 0:
+                    # AUTO-GENERATE: Split total cost evenly across termins
+                    termin_payments = _auto_generate_termin_payments(count_only, total_contract_cost)
+                    total_termin_count = count_only
+                    total_amount = total_contract_cost
+                    description = f"Pembayaran termin ({count_only} periode, dibagi rata otomatis)"
+                else:
+                    # No cost data available, can't auto-generate amounts
+                    total_termin_count = count_only
+                    total_amount = 0
+                    description = f"Pembayaran termin ({count_only} periode, menunggu input biaya)"
             else:
-                # Last resort: keep as termin but indicate extraction failed
+                # Last resort: termin detected but no count found
                 description = "Pembayaran termin terdeteksi (gagal ekstrak detail)"
     
     tata_cara_pembayaran = TataCaraPembayaran(
