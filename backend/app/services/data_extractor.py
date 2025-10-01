@@ -832,8 +832,26 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     perwakilan_nama = perwakilan_jabatan = None
 
     # Cari section pelanggan dengan multiple patterns
-    pelanggan_patterns = ["2.PELANGGAN", "2. PELANGGAN", "PELANGGAN", "2.PELANGGAN ", "2 PELANGGAN"]
-    idx_pelanggan = _find_near_label(texts, pelanggan_patterns)
+    # Note: Use section-specific patterns to avoid matching standalone numbers
+    # The "2. PELANGGAN" pattern can match standalone "2" via containing match ("2" in "2. PELANGGAN")
+    # So we need exact/fuzzy match first, then fallback to word "PELANGGAN" only
+    pelanggan_patterns = ["2. PELANGGAN", "2.PELANGGAN", "2.  PELANGGAN", "2.PELANGGAN ", "PELANGGAN"]
+
+    # Try exact match first (most reliable)
+    idx_pelanggan = None
+    for pattern in ["2. PELANGGAN", "2.PELANGGAN", "2.  PELANGGAN"]:
+        idx = _find_eq(texts, pattern, 0)
+        if idx is not None:
+            idx_pelanggan = idx
+            break
+
+    # If exact failed, try fuzzy (still reliable)
+    if idx_pelanggan is None:
+        idx_pelanggan = _find_fuzzy(texts, "2. PELANGGAN", 0.8, 0)
+
+    # Last resort: find "PELANGGAN" word alone
+    if idx_pelanggan is None:
+        idx_pelanggan = _find_eq(texts, "PELANGGAN", 0)
 
     if idx_pelanggan is not None:
         # Multi-strategy extraction untuk fields utama
@@ -859,8 +877,31 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
                 alamat = alamat.replace(npwp, '').strip()
 
         # Cari perwakilan dengan flexible matching
-        perwakilan_patterns = ["Diwakili secara sah oleh:", "Diwakili secara sah oleh", "diwakili secara sah oleh"]
-        idx_rep = _find_near_label(texts, perwakilan_patterns, idx_pelanggan)
+        # Note: OCR typos include "saholeh" (missing space), "saholeh：" (Chinese colon)
+        # Try shorter, more specific patterns first to avoid false matches via containing
+        perwakilan_patterns = [
+            "Diwakili secara saholeh",  # OCR typo: missing space (try first)
+            "diwakili secara saholeh",  # OCR typo lowercase
+            "Diwakili secara sah oleh",  # Normal format without colon
+            "diwakili secara sah oleh",
+        ]
+        # Manual search to avoid false positives from containing match
+        idx_rep = None
+        for pattern in perwakilan_patterns:
+            # Try exact match first
+            idx = _find_eq(texts, pattern, idx_pelanggan)
+            if idx is not None:
+                idx_rep = idx
+                break
+            # Try fuzzy match
+            idx = _find_fuzzy(texts, pattern, 0.7, idx_pelanggan)
+            if idx is not None:
+                idx_rep = idx
+                break
+
+        # If still not found, try containing match carefully (only for longer patterns)
+        if idx_rep is None:
+            idx_rep = _find_containing(texts, "Diwakili secara sah", idx_pelanggan)
         
         if idx_rep is not None:
             perwakilan_nama = _extract_field_multi_strategy(texts, nama_patterns, idx_rep)
