@@ -1,6 +1,7 @@
-// Halaman upload file kontrak dengan drag & drop dan bulk upload
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
+import { FileUpload, type FileUploadRef } from '@/components/ui/file-upload';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +14,8 @@ import {
   Clock,
   X,
   RefreshCw,
-  Eye
+  Eye,
+  Info
 } from 'lucide-react';
 import { apiService } from '@/services/api';
 
@@ -36,10 +38,10 @@ const POLL_INTERVAL = 2000; // 2 detik
 
 export function UploadPage() {
   const [files, setFiles] = useState<UploadFile[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const navigate = useNavigate();
   const pollingIntervals = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const fileUploadRef = useRef<FileUploadRef>(null);
 
   // Format ukuran file
   const formatFileSize = (bytes: number) => {
@@ -61,34 +63,7 @@ export function UploadPage() {
     return null;
   };
 
-  // Handle drag events
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDragIn = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragOut = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    handleFileSelection(droppedFiles);
-  }, []);
-
-  // Handle file selection
+  // Handle file selection from FileUpload component
   const handleFileSelection = (selectedFiles: File[]) => {
     const newFiles: UploadFile[] = [];
 
@@ -119,13 +94,6 @@ export function UploadPage() {
     setFiles(prev => [...prev, ...newFiles]);
   };
 
-  // Handle file input change
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleFileSelection(Array.from(e.target.files));
-    }
-  };
-
   // Remove file
   const removeFile = (fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId));
@@ -135,15 +103,15 @@ export function UploadPage() {
   const getStatusBadge = (status: UploadFile['status']) => {
     switch (status) {
       case 'selected':
-        return <Badge variant="secondary">Siap Upload</Badge>;
+        return <Badge variant="secondary" className="bg-muted">Siap Upload</Badge>;
       case 'uploading':
-        return <Badge variant="default">Mengupload</Badge>;
+        return <Badge className="bg-primary">Mengupload</Badge>;
       case 'processing':
-        return <Badge variant="default" className="animate-pulse">Memproses</Badge>;
+        return <Badge className="bg-primary animate-pulse">Memproses</Badge>;
       case 'awaiting_review':
-        return <Badge variant="outline" className="text-blue-600">Siap Review</Badge>;
+        return <Badge variant="outline" className="text-blue-600 border-blue-600">Siap Review</Badge>;
       case 'completed':
-        return <Badge variant="default" className="bg-green-600">Selesai</Badge>;
+        return <Badge className="bg-green-600 hover:bg-green-600">Selesai</Badge>;
       case 'failed':
         return <Badge variant="destructive">Gagal</Badge>;
       default:
@@ -155,11 +123,11 @@ export function UploadPage() {
   const getStatusIcon = (status: UploadFile['status']) => {
     switch (status) {
       case 'selected':
-        return <Clock className="w-4 h-4 text-gray-500" />;
+        return <Clock className="w-4 h-4 text-muted-foreground" />;
       case 'uploading':
-        return <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />;
+        return <RefreshCw className="w-4 h-4 animate-spin text-primary" />;
       case 'processing':
-        return <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />;
+        return <RefreshCw className="w-4 h-4 animate-spin text-primary" />;
       case 'awaiting_review':
         return <Eye className="w-4 h-4 text-blue-600" />;
       case 'completed':
@@ -204,7 +172,7 @@ export function UploadPage() {
           switch (status.status) {
             case 'processing':
               newStatus = 'processing';
-              progress = 50; // Show 50% when processing
+              progress = 50;
               break;
             case 'awaiting_review':
               newStatus = 'awaiting_review';
@@ -241,7 +209,6 @@ export function UploadPage() {
       }
     } catch (error) {
       console.error('Error polling job status:', error);
-      // Stop polling on error
       const interval = pollingIntervals.current.get(jobId);
       if (interval) {
         clearInterval(interval);
@@ -257,15 +224,12 @@ export function UploadPage() {
     }, POLL_INTERVAL);
 
     pollingIntervals.current.set(jobId, interval);
-
-    // Initial poll
     pollJobStatus(jobId, fileId);
   }, [pollJobStatus]);
 
   // Upload single file
   const uploadSingleFile = async (file: UploadFile): Promise<void> => {
     try {
-      // Update status to uploading
       setFiles(prev => prev.map(f =>
         f.id === file.id
           ? { ...f, status: 'uploading', progress: 0 }
@@ -280,10 +244,8 @@ export function UploadPage() {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // Upload file
       const response = await apiService.uploadFile(file.file);
 
-      // Update with job info and start processing
       setFiles(prev => prev.map(f =>
         f.id === file.id
           ? {
@@ -296,7 +258,6 @@ export function UploadPage() {
           : f
       ));
 
-      // Start polling for this job
       startPolling(response.job_id, file.id);
 
     } catch (error: any) {
@@ -321,10 +282,8 @@ export function UploadPage() {
     setIsUploading(true);
 
     try {
-      // Upload files sequentially to avoid overwhelming the server
       for (const file of selectedFiles) {
         await uploadSingleFile(file);
-        // Small delay between uploads
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch (error) {
@@ -343,213 +302,284 @@ export function UploadPage() {
   }, []);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Upload Kontrak</h1>
-        <p className="text-muted-foreground">
-          Upload file kontrak PDF untuk ekstraksi data otomatis (Maksimal 5 file)
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header Section */}
+        <motion.div
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <motion.div
+            className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          >
+            <Upload className="w-8 h-8 text-primary" />
+          </motion.div>
+          <motion.h1
+            className="text-4xl font-bold text-foreground mb-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
+            Upload Kontrak Telkom
+          </motion.h1>
+          <motion.p
+            className="text-muted-foreground text-lg max-w-2xl mx-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+          >
+            Ekstraksi data otomatis dari dokumen kontrak PDF menggunakan teknologi OCR
+          </motion.p>
+        </motion.div>
 
-      {/* Upload Area */}
-      <div className="max-w-4xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload File Kontrak</CardTitle>
-            <CardDescription>
-              Seret dan lepas file PDF atau klik untuk memilih. Maksimal 5 file per batch, 50MB per file.
-            </CardDescription>
-          </CardHeader>
+        {/* Main Upload Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+        >
+          <Card className="mb-6 border-2 shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-2xl">Upload File Kontrak</CardTitle>
+              <CardDescription className="text-base">
+                Maksimal 5 file per batch • Ukuran maksimal 50MB per file • Format PDF
+              </CardDescription>
+            </CardHeader>
           <CardContent>
-            {/* Drag & Drop Area */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center space-y-4 transition-colors ${
-                isDragging
-                  ? 'border-primary bg-primary/5'
-                  : files.length >= MAX_FILES
-                  ? 'border-gray-300 bg-gray-50'
-                  : 'border-border hover:border-primary/50'
-              }`}
-              onDragEnter={handleDragIn}
-              onDragLeave={handleDragOut}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <div className="flex justify-center">
-                <Upload className={`w-12 h-12 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
-              </div>
-              <div>
-                <p className="text-lg font-medium text-foreground">
-                  {files.length >= MAX_FILES
-                    ? 'Batas maksimal 5 file tercapai'
-                    : isDragging
-                    ? 'Lepas file di sini'
-                    : 'Seret dan lepas file PDF ke sini'
-                  }
+            {files.length < MAX_FILES ? (
+              <FileUpload ref={fileUploadRef} onChange={handleFileSelection} />
+            ) : (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/30">
+                <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-lg font-medium text-foreground mb-1">
+                  Batas Maksimal Tercapai
                 </p>
-                <p className="text-muted-foreground">atau</p>
+                <p className="text-muted-foreground">
+                  Anda telah mencapai batas 5 file. Hapus beberapa file untuk menambahkan yang baru.
+                </p>
               </div>
-              <div>
-                <input
-                  type="file"
-                  id="file-input"
-                  multiple
-                  accept=".pdf"
-                  onChange={handleFileInputChange}
-                  disabled={files.length >= MAX_FILES}
-                  className="hidden"
-                />
-                <Button
-                  asChild
-                  disabled={files.length >= MAX_FILES}
-                  variant={files.length >= MAX_FILES ? "secondary" : "default"}
-                >
-                  <label htmlFor="file-input" className="cursor-pointer">
-                    {files.length >= MAX_FILES ? 'Batas Tercapai' : 'Pilih File'}
-                  </label>
-                </Button>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Format yang didukung: PDF • Ukuran maksimal: 50MB per file • Maksimal: 5 file per batch
-                <br />
-                <span className="font-medium">
-                  {files.length}/{MAX_FILES} file dipilih
-                </span>
-              </div>
-            </div>
+            )}
 
             {/* File List */}
             {files.length > 0 && (
               <div className="mt-6">
-                <h3 className="font-medium text-foreground mb-4">File yang Dipilih ({files.length})</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-lg text-foreground">
+                    File Terpilih ({files.length}/{MAX_FILES})
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setFiles([]);
+                      fileUploadRef.current?.clearFiles();
+                    }}
+                    disabled={isUploading}
+                    className="text-muted-foreground hover:text-white hover:bg-destructive"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Hapus Semua
+                  </Button>
+                </div>
+
                 <div className="space-y-3">
-                  {files.map((file) => (
-                    <div
+                  {files.map((file, index) => (
+                    <motion.div
                       key={file.id}
-                      className="flex items-center gap-4 p-4 border border-border rounded-lg bg-card"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      transition={{ delay: index * 0.05, duration: 0.3 }}
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {getStatusIcon(file.status)}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate text-foreground">
-                            {file.file.name}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{formatFileSize(file.file.size)}</span>
-                            <span>•</span>
-                            <span>{getProgressMessage(file)}</span>
+                      <Card className="border shadow-sm hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0">
+                            {getStatusIcon(file.status)}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-foreground truncate">
+                                {file.file.name}
+                              </p>
+                              {getStatusBadge(file.status)}
+                            </div>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                              <span>{formatFileSize(file.file.size)}</span>
+                              <span>•</span>
+                              <span>{getProgressMessage(file)}</span>
+                            </div>
+
+                            {/* Progress Bar */}
+                            {(file.status === 'uploading' || file.status === 'processing') && (
+                              <div className="mt-2">
+                                <Progress value={file.progress} className="h-2" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {/* Review Button */}
+                            {file.status === 'awaiting_review' && (
+                              <Button
+                                onClick={() => navigate(`/review/${file.jobId}`)}
+                                size="sm"
+                                className="bg-primary hover:bg-primary/90"
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                Review
+                              </Button>
+                            )}
+
+                            {/* Remove Button */}
+                            {(file.status === 'selected' || file.status === 'failed') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeFile(file.id)}
+                                className="text-muted-foreground hover:text-destructive"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {getStatusBadge(file.status)}
-
-                        {/* Progress Bar */}
-                        {(file.status === 'uploading' || file.status === 'processing') && (
-                          <div className="w-24">
-                            <Progress value={file.progress} className="h-2" />
-                          </div>
-                        )}
-
-                        {/* Remove Button */}
-                        {file.status === 'selected' || file.status === 'failed' ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeFile(file.id)}
-                            className="text-gray-500 hover:text-red-500"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        ) : null}
-
-                        {/* View Button for completed files */}
-                        {file.status === 'awaiting_review' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/review/${file.jobId}`)}
-                          >
-                            Review
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
                   ))}
                 </div>
 
                 {/* Upload Actions */}
-                <div className="flex gap-3 mt-6">
-                  <Button
-                    onClick={handleBulkUpload}
-                    disabled={!files.some(f => f.status === 'selected') || isUploading}
-                    className="flex items-center gap-2"
-                  >
-                    {isUploading ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        Mengupload...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        Upload Semua File
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setFiles([])}
-                    disabled={isUploading}
-                  >
-                    Hapus Semua
-                  </Button>
-                </div>
+                {files.some(f => f.status === 'selected') && (
+                  <div className="mt-6 flex gap-3">
+                    <Button
+                      onClick={handleBulkUpload}
+                      disabled={isUploading}
+                      size="lg"
+                      className="flex-1 bg-primary hover:bg-primary/90 text-lg h-12"
+                    >
+                      {isUploading ? (
+                        <>
+                          <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+                          Mengupload...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 mr-2" />
+                          Upload {files.filter(f => f.status === 'selected').length} File
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
+        </motion.div>
 
-        {/* Guidelines */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5" />
-              Panduan Pemrosesan
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h4 className="font-medium text-foreground mb-2">Jenis Dokumen yang Didukung</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Dokumen kontrak Telkom Indonesia (format K.TEL)</li>
-                <li>• File PDF multi-halaman (halaman 1-2 akan diproses)</li>
-                <li>• Dokumen dengan teks dan tabel yang jelas dan terbaca</li>
-              </ul>
-            </div>
+        {/* Guidelines Grid */}
+        <motion.div
+          className="grid md:grid-cols-3 gap-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.5 }}
+        >
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.7, duration: 0.4 }}
+          >
+            <Card className="border hover:border-primary/50 transition-colors">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <CardTitle className="text-base">Format Dokumen</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground space-y-1">
+                <p>• Kontrak Telkom (K.TEL)</p>
+                <p>• PDF dengan teks jelas</p>
+                <p>• Maksimal 50MB/file</p>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-            <div>
-              <h4 className="font-medium text-foreground mb-2">Alur Pemrosesan</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>1. File diupload dan masuk ke antrian pemrosesan</li>
-                <li>2. Ekstraksi OCR dilakukan secara otomatis</li>
-                <li>3. Data diekstrak dan siap untuk direview</li>
-                <li>4. Anda dapat mengedit dan mengkonfirmasi data yang diekstrak</li>
-                <li>5. Data yang dikonfirmasi disimpan sebagai record kontrak</li>
-              </ul>
-            </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.4 }}
+          >
+            <Card className="border hover:border-primary/50 transition-colors">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <RefreshCw className="w-5 h-5 text-primary" />
+                  </div>
+                  <CardTitle className="text-base">Proses Otomatis</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground space-y-1">
+                <p>• Upload & antrian</p>
+                <p>• Ekstraksi OCR otomatis</p>
+                <p>• Review & konfirmasi</p>
+              </CardContent>
+            </Card>
+          </motion.div>
 
-            <div>
-              <h4 className="font-medium text-foreground mb-2">Estimasi Waktu Pemrosesan</h4>
-              <p className="text-sm text-muted-foreground">
-                Setiap dokumen biasanya membutuhkan waktu 15-45 detik untuk diproses, tergantung ukuran file dan kompleksitas.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.9, duration: 0.4 }}
+          >
+            <Card className="border hover:border-primary/50 transition-colors">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-primary" />
+                  </div>
+                  <CardTitle className="text-base">Waktu Proses</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground space-y-1">
+                <p>• 15-45 detik/dokumen</p>
+                <p>• Tergantung ukuran file</p>
+                <p>• Notifikasi real-time</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+
+        {/* Info Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0, duration: 0.5 }}
+        >
+          <Card className="mt-4 border-primary/20 bg-primary/5">
+            <CardContent className="p-4">
+              <div className="flex gap-3">
+                <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-foreground">
+                  <p className="font-medium mb-1">Tips untuk hasil terbaik:</p>
+                  <p className="text-muted-foreground">
+                    Pastikan dokumen PDF memiliki kualitas scan yang baik dan teks dapat terbaca dengan jelas.
+                    Dokumen dengan tabel dan struktur yang rapi akan menghasilkan ekstraksi data yang lebih akurat.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </div>
   );
