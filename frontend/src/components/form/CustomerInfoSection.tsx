@@ -1,5 +1,5 @@
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
-import { User, Building, Phone, Mail, IdCard } from 'lucide-react';
+import { User, Building, Phone, Mail, IdCard, AlertCircle } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -93,28 +93,35 @@ export function CustomerInfoSection({
           )}
         </div>
 
-        {/* NPWP */}
+        {/* NPWP - Optional field */}
         <div className="space-y-2">
           <Label htmlFor="npwp" className="text-sm font-medium flex items-center gap-2">
             <IdCard className="w-4 h-4" />
             NPWP
+            <span className="text-xs text-muted-foreground font-normal">(Opsional)</span>
           </Label>
           <Input
             id="npwp"
             value={npwpValue || ''}
             onChange={handleNPWPChange}
-            placeholder="15-19 digit NPWP"
+            placeholder="15, 16, atau 19 digit (kosongkan jika tidak ada)"
             maxLength={19}
             className={errors.informasi_pelanggan?.npwp ? 'border-red-500' : ''}
           />
-          {displayNPWP && displayNPWP !== npwpValue && (
+          {displayNPWP && displayNPWP !== npwpValue && !errors.informasi_pelanggan?.npwp && (
             <p className="text-xs text-muted-foreground">
               Format: {displayNPWP}
             </p>
           )}
           {errors.informasi_pelanggan?.npwp && (
-            <p className="text-xs text-red-500">
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
               {errors.informasi_pelanggan.npwp.message}
+            </p>
+          )}
+          {!errors.informasi_pelanggan?.npwp && npwpValue && (
+            <p className="text-xs text-muted-foreground">
+              💡 NPWP akan divalidasi saat Anda menyimpan
             </p>
           )}
         </div>

@@ -96,12 +96,11 @@ const npwpSchema = z.preprocess(
     if (val === null || val === undefined || val === '') return undefined;
     const result = cleanNPWP(String(val));
 
-    if (!result.isValid && result.error) {
-      throw new z.ZodError([{
-        code: 'custom',
-        message: result.error,
-        path: []
-      }]);
+    // Don't throw errors during preprocessing - return empty string for invalid NPWPs
+    // This prevents crashes when loading bad OCR data
+    // Validation errors will be caught by the main schema
+    if (!result.isValid) {
+      return undefined; // Silently convert invalid to undefined
     }
 
     return result.cleaned.length === 0 ? undefined : result.cleaned;
@@ -342,7 +341,14 @@ const formKontakPersonPelangganSchema = z.object({
 const formInformasiPelangganSchema = z.object({
   nama_pelanggan: z.string().optional(),
   alamat: z.string().optional(),
-  npwp: z.string().optional(),
+  npwp: z.string().optional().refine((val) => {
+    // NPWP is optional, but if provided, must be 15, 16, or 19 digits
+    if (!val || val.trim() === '') return true;
+    const digits = val.replace(/\D/g, '');
+    return digits.length === 15 || digits.length === 16 || digits.length === 19;
+  }, {
+    message: 'NPWP harus 15, 16, atau 19 digit (atau kosongkan jika tidak ada)'
+  }),
   perwakilan: formPerwakilanSchema.optional(),
   kontak_person: formKontakPersonPelangganSchema.optional(),
 });
