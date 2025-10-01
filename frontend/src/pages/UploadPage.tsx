@@ -302,8 +302,51 @@ export function UploadPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="min-h-screen w-full relative">
+      {/* Animated Gradient Background */}
+      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-red-50 via-white to-orange-50 -z-10">
+        {/* Subtle animated orbs */}
+        <motion.div
+          className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.1, 1],
+            opacity: [0.3, 0.2, 0.3],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full blur-3xl"
+          animate={{
+            scale: [1, 1.2, 1],
+            opacity: [0.2, 0.3, 0.2],
+          }}
+          transition={{
+            duration: 10,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 1,
+          }}
+        />
+        <motion.div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-gradient-to-r from-red-100/10 via-orange-100/10 to-red-100/10 rounded-full blur-3xl"
+          animate={{
+            rotate: [0, 360],
+            scale: [1, 1.05, 1],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+      </div>
+
+      {/* Content */}
+      <div className="relative container mx-auto px-4 py-8 max-w-6xl">
         {/* Header Section */}
         <motion.div
           className="text-center mb-8"
@@ -343,7 +386,7 @@ export function UploadPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.5 }}
         >
-          <Card className="mb-6 border-2 shadow-lg">
+          <Card className="mb-6 border-2 shadow-lg bg-clip-padding backdrop-filter backdrop-blur-md bg-white/80 border-white/20">
             <CardHeader>
               <CardTitle className="text-2xl">Upload File Kontrak</CardTitle>
               <CardDescription className="text-base">
@@ -396,7 +439,7 @@ export function UploadPage() {
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ delay: index * 0.05, duration: 0.3 }}
                     >
-                      <Card className="border shadow-sm hover:shadow-md transition-shadow">
+                      <Card className="border shadow-sm hover:shadow-md transition-shadow bg-clip-padding backdrop-filter backdrop-blur-md bg-white/75 border-white/20">
                         <CardContent className="p-4">
                         <div className="flex items-center gap-4">
                           <div className="flex-shrink-0">
@@ -497,7 +540,7 @@ export function UploadPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.7, duration: 0.4 }}
           >
-            <Card className="border hover:border-primary/50 transition-colors">
+            <Card className="border hover:border-primary/50 transition-colors bg-clip-padding backdrop-filter backdrop-blur-md bg-white/70 border-white/20">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -519,7 +562,7 @@ export function UploadPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8, duration: 0.4 }}
           >
-            <Card className="border hover:border-primary/50 transition-colors">
+            <Card className="border hover:border-primary/50 transition-colors bg-clip-padding backdrop-filter backdrop-blur-md bg-white/70 border-white/20">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -541,7 +584,7 @@ export function UploadPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.9, duration: 0.4 }}
           >
-            <Card className="border hover:border-primary/50 transition-colors">
+            <Card className="border hover:border-primary/50 transition-colors bg-clip-padding backdrop-filter backdrop-blur-md bg-white/70 border-white/20">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -565,7 +608,7 @@ export function UploadPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.0, duration: 0.5 }}
         >
-          <Card className="mt-4 border-primary/20 bg-primary/5">
+          <Card className="mt-4 bg-clip-padding backdrop-filter backdrop-blur-md bg-red-50/60 border border-white/30">
             <CardContent className="p-4">
               <div className="flex gap-3">
                 <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
