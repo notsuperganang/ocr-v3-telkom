@@ -67,6 +67,83 @@ def _texts_from_ocr(ocr_json: Any) -> List[str]:
         return ocr_json.splitlines()
     return []
 
+def _texts_from_parsing_res_list(ocr_json: Any) -> List[str]:
+    """
+    Extract text from PP-StructureV3's parsing_res_list (layout-aware structured output).
+
+    This provides better document structure preservation than rec_texts for contracts
+    where sections appear out of order in the flat rec_texts array.
+
+    Returns:
+        List of text tokens optimized for label-value extraction
+    """
+    if not isinstance(ocr_json, dict):
+        return []
+
+    parsing_res_list = ocr_json.get("parsing_res_list", [])
+    if not isinstance(parsing_res_list, list):
+        return []
+
+    texts = []
+    for block in parsing_res_list:
+        if not isinstance(block, dict):
+            continue
+
+        block_content = block.get("block_content", "")
+        if not block_content:
+            continue
+
+        # Split on newlines to create separate tokens
+        lines = block_content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            # Strategy: For label-value pairs, add both the full line AND split tokens
+            # Examples:
+            # "Nama SMKNPENERBANGANACEH" -> ["Nama SMKNPENERBANGANACEH", "Nama", "SMKNPENERBANGANACEH"]
+            # "Alamat NPWP JL.BLANG..." -> ["Alamat NPWP JL.BLANG...", "Alamat", rest...]
+
+            # Check if line starts with common field labels
+            field_labels = ["Nama", "Alamat", "NPWP", "Jabatan", "NIK"]
+            is_field_line = any(line.startswith(label + " ") for label in field_labels)
+
+            # Also check for "representative" format: "Diwakili secara sah oleh:Nama VALUE Jabatan VALUE2"
+            is_representative_line = "Diwakili secara sah oleh" in line and "Nama" in line
+
+            if is_field_line:
+                # This is a "Label Value" line
+                # Add full line first (for extracting complete value)
+                texts.append(line)
+
+                # Split to extract label and value separately
+                parts = line.split(None, 1)  # Split on first whitespace only
+                if len(parts) == 2:
+                    label, value = parts
+                    texts.append(label)
+                    texts.append(value)
+                elif len(parts) == 1:
+                    texts.append(parts[0])
+            elif is_representative_line:
+                # Special handling for representative section
+                # Example: "Diwakili secara sah oleh:Nama HELFIANDI,S.Pd.,M.Pd Jabatan KEPALASEKOLAH"
+                # Don't add the full line to avoid containing match picking up wrong text
+                # Just tokenize it properly
+                tokens = line.split()
+                texts.extend(tokens)
+                # Also add "Nama" standalone for exact matching
+                if "Nama" in line:
+                    texts.append("Nama")
+            else:
+                # Not a field line, add as-is
+                texts.append(line)
+                # Also tokenize for flexibility (e.g., section titles)
+                if ' ' in line:
+                    texts.extend(line.split())
+
+    return texts
+
 def _find_eq(texts: List[str], label: str, start: int = 0) -> Optional[int]:
     """Cari index token yang sama persis (case-insensitive) dengan label."""
     tgt = label.strip().lower()
@@ -842,16 +919,34 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     for pattern in ["2. PELANGGAN", "2.PELANGGAN", "2.  PELANGGAN"]:
         idx = _find_eq(texts, pattern, 0)
         if idx is not None:
-            idx_pelanggan = idx
-            break
+            # Check if this match is reasonable (not at the very end)
+            # Some contracts have "2. PELANGGAN" at the end but actual data earlier
+            if idx < len(texts) * 0.9:  # Must be in first 90% of document
+                idx_pelanggan = idx
+                break
 
     # If exact failed, try fuzzy (still reliable)
     if idx_pelanggan is None:
         idx_pelanggan = _find_fuzzy(texts, "2. PELANGGAN", 0.8, 0)
+        if idx_pelanggan is not None and idx_pelanggan >= len(texts) * 0.9:
+            idx_pelanggan = None  # Reject if too late in document
 
-    # Last resort: find "PELANGGAN" word alone
+    # Try alternative pattern: "Identitas Perusahaan/Institusi" (appears in some contracts)
+    # This helps when "2. PELANGGAN" appears at wrong position in rec_texts
     if idx_pelanggan is None:
-        idx_pelanggan = _find_eq(texts, "PELANGGAN", 0)
+        for pattern in ["Identitas Perusahaan/Institusi", "Identitas Perusahaan", "IdentitasPerusahaan/Institusi"]:
+            idx = _find_eq(texts, pattern, 0)
+            if idx is not None:
+                idx_pelanggan = idx
+                break
+        if idx_pelanggan is None:
+            idx_pelanggan = _find_fuzzy(texts, "Identitas Perusahaan", 0.7, 0)
+
+    # Last resort: find "PELANGGAN" word alone (but not if it's at the very end)
+    if idx_pelanggan is None:
+        idx = _find_eq(texts, "PELANGGAN", 0)
+        if idx is not None and idx < len(texts) * 0.9:
+            idx_pelanggan = idx
 
     if idx_pelanggan is not None:
         # Multi-strategy extraction untuk fields utama
@@ -915,6 +1010,90 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
         perwakilan=Perwakilan(nama=perwakilan_nama, jabatan=perwakilan_jabatan) if (perwakilan_nama or perwakilan_jabatan) else None,
         kontak_person=None,  # placeholder (ada di Page 2)
     )
+
+    # --- Fallback: Try parsing_res_list if customer data is missing ---
+    # Some contracts have poor rec_texts ordering (e.g., "2. PELANGGAN" at the end)
+    # but correct structure in parsing_res_list
+    if not nama_pelanggan and isinstance(ocr_json_page1, dict):
+        parsing_texts = _texts_from_parsing_res_list(ocr_json_page1)
+        if parsing_texts:
+            # Re-run customer extraction with parsing_res_list derived texts
+            idx_pelanggan_parsing = None
+            for pattern in ["2. PELANGGAN", "2.PELANGGAN", "2.  PELANGGAN"]:
+                idx = _find_eq(parsing_texts, pattern, 0)
+                if idx is not None:
+                    idx_pelanggan_parsing = idx
+                    break
+
+            if idx_pelanggan_parsing is None:
+                idx_pelanggan_parsing = _find_fuzzy(parsing_texts, "2. PELANGGAN", 0.8, 0)
+
+            if idx_pelanggan_parsing is None:
+                idx_pelanggan_parsing = _find_eq(parsing_texts, "PELANGGAN", 0)
+
+            if idx_pelanggan_parsing is not None:
+                # Extract customer fields from parsing texts
+                nama_patterns = ["Nama", "nama", "NAMA"]
+                alamat_patterns = ["Alamat", "alamat", "ALAMAT", "Alamat NPWP"]
+                npwp_patterns = ["NPWP", "npwp"]
+
+                nama_pelanggan = _extract_field_multi_strategy(parsing_texts, nama_patterns, idx_pelanggan_parsing)
+                alamat = _extract_field_multi_strategy(parsing_texts, alamat_patterns, idx_pelanggan_parsing)
+                npwp = _extract_field_multi_strategy(parsing_texts, npwp_patterns, idx_pelanggan_parsing)
+
+                # Special handling for "Alamat NPWP <address>" pattern (SMK Penerbangan case)
+                # where alamat field returns "NPWP <address>" instead of just the address
+                if alamat and alamat.startswith("NPWP "):
+                    # This is actually "NPWP <address>" - the address starts after "NPWP "
+                    actual_address = alamat[5:].strip()  # Remove "NPWP " prefix
+                    alamat = actual_address
+                    # Don't set npwp since the value after "NPWP" is the address, not NPWP number
+
+                # Clean up NPWP
+                if npwp and "diwakili" in npwp.lower():
+                    npwp = None
+
+                # Try to extract NPWP from alamat if needed
+                if alamat and not npwp:
+                    npwp_match = re.search(r'\d{2}\.\d{3}\.\d{3}\.\d{1}-\d{3}\.\d{3}', alamat)
+                    if npwp_match:
+                        npwp = npwp_match.group(0)
+                        alamat = alamat.replace(npwp, '').strip()
+
+                # Extract representative
+                perwakilan_patterns = [
+                    "Diwakili secara saholeh",
+                    "diwakili secara saholeh",
+                    "Diwakili secara sah oleh",
+                    "diwakili secara sah oleh",
+                ]
+                idx_rep_parsing = None
+                for pattern in perwakilan_patterns:
+                    idx = _find_eq(parsing_texts, pattern, idx_pelanggan_parsing)
+                    if idx is not None:
+                        idx_rep_parsing = idx
+                        break
+                    idx = _find_fuzzy(parsing_texts, pattern, 0.7, idx_pelanggan_parsing)
+                    if idx is not None:
+                        idx_rep_parsing = idx
+                        break
+
+                if idx_rep_parsing is None:
+                    idx_rep_parsing = _find_containing(parsing_texts, "Diwakili secara sah", idx_pelanggan_parsing)
+
+                if idx_rep_parsing is not None:
+                    perwakilan_nama = _extract_field_multi_strategy(parsing_texts, nama_patterns, idx_rep_parsing)
+                    jabatan_patterns = ["Jabatan", "jabatan", "JABATAN"]
+                    perwakilan_jabatan = _extract_field_multi_strategy(parsing_texts, jabatan_patterns, idx_rep_parsing)
+
+                # Update informasi_pelanggan with parsing-based extraction
+                informasi_pelanggan = InformasiPelanggan(
+                    nama_pelanggan=nama_pelanggan,
+                    alamat=alamat,
+                    npwp=npwp,
+                    perwakilan=Perwakilan(nama=perwakilan_nama, jabatan=perwakilan_jabatan) if (perwakilan_nama or perwakilan_jabatan) else None,
+                    kontak_person=None,
+                )
 
     # --- Layanan Utama (Enhanced Robust Counts) ---
     # Multiple patterns untuk setiap service type dengan variasi spasi OCR
