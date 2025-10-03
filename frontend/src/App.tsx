@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UploadPage } from './pages/UploadPage';
 import { ContractsPage } from './pages/ContractsPage';
+import { ContractDetailPage } from './pages/ContractDetailPage';
 import { ProcessingPage } from './pages/ProcessingPage';
 import { ReviewPage } from './pages/ReviewPage';
 
@@ -40,6 +41,7 @@ function App() {
                       <Route path="/" element={<DashboardPage />} />
                       <Route path="/upload" element={<UploadPage />} />
                       <Route path="/contracts" element={<ContractsPage />} />
+                      <Route path="/contracts/:contractId" element={<ContractDetailPage />} />
                       <Route path="/processing/:jobId" element={<ProcessingPage />} />
                       <Route path="/review/:jobId" element={<ReviewPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
