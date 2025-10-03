@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -52,6 +53,7 @@ interface ContractsTableProps {
 }
 
 export function ContractsTable({ data, isLoading, onPageChange }: ContractsTableProps) {
+  const navigate = useNavigate();
   const downloadJsonMutation = useDownloadContractJson();
   const downloadPdfMutation = useDownloadContractPdf();
   const deleteContractMutation = useDeleteContract();
@@ -211,7 +213,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate(`/contracts/${contract.id}`)}>
                         <Eye className="mr-2 h-4 w-4" />
                         Lihat Detail
                       </DropdownMenuItem>
