@@ -7,10 +7,12 @@ import os
 import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from dateutil.relativedelta import relativedelta
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, or_, cast, String
+from sqlalchemy import desc, or_, cast, String, func
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
@@ -60,39 +62,121 @@ class ContractListResponse(BaseModel):
     per_page: int
     total_pages: int
 
-def extract_contract_summary_data(final_data: Dict[str, Any]) -> Dict[str, str]:
-    """Extract key fields for contract summary display"""
-    result = {}
+class ContractStatsResponse(BaseModel):
+    """
+    KPI stats computed from denormalized contract fields
+    All aggregations use indexed denorm columns, no JSONB parsing
+    """
+    total_contracts: int
+    contracts_this_month: int
+    total_contract_value: str  # String representation of Decimal for JSON serialization
+    avg_processing_time_sec: Optional[float] = None
+    success_rate: float
+    # Service statistics
+    total_connectivity_services: int
+    total_non_connectivity_services: int
+    total_bundling_services: int
+    # Payment method breakdown
+    payment_methods: Dict[str, int]  # {"termin": 10, "recurring": 5, "one_time": 3}
 
-    if isinstance(final_data, dict):
-        # Extract customer name
-        customer_info = final_data.get('customer_info', {}) or final_data.get('informasi_pelanggan', {})
-        if isinstance(customer_info, dict):
-            result['customer_name'] = (
-                customer_info.get('nama_pelanggan', '') or
-                customer_info.get('customer_name', '') or
-                customer_info.get('nama', '')
-            )
+    class Config:
+        from_attributes = True
 
-        # Extract contract period (jangka_waktu)
-        jangka_waktu = final_data.get('jangka_waktu', {})
-        if isinstance(jangka_waktu, dict):
-            result['contract_start_date'] = jangka_waktu.get('mulai', '')
-            result['contract_end_date'] = jangka_waktu.get('akhir', '')
+def _format_payment_method(payment_method: Optional[str]) -> str:
+    """Format payment method enum to friendly label"""
+    if not payment_method:
+        return ''
 
-        # Extract payment method (tata_cara_pembayaran)
-        tata_cara = final_data.get('tata_cara_pembayaran', {})
-        if isinstance(tata_cara, dict):
-            method_type = tata_cara.get('method_type', '')
-            # Map to friendly labels
-            payment_method_map = {
-                'one_time_charge': 'OTC',
-                'recurring': 'Recurring',
-                'termin': 'Termin'
-            }
-            result['payment_method'] = payment_method_map.get(method_type, '')
+    payment_method_map = {
+        'one_time': 'OTC',
+        'recurring': 'Recurring',
+        'termin': 'Termin'
+    }
+    return payment_method_map.get(payment_method, '')
 
-    return result
+@router.get("/stats/summary", response_model=ContractStatsResponse)
+async def get_contract_stats(
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """
+    Get contract KPI statistics using denormalized columns
+    This endpoint performs pure SQL aggregation on indexed columns for maximum performance
+    """
+    db, current_user = db_and_user
+
+    # Calculate start of current month (for "this month" metric)
+    now = datetime.now(timezone.utc)
+    start_of_month = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+
+    # 1. Total contracts
+    total_contracts = db.query(func.count(Contract.id)).scalar() or 0
+
+    # 2. Contracts confirmed this month
+    contracts_this_month = (
+        db.query(func.count(Contract.id))
+        .filter(Contract.confirmed_at >= start_of_month)
+        .scalar() or 0
+    )
+
+    # 3. Total contract value (sum of all confirmed contracts)
+    total_value_decimal = (
+        db.query(func.sum(Contract.total_contract_value))
+        .scalar() or Decimal('0')
+    )
+    total_contract_value_str = str(total_value_decimal)
+
+    # 4. Average processing time (from processing_jobs)
+    avg_processing_time = (
+        db.query(func.avg(ProcessingJob.processing_time_seconds))
+        .join(Contract, Contract.source_job_id == ProcessingJob.id)
+        .scalar()
+    )
+
+    # 5. Success rate (confirmed contracts / total processed jobs)
+    total_processed_jobs = (
+        db.query(func.count(ProcessingJob.id))
+        .filter(ProcessingJob.status.in_(['confirmed', 'failed']))
+        .scalar() or 1  # Avoid division by zero
+    )
+    success_rate = total_contracts / total_processed_jobs if total_processed_jobs > 0 else 0.0
+
+    # 6. Service totals (sum across all contracts)
+    service_stats = (
+        db.query(
+            func.sum(Contract.service_connectivity),
+            func.sum(Contract.service_non_connectivity),
+            func.sum(Contract.service_bundling)
+        )
+        .first()
+    )
+    total_connectivity = service_stats[0] or 0
+    total_non_connectivity = service_stats[1] or 0
+    total_bundling = service_stats[2] or 0
+
+    # 7. Payment method breakdown (count by payment_method)
+    payment_method_query = (
+        db.query(
+            Contract.payment_method,
+            func.count(Contract.id)
+        )
+        .filter(Contract.payment_method.isnot(None))
+        .group_by(Contract.payment_method)
+        .all()
+    )
+
+    payment_methods = {method: count for method, count in payment_method_query}
+
+    return ContractStatsResponse(
+        total_contracts=total_contracts,
+        contracts_this_month=contracts_this_month,
+        total_contract_value=total_contract_value_str,
+        avg_processing_time_sec=avg_processing_time,
+        success_rate=success_rate,
+        total_connectivity_services=total_connectivity,
+        total_non_connectivity_services=total_non_connectivity,
+        total_bundling_services=total_bundling,
+        payment_methods=payment_methods
+    )
 
 @router.get("", response_model=ContractListResponse)
 async def list_contracts(
@@ -129,15 +213,12 @@ async def list_contracts(
         .all()
     )
     
-    # Build response
+    # Build response using denormalized columns (no JSONB parsing!)
     contract_summaries = []
     for contract in contracts:
         # Get file info
         file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
-        
-        # Extract summary data
-        summary_data = extract_contract_summary_data(contract.final_data)
-        
+
         contract_summaries.append(ContractSummary(
             id=contract.id,
             file_id=contract.file_id,
@@ -146,10 +227,11 @@ async def list_contracts(
             confirmed_by=contract.confirmed_by,
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
-            contract_start_date=summary_data.get('contract_start_date'),
-            contract_end_date=summary_data.get('contract_end_date'),
-            payment_method=summary_data.get('payment_method'),
-            customer_name=summary_data.get('customer_name')
+            # Use denormalized columns directly - no JSONB parsing!
+            contract_start_date=contract.period_start.isoformat() if contract.period_start else None,
+            contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
+            payment_method=_format_payment_method(contract.payment_method),
+            customer_name=contract.customer_name
         ))
     
     total_pages = (total + per_page - 1) // per_page

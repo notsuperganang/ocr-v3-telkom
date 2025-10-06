@@ -249,12 +249,13 @@ async def confirm_job_data(
     job_id: int,
     db_and_user: tuple[Session, str] = Depends(get_db_and_user)
 ):
-    """Confirm job data and create contract record"""
+    """Confirm job data and create contract record with denormalized fields"""
     db, current_user = db_and_user
-    
+
     # Import here to avoid circular imports
     from app.models.database import Contract
-    
+    from app.services.denorm import compute_denorm_fields
+
     # Get job
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
     if not job:
@@ -262,49 +263,65 @@ async def confirm_job_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Processing job not found"
         )
-    
+
     # Check if job is ready for confirmation
     if job.status != JobStatus.AWAITING_REVIEW:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot confirm job in status: {job.status.value}"
         )
-    
+
     if not job.extracted_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No extracted data available for confirmation"
         )
-    
+
     try:
         # Use edited data if available, otherwise use extracted data
         final_data = job.edited_data if job.edited_data else job.extracted_data
-        
-        # Create contract record
+
+        # Compute denormalized fields from final_data
+        denorm_fields = compute_denorm_fields(final_data)
+
+        # Create contract record with denormalized fields
         contract = Contract(
             source_job_id=job.id,
             file_id=job.file_id,
             final_data=final_data,
             confirmed_by=current_user,
-            confirmed_at=datetime.now(timezone.utc)
+            confirmed_at=datetime.now(timezone.utc),
+            # Denormalized fields for efficient querying
+            customer_name=denorm_fields.customer_name,
+            customer_npwp=denorm_fields.customer_npwp,
+            period_start=denorm_fields.period_start,
+            period_end=denorm_fields.period_end,
+            service_connectivity=denorm_fields.service_connectivity,
+            service_non_connectivity=denorm_fields.service_non_connectivity,
+            service_bundling=denorm_fields.service_bundling,
+            payment_method=denorm_fields.payment_method,
+            termin_count=denorm_fields.termin_count,
+            installation_cost=denorm_fields.installation_cost,
+            annual_subscription_cost=denorm_fields.annual_subscription_cost,
+            total_contract_value=denorm_fields.total_contract_value,
         )
         db.add(contract)
-        
+
         # Update job status
         job.status = JobStatus.CONFIRMED
         job.reviewed_at = datetime.now(timezone.utc)
         job.updated_at = datetime.now(timezone.utc)
-        
+
         db.commit()
         db.refresh(contract)
-        
+
         return {
             "message": "Data confirmed and contract created successfully",
             "job_id": job_id,
             "contract_id": contract.id,
             "confirmed_at": contract.confirmed_at
         }
-    
+
     except Exception as e:
         db.rollback()
         raise HTTPException(
