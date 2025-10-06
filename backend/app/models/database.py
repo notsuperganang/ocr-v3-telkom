@@ -3,7 +3,7 @@ SQLAlchemy database models for Telkom Contract Extractor
 Based on the project brief database schema design
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, BigInteger, Enum, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, DateTime, Text, BigInteger, Enum, ForeignKey, Float, Date, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -75,23 +75,47 @@ class ProcessingJob(Base):
 class Contract(Base):
     """Final 'committed' contract data"""
     __tablename__ = "contracts"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     source_job_id = Column(Integer, ForeignKey("processing_jobs.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
-    
+
     # Final confirmed data
-    final_data = Column(JSONB, nullable=False)  # Merged edited_data from job
+    final_data = Column(JSONB, nullable=False)  # Merged edited_data from job (source of truth)
     version = Column(Integer, default=1)        # For future versioning
-    
+
+    # Denormalized fields for efficient querying and aggregation
+    # Customer information
+    customer_name = Column(String(500))  # From final_data->informasi_pelanggan->nama_pelanggan
+    customer_npwp = Column(String(50))   # From final_data->informasi_pelanggan->npwp
+
+    # Contract period
+    period_start = Column(Date)  # From final_data->jangka_waktu->mulai
+    period_end = Column(Date)    # From final_data->jangka_waktu->akhir
+
+    # Service counts (for KPI aggregation)
+    service_connectivity = Column(Integer, default=0)      # From final_data->layanan_utama->connectivity_telkom
+    service_non_connectivity = Column(Integer, default=0)  # From final_data->layanan_utama->non_connectivity_telkom
+    service_bundling = Column(Integer, default=0)          # From final_data->layanan_utama->bundling
+
+    # Payment method (normalized enum from root-level tata_cara_pembayaran)
+    payment_method = Column(String(20))  # termin | recurring | one_time
+    termin_count = Column(Integer)       # For termin payments: number of termin installments
+
+    # Financial data (NUMERIC for precision, avoiding float)
+    # Sum of ALL items in rincian_layanan array
+    installation_cost = Column(Numeric(18, 2), default=0)          # Sum of all rincian_layanan->biaya_instalasi
+    annual_subscription_cost = Column(Numeric(18, 2), default=0)   # Sum of all rincian_layanan->biaya_langganan_tahunan
+    total_contract_value = Column(Numeric(18, 2), default=0)       # Computed: installation_cost + annual_subscription_cost
+
     # Confirmation metadata
     confirmed_by = Column(String)  # User who confirmed (future: foreign key to users)
     confirmed_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Audit fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     source_job = relationship("ProcessingJob", back_populates="contracts")
     file = relationship("File", back_populates="contracts")
