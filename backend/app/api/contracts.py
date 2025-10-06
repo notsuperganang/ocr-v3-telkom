@@ -16,7 +16,14 @@ from sqlalchemy import desc, or_, cast, String, func
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import Contract, ProcessingJob, File as FileModel, ExportHistory, ExportTarget
+from app.models.database import (
+    Contract,
+    ProcessingJob,
+    File as FileModel,
+    ExportHistory,
+    ExportTarget,
+    JobStatus,
+)
 from app.config import settings
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
@@ -135,7 +142,7 @@ async def get_contract_stats(
     # 5. Success rate (confirmed contracts / total processed jobs)
     total_processed_jobs = (
         db.query(func.count(ProcessingJob.id))
-        .filter(ProcessingJob.status.in_(['confirmed', 'failed']))
+        .filter(ProcessingJob.status.in_([JobStatus.CONFIRMED, JobStatus.FAILED]))
         .scalar() or 1  # Avoid division by zero
     )
     success_rate = total_contracts / total_processed_jobs if total_processed_jobs > 0 else 0.0
