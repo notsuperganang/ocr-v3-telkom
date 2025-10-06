@@ -62,7 +62,7 @@ function CustomSidebarLink({
     <Link
       to={link.href}
       className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md transition-colors",
+        "flex items-center justify-start gap-2 group/sidebar py-2 rounded-md transition-colors relative overflow-hidden",
         isActive
           ? "bg-neutral-200 dark:bg-neutral-700"
           : "hover:bg-neutral-200 dark:hover:bg-neutral-700",
@@ -70,7 +70,18 @@ function CustomSidebarLink({
       )}
       {...props}
     >
-      {link.icon}
+      <motion.div
+        animate={{
+          marginLeft: animate ? (open ? "8px" : "auto") : "8px",
+          marginRight: animate ? (open ? "0px" : "auto") : "0px",
+        }}
+        className={cn(
+          "transition-colors flex-shrink-0",
+          isActive && "[&>svg]:text-primary dark:[&>svg]:text-primary"
+        )}
+      >
+        {link.icon}
+      </motion.div>
 
       <motion.span
         animate={{
