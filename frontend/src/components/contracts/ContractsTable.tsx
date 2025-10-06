@@ -1,9 +1,9 @@
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -38,6 +38,7 @@ import {
   Calendar,
   Building2,
   FileX,
+  Loader2,
 } from 'lucide-react';
 import type { ContractListResponse } from '@/types/api';
 import {
@@ -45,6 +46,8 @@ import {
   useDownloadContractPdf,
   useDeleteContract,
 } from '@/hooks/useContracts';
+import { PaymentMethodBadge } from './PaymentMethodBadge';
+import { tableRowStagger, tableRowItem } from '@/lib/motion';
 
 interface ContractsTableProps {
   data: ContractListResponse;
@@ -73,51 +76,68 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
   if (isLoading) {
     return (
       <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
-        ))}
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+          <p className="text-sm text-muted-foreground">Memuat data kontrak...</p>
+        </div>
       </div>
     );
   }
 
   if (!data.contracts.length) {
     return (
-      <div className="text-center py-12">
-        <div className="flex justify-center mb-4">
-          <FileX className="w-12 h-12 text-muted-foreground" />
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="text-center py-16"
+      >
+        <div className="flex justify-center mb-6">
+          <FileX className="w-20 h-20 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-medium text-foreground mb-2">
-          Belum Ada Kontrak
+        <h3 className="text-xl font-semibold text-foreground mb-3">
+          Belum Ada Kontrak Terkonfirmasi
         </h3>
-        <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-          Upload dan proses file kontrak untuk melihat daftar kontrak yang telah dikonfirmasi di sini.
+        <p className="text-muted-foreground mb-8 max-w-md mx-auto text-sm">
+          Upload file kontrak pertama Anda untuk memulai. Setelah diproses dan dikonfirmasi,
+          kontrak akan muncul di sini.
         </p>
-        <Button onClick={() => window.location.href = '/upload'}>
-          Upload File
+        <Button onClick={() => window.location.href = '/upload'} size="lg">
+          <FileText className="mr-2 h-4 w-4" />
+          Upload File Kontrak
         </Button>
-      </div>
+      </motion.div>
     );
   }
 
   return (
     <div className="space-y-4">
       {/* Table */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>File</TableHead>
-              <TableHead>Pelanggan</TableHead>
-              <TableHead>Periode Kontrak</TableHead>
-              <TableHead>Metode Pembayaran</TableHead>
-              <TableHead>Dikonfirmasi</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[100px]">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.contracts.map((contract) => (
-              <TableRow key={contract.id}>
+      <div className="rounded-md border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm z-10">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="font-semibold">File</TableHead>
+                <TableHead className="font-semibold">Pelanggan</TableHead>
+                <TableHead className="font-semibold">Periode Kontrak</TableHead>
+                <TableHead className="font-semibold">Metode Pembayaran</TableHead>
+                <TableHead className="font-semibold">Dikonfirmasi</TableHead>
+                <TableHead className="font-semibold">Status</TableHead>
+                <TableHead className="w-[100px] font-semibold">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <motion.tbody
+              variants={tableRowStagger}
+              initial="hidden"
+              animate="visible"
+            >
+              {data.contracts.map((contract) => (
+                <motion.tr
+                  key={contract.id}
+                  variants={tableRowItem}
+                  className="group border-b transition-all duration-150 hover:bg-muted/50 even:bg-muted/20"
+                >
                 {/* File */}
                 <TableCell>
                   <div className="space-y-1">
@@ -162,21 +182,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
 
                 {/* Payment Method */}
                 <TableCell>
-                  {contract.payment_method ? (
-                    <Badge
-                      variant={
-                        contract.payment_method === 'OTC'
-                          ? 'default'
-                          : contract.payment_method === 'Termin'
-                          ? 'secondary'
-                          : 'outline'
-                      }
-                    >
-                      {contract.payment_method}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">-</span>
-                  )}
+                  <PaymentMethodBadge method={contract.payment_method || ''} />
                 </TableCell>
 
                 {/* Confirmed Date */}
@@ -198,7 +204,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
 
                 {/* Status */}
                 <TableCell>
-                  <Badge variant="default" className="bg-green-600">
+                  <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90">
                     Dikonfirmasi
                   </Badge>
                 </TableCell>
@@ -266,10 +272,11 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
-              </TableRow>
+              </motion.tr>
             ))}
-          </TableBody>
+          </motion.tbody>
         </Table>
+        </div>
       </div>
 
       {/* Pagination */}
