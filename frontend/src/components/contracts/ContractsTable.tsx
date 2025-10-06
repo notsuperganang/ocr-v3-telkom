@@ -236,10 +236,10 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
+                            className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
                             onSelect={(e) => e.preventDefault()}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" />
+                            <Trash2 className="mr-2 h-4 w-4 text-red-600" />
                             Hapus Kontrak
                           </DropdownMenuItem>
                         </AlertDialogTrigger>
