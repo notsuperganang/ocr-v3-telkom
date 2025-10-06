@@ -102,40 +102,12 @@ export function useDeleteContract() {
   });
 }
 
-// Hook for contract statistics calculation
+// Hook for contract statistics from backend aggregation endpoint
 export function useContractStats() {
   return useQuery({
     queryKey: [...contractKeys.all, 'stats'],
-    queryFn: async () => {
-      // Fetch all contracts to calculate stats
-      const response = await apiService.getContracts({ per_page: 100 });
-
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-
-      // Calculate statistics
-      const total = response.total;
-
-      // Count contracts confirmed this month
-      const thisMonth = response.contracts.filter(contract => {
-        const confirmedDate = new Date(contract.confirmed_at);
-        return confirmedDate.getMonth() === currentMonth &&
-               confirmedDate.getFullYear() === currentYear;
-      }).length;
-
-      // Calculate average processing time (if available)
-      // Note: This would need processing time data from contract details
-      // For now, we'll return a placeholder
-      const avgProcessingTime = '--';
-
-      return {
-        total,
-        thisMonth,
-        avgProcessingTime,
-      };
-    },
-    staleTime: 60000, // 1 minute
+    queryFn: () => apiService.getContractStats(),
+    staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: false,
     retry: 2,
   });

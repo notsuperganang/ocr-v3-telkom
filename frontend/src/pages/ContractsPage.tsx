@@ -9,6 +9,7 @@ import { FilterBar } from '@/components/contracts/FilterBar';
 import { KpiCard } from '@/components/contracts/KpiCard';
 import { useContracts, useContractStats } from '@/hooks/useContracts';
 import { staggerContainer, slideDown } from '@/lib/motion';
+import { formatCurrency } from '@/lib/utils';
 
 export function ContractsPage() {
   // State for search, filters, and pagination
@@ -87,15 +88,16 @@ export function ContractsPage() {
     setPage(1);
   };
 
-  // Calculate additional KPI data
-  const avgContractsPerMonth = React.useMemo(() => {
-    if (!statsData?.total) return '0';
-    // Calculate based on actual months of operation
-    // For now, if we have data this month, assume at least 1 month of operation
-    // Better would be to calculate from earliest contract date to now
-    const months = statsData.thisMonth > 0 ? 1 : 12; // Simplified: use current month count
-    const avg = Math.round(statsData.total / months);
-    return avg.toString();
+  // Calculate average processing time display
+  const avgProcessingTimeDisplay = React.useMemo(() => {
+    if (!statsData?.avg_processing_time_sec) return 'N/A';
+    const seconds = statsData.avg_processing_time_sec;
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    return `${minutes}m ${remainingSeconds}s`;
   }, [statsData]);
 
   return (
@@ -128,7 +130,7 @@ export function ContractsPage() {
       >
         <KpiCard
           label="Total Kontrak"
-          value={statsData?.total ?? 0}
+          value={statsData?.total_contracts ?? 0}
           subtitle="Kontrak terkonfirmasi"
           icon={<FileText className="w-5 h-5" />}
           isLoading={isLoadingStats}
@@ -136,14 +138,14 @@ export function ContractsPage() {
 
         <KpiCard
           label="Bulan Ini"
-          value={statsData?.thisMonth ?? 0}
+          value={statsData?.contracts_this_month ?? 0}
           subtitle="Kontrak diproses bulan ini"
           icon={<TrendingUp className="w-5 h-5" />}
           trend={
-            statsData?.thisMonth && statsData?.total
+            statsData?.contracts_this_month && statsData?.total_contracts
               ? {
-                  value: Math.round((statsData.thisMonth / statsData.total) * 100),
-                  direction: statsData.thisMonth > 0 ? 'up' : 'neutral',
+                  value: Math.round((statsData.contracts_this_month / statsData.total_contracts) * 100),
+                  direction: statsData.contracts_this_month > 0 ? 'up' : 'neutral',
                   label: 'dari total',
                 }
               : undefined
@@ -151,24 +153,18 @@ export function ContractsPage() {
           isLoading={isLoadingStats}
         />
 
-        {/* TODO: Implement contract value tracking
-            - Add contract value fields to database schema
-            - Update data extraction to capture contract values
-            - Calculate total value from all confirmed contracts
-            - Replace "N/A" with actual total value (e.g., "Rp 2.5 M")
-        */}
         <KpiCard
           label="Nilai Total"
-          value="N/A"
-          subtitle="Data nilai belum tersedia"
+          value={statsData?.total_contract_value ? formatCurrency(statsData.total_contract_value) : 'Rp 0'}
+          subtitle={statsData?.total_contracts ? `Dari ${statsData.total_contracts} kontrak` : 'Belum ada kontrak'}
           icon={<Wallet className="w-5 h-5" />}
           isLoading={isLoadingStats}
         />
 
         <KpiCard
-          label="Rata-rata per Bulan"
-          value={`${avgContractsPerMonth} kontrak`}
-          subtitle="Rata-rata kontrak per bulan"
+          label="Waktu Proses"
+          value={avgProcessingTimeDisplay}
+          subtitle="Rata-rata waktu proses OCR"
           icon={<Calendar className="w-5 h-5" />}
           isLoading={isLoadingStats}
         />

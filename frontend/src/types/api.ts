@@ -96,6 +96,18 @@ export interface ContractDetail {
   processing_time_seconds?: number;
 }
 
+export interface ContractStatsResponse {
+  total_contracts: number;
+  contracts_this_month: number;
+  total_contract_value: string; // String representation of Decimal
+  avg_processing_time_sec: number | null;
+  success_rate: number;
+  total_connectivity_services: number;
+  total_non_connectivity_services: number;
+  total_bundling_services: number;
+  payment_methods: Record<string, number>; // e.g., {"termin": 10, "recurring": 5}
+}
+
 export interface ApiError {
   detail: string;
 }

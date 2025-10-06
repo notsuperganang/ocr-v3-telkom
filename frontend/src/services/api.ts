@@ -9,6 +9,7 @@ import type {
   JobDataResponse,
   ContractListResponse,
   ContractDetail,
+  ContractStatsResponse,
   ApiError
 } from '../types/api';
 
@@ -249,6 +250,10 @@ class ApiClient {
     return this.request(`/api/contracts/${contractId}`, {
       method: 'DELETE',
     });
+  }
+
+  async getContractStats(): Promise<ContractStatsResponse> {
+    return this.request<ContractStatsResponse>('/api/contracts/stats/summary');
   }
 }
 
