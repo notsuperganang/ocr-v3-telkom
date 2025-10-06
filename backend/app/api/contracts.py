@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, or_, cast, String
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
@@ -113,7 +113,7 @@ async def list_contracts(
         query = query.filter(
             or_(
                 FileModel.original_filename.ilike(search_term),
-                Contract.final_data.astext.ilike(search_term)
+                cast(Contract.final_data, String).ilike(search_term)
             )
         )
     

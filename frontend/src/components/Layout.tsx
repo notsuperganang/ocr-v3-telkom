@@ -70,18 +70,15 @@ function CustomSidebarLink({
       )}
       {...props}
     >
-      <motion.div
-        animate={{
-          marginLeft: animate ? (open ? "8px" : "auto") : "8px",
-          marginRight: animate ? (open ? "0px" : "auto") : "0px",
-        }}
+      <div
         className={cn(
-          "transition-colors flex-shrink-0",
+          "transition-all duration-200 flex-shrink-0",
+          open ? "ml-2" : "mx-auto",
           isActive && "[&>svg]:text-primary dark:[&>svg]:text-primary"
         )}
       >
         {link.icon}
-      </motion.div>
+      </div>
 
       <motion.span
         animate={{
