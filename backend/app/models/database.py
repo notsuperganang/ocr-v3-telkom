@@ -108,6 +108,37 @@ class Contract(Base):
     annual_subscription_cost = Column(Numeric(18, 2), default=0)   # Sum of all rincian_layanan->biaya_langganan_tahunan
     total_contract_value = Column(Numeric(18, 2), default=0)       # Computed: installation_cost + annual_subscription_cost
 
+    # Extended denormalized fields for comprehensive contract data access
+    # A. Customer & Representatives (from informasi_pelanggan)
+    customer_address = Column(Text)  # From final_data->informasi_pelanggan->alamat
+    rep_name = Column(Text)  # From final_data->informasi_pelanggan->perwakilan->nama
+    rep_title = Column(Text)  # From final_data->informasi_pelanggan->perwakilan->jabatan
+    customer_contact_name = Column(Text)  # From final_data->informasi_pelanggan->kontak_person->nama
+    customer_contact_title = Column(Text)  # From final_data->informasi_pelanggan->kontak_person->jabatan
+    customer_contact_email = Column(Text)  # From final_data->informasi_pelanggan->kontak_person->email
+    customer_contact_phone = Column(Text)  # From final_data->informasi_pelanggan->kontak_person->telepon
+
+    # B. Contract Period Raw (for tracing original format variations)
+    period_start_raw = Column(Text)  # Raw period start before parsing (for debugging)
+    period_end_raw = Column(Text)  # Raw period end before parsing (for debugging)
+
+    # C. Telkom Contact Person (from kontak_person_telkom)
+    telkom_contact_name = Column(Text)  # From final_data->kontak_person_telkom->nama
+    telkom_contact_title = Column(Text)  # From final_data->kontak_person_telkom->jabatan
+    telkom_contact_email = Column(Text)  # From final_data->kontak_person_telkom->email
+    telkom_contact_phone = Column(Text)  # From final_data->kontak_person_telkom->telepon
+
+    # D. Payment Details (from tata_cara_pembayaran)
+    payment_description = Column(Text)  # From final_data->tata_cara_pembayaran->description
+    termin_total_count = Column(Integer)  # Computed: COUNT of termin_payments array
+    termin_total_amount = Column(Numeric(18, 2))  # Computed: SUM of termin_payments[].amount
+    payment_raw_text = Column(Text)  # From final_data->tata_cara_pembayaran->raw_text
+    termin_payments_json = Column(JSONB)  # Snapshot: final_data->tata_cara_pembayaran->termin_payments (for detail inspection)
+
+    # E. Extraction Metadata
+    extraction_timestamp = Column(DateTime(timezone=True))  # From final_data->extraction_timestamp (parsed)
+    contract_processing_time_sec = Column(Float)  # From final_data->processing_time_seconds or processing_job
+
     # Confirmation metadata
     confirmed_by = Column(String)  # User who confirmed (future: foreign key to users)
     confirmed_at = Column(DateTime(timezone=True), server_default=func.now())
