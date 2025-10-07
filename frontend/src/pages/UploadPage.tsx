@@ -41,6 +41,7 @@ export function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const navigate = useNavigate();
   const pollingIntervals = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const pollingInProgress = useRef<Set<number>>(new Set()); // Track in-progress polls
   const fileUploadRef = useRef<FileUploadRef>(null);
 
   // Format ukuran file
@@ -96,6 +97,16 @@ export function UploadPage() {
 
   // Remove file
   const removeFile = (fileId: string) => {
+    // Find the file and stop its polling if it has a jobId
+    const fileToRemove = files.find(f => f.id === fileId);
+    if (fileToRemove?.jobId) {
+      const interval = pollingIntervals.current.get(fileToRemove.jobId);
+      if (interval) {
+        clearInterval(interval);
+        pollingIntervals.current.delete(fileToRemove.jobId);
+      }
+    }
+
     setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
@@ -161,6 +172,18 @@ export function UploadPage() {
 
   // Poll job status
   const pollJobStatus = useCallback(async (jobId: number, fileId: string) => {
+    // Prevent multiple simultaneous polls for the same job
+    if (pollingInProgress.current.has(jobId)) {
+      return;
+    }
+
+    // Check if interval still exists (might have been cleared by previous response)
+    if (!pollingIntervals.current.has(jobId)) {
+      return;
+    }
+
+    pollingInProgress.current.add(jobId);
+
     try {
       const status = await apiService.getJobStatus(jobId);
 
@@ -205,6 +228,7 @@ export function UploadPage() {
         if (interval) {
           clearInterval(interval);
           pollingIntervals.current.delete(jobId);
+          pollingInProgress.current.delete(jobId);
         }
       }
     } catch (error) {
@@ -213,17 +237,30 @@ export function UploadPage() {
       if (interval) {
         clearInterval(interval);
         pollingIntervals.current.delete(jobId);
+        pollingInProgress.current.delete(jobId);
       }
+    } finally {
+      // Always remove from in-progress set
+      pollingInProgress.current.delete(jobId);
     }
   }, []);
 
   // Start polling for a job
   const startPolling = useCallback((jobId: number, fileId: string) => {
+    // Clear any existing interval for this job to prevent duplicates
+    const existingInterval = pollingIntervals.current.get(jobId);
+    if (existingInterval) {
+      clearInterval(existingInterval);
+      pollingIntervals.current.delete(jobId);
+    }
+
     const interval = setInterval(() => {
       pollJobStatus(jobId, fileId);
     }, POLL_INTERVAL);
 
     pollingIntervals.current.set(jobId, interval);
+
+    // Initial poll
     pollJobStatus(jobId, fileId);
   }, [pollJobStatus]);
 
@@ -419,6 +456,10 @@ export function UploadPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
+                      // Stop all polling intervals
+                      pollingIntervals.current.forEach(interval => clearInterval(interval));
+                      pollingIntervals.current.clear();
+
                       setFiles([]);
                       fileUploadRef.current?.clearFiles();
                     }}
