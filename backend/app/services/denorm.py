@@ -5,8 +5,8 @@ Extracts frequently-queried fields from final_data JSONB for efficient database 
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from datetime import date
-from typing import Dict, Any, Optional
+from datetime import date, datetime
+from typing import Dict, Any, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DenormFields:
     """Denormalized contract fields for efficient querying"""
+    # Original fields
     customer_name: Optional[str] = None
     customer_npwp: Optional[str] = None
     period_start: Optional[date] = None
@@ -27,6 +28,36 @@ class DenormFields:
     installation_cost: Decimal = Decimal('0.00')
     annual_subscription_cost: Decimal = Decimal('0.00')
     total_contract_value: Decimal = Decimal('0.00')
+
+    # Extended fields - Customer & Representatives
+    customer_address: Optional[str] = None
+    rep_name: Optional[str] = None
+    rep_title: Optional[str] = None
+    customer_contact_name: Optional[str] = None
+    customer_contact_title: Optional[str] = None
+    customer_contact_email: Optional[str] = None
+    customer_contact_phone: Optional[str] = None
+
+    # Extended fields - Contract Period Raw
+    period_start_raw: Optional[str] = None
+    period_end_raw: Optional[str] = None
+
+    # Extended fields - Telkom Contact
+    telkom_contact_name: Optional[str] = None
+    telkom_contact_title: Optional[str] = None
+    telkom_contact_email: Optional[str] = None
+    telkom_contact_phone: Optional[str] = None
+
+    # Extended fields - Payment Details
+    payment_description: Optional[str] = None
+    termin_total_count: Optional[int] = None
+    termin_total_amount: Optional[Decimal] = None
+    payment_raw_text: Optional[str] = None
+    termin_payments_json: Optional[List[Dict[str, Any]]] = None
+
+    # Extended fields - Extraction Metadata
+    extraction_timestamp: Optional[datetime] = None
+    contract_processing_time_sec: Optional[float] = None
 
 
 def _safe_get(data: Dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -122,6 +153,83 @@ def _normalize_payment_method(value: Any) -> Optional[str]:
         return None
 
 
+def _parse_timestamp(value: Any, field_name: str = "timestamp") -> Optional[datetime]:
+    """
+    Parse ISO timestamp string to datetime object with timezone
+    Supports: ISO 8601 formats (YYYY-MM-DDTHH:MM:SS.ffffff+TZ)
+    Returns None on error
+    """
+    if not value or not isinstance(value, str):
+        return None
+
+    try:
+        # Try parsing ISO format with fromisoformat (Python 3.7+)
+        # This handles: 2025-10-06T10:30:45.123456+07:00
+        value_clean = value.strip()
+
+        # Handle common variations
+        if 'Z' in value_clean:
+            # Replace 'Z' with '+00:00' for UTC
+            value_clean = value_clean.replace('Z', '+00:00')
+
+        return datetime.fromisoformat(value_clean)
+
+    except (ValueError, AttributeError) as e:
+        logger.warning(f"Failed to parse {field_name} value '{value}': {e}")
+        return None
+
+
+def _normalize_email(value: Any) -> Optional[str]:
+    """
+    Normalize email address: lowercase and strip whitespace
+    Returns None for invalid/empty values
+    """
+    if not value or not isinstance(value, str):
+        return None
+
+    email = value.strip().lower()
+    return email if email else None
+
+
+def _normalize_phone(value: Any) -> Optional[str]:
+    """
+    Normalize phone number: strip whitespace and common formatting
+    Preserves original format but removes excess whitespace
+    Returns None for invalid/empty values
+    """
+    if not value or not isinstance(value, str):
+        return None
+
+    # Strip whitespace and common separators (but keep the number readable)
+    phone = value.strip()
+    return phone if phone else None
+
+
+def _compute_termin_summary(termin_payments: List[Dict[str, Any]]) -> tuple[int, Decimal]:
+    """
+    Compute termin payment summary: count and total amount
+
+    Args:
+        termin_payments: List of termin payment entries
+
+    Returns:
+        Tuple of (count, total_amount)
+    """
+    if not termin_payments or not isinstance(termin_payments, list):
+        return (0, Decimal('0.00'))
+
+    count = len(termin_payments)
+    total_amount = Decimal('0.00')
+
+    for idx, payment in enumerate(termin_payments):
+        if isinstance(payment, dict):
+            amount = payment.get('amount')
+            payment_amount = _parse_decimal(amount, f'termin_payments[{idx}].amount')
+            total_amount += payment_amount
+
+    return (count, total_amount)
+
+
 def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
     """
     Extract denormalized fields from final_data JSONB
@@ -207,16 +315,66 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
     # Compute total contract value
     total_contract_value = installation_cost + annual_subscription_cost
 
+    # === EXTENDED FIELDS EXTRACTION ===
+
+    # A. Customer & Representatives (from informasi_pelanggan)
+    customer_address = _safe_get(final_data, 'informasi_pelanggan', 'alamat')
+    rep_name = _safe_get(final_data, 'informasi_pelanggan', 'perwakilan', 'nama')
+    rep_title = _safe_get(final_data, 'informasi_pelanggan', 'perwakilan', 'jabatan')
+    customer_contact_name = _safe_get(final_data, 'informasi_pelanggan', 'kontak_person', 'nama')
+    customer_contact_title = _safe_get(final_data, 'informasi_pelanggan', 'kontak_person', 'jabatan')
+    customer_contact_email_raw = _safe_get(final_data, 'informasi_pelanggan', 'kontak_person', 'email')
+    customer_contact_phone_raw = _safe_get(final_data, 'informasi_pelanggan', 'kontak_person', 'telepon')
+    customer_contact_email = _normalize_email(customer_contact_email_raw)
+    customer_contact_phone = _normalize_phone(customer_contact_phone_raw)
+
+    # B. Contract Period Raw (preserve original format)
+    period_start_raw = period_start_str  # Already extracted above
+    period_end_raw = period_end_str      # Already extracted above
+
+    # C. Telkom Contact Person (from kontak_person_telkom)
+    telkom_contact_name = _safe_get(final_data, 'kontak_person_telkom', 'nama')
+    telkom_contact_title = _safe_get(final_data, 'kontak_person_telkom', 'jabatan')
+    telkom_contact_email_raw = _safe_get(final_data, 'kontak_person_telkom', 'email')
+    telkom_contact_phone_raw = _safe_get(final_data, 'kontak_person_telkom', 'telepon')
+    telkom_contact_email = _normalize_email(telkom_contact_email_raw)
+    telkom_contact_phone = _normalize_phone(telkom_contact_phone_raw)
+
+    # D. Payment Details (from tata_cara_pembayaran)
+    payment_description = _safe_get(final_data, 'tata_cara_pembayaran', 'description')
+    payment_raw_text = _safe_get(final_data, 'tata_cara_pembayaran', 'raw_text')
+
+    # Termin payments summary
+    termin_payments_list = _safe_get(final_data, 'tata_cara_pembayaran', 'termin_payments', default=[])
+    termin_total_count, termin_total_amount = _compute_termin_summary(termin_payments_list)
+
+    # Store termin payments JSON for detail inspection (only if it's a list)
+    termin_payments_json = termin_payments_list if isinstance(termin_payments_list, list) else None
+
+    # E. Extraction Metadata
+    extraction_timestamp_str = _safe_get(final_data, 'extraction_timestamp')
+    extraction_timestamp = _parse_timestamp(extraction_timestamp_str, 'extraction_timestamp')
+
+    # Processing time from final_data
+    processing_time_raw = _safe_get(final_data, 'processing_time_seconds')
+    contract_processing_time_sec = None
+    if processing_time_raw is not None:
+        try:
+            contract_processing_time_sec = float(processing_time_raw)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid processing_time_seconds value: {processing_time_raw}")
+
     # Log summary for debugging (only if values are present)
     if customer_name or payment_method:
         logger.info(
             f"Denormalized contract: customer={customer_name}, "
             f"services=(conn:{service_connectivity}, non-conn:{service_non_connectivity}, bundle:{service_bundling}), "
-            f"payment_method={payment_method}, termin_count={termin_count}, "
-            f"total_value={total_contract_value}"
+            f"payment_method={payment_method}, termin_count={termin_count}, termin_total_count={termin_total_count}, "
+            f"total_value={total_contract_value}, extraction_ts={extraction_timestamp}"
         )
 
     return DenormFields(
+        # Original fields
         customer_name=customer_name,
         customer_npwp=customer_npwp,
         period_start=period_start,
@@ -229,4 +387,29 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
         installation_cost=installation_cost,
         annual_subscription_cost=annual_subscription_cost,
         total_contract_value=total_contract_value,
+        # Extended fields - Customer & Representatives
+        customer_address=customer_address,
+        rep_name=rep_name,
+        rep_title=rep_title,
+        customer_contact_name=customer_contact_name,
+        customer_contact_title=customer_contact_title,
+        customer_contact_email=customer_contact_email,
+        customer_contact_phone=customer_contact_phone,
+        # Extended fields - Contract Period Raw
+        period_start_raw=period_start_raw,
+        period_end_raw=period_end_raw,
+        # Extended fields - Telkom Contact
+        telkom_contact_name=telkom_contact_name,
+        telkom_contact_title=telkom_contact_title,
+        telkom_contact_email=telkom_contact_email,
+        telkom_contact_phone=telkom_contact_phone,
+        # Extended fields - Payment Details
+        payment_description=payment_description,
+        termin_total_count=termin_total_count,
+        termin_total_amount=termin_total_amount,
+        payment_raw_text=payment_raw_text,
+        termin_payments_json=termin_payments_json,
+        # Extended fields - Extraction Metadata
+        extraction_timestamp=extraction_timestamp,
+        contract_processing_time_sec=contract_processing_time_sec,
     )
