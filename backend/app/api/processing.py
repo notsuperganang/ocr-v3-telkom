@@ -284,14 +284,14 @@ async def confirm_job_data(
         # Compute denormalized fields from final_data
         denorm_fields = compute_denorm_fields(final_data)
 
-        # Create contract record with denormalized fields
+        # Create contract record with denormalized fields (original + extended)
         contract = Contract(
             source_job_id=job.id,
             file_id=job.file_id,
             final_data=final_data,
             confirmed_by=current_user,
             confirmed_at=datetime.now(timezone.utc),
-            # Denormalized fields for efficient querying
+            # Original denormalized fields for efficient querying
             customer_name=denorm_fields.customer_name,
             customer_npwp=denorm_fields.customer_npwp,
             period_start=denorm_fields.period_start,
@@ -304,6 +304,31 @@ async def confirm_job_data(
             installation_cost=denorm_fields.installation_cost,
             annual_subscription_cost=denorm_fields.annual_subscription_cost,
             total_contract_value=denorm_fields.total_contract_value,
+            # Extended fields - Customer & Representatives
+            customer_address=denorm_fields.customer_address,
+            rep_name=denorm_fields.rep_name,
+            rep_title=denorm_fields.rep_title,
+            customer_contact_name=denorm_fields.customer_contact_name,
+            customer_contact_title=denorm_fields.customer_contact_title,
+            customer_contact_email=denorm_fields.customer_contact_email,
+            customer_contact_phone=denorm_fields.customer_contact_phone,
+            # Extended fields - Contract Period Raw
+            period_start_raw=denorm_fields.period_start_raw,
+            period_end_raw=denorm_fields.period_end_raw,
+            # Extended fields - Telkom Contact
+            telkom_contact_name=denorm_fields.telkom_contact_name,
+            telkom_contact_title=denorm_fields.telkom_contact_title,
+            telkom_contact_email=denorm_fields.telkom_contact_email,
+            telkom_contact_phone=denorm_fields.telkom_contact_phone,
+            # Extended fields - Payment Details
+            payment_description=denorm_fields.payment_description,
+            termin_total_count=denorm_fields.termin_total_count,
+            termin_total_amount=denorm_fields.termin_total_amount,
+            payment_raw_text=denorm_fields.payment_raw_text,
+            termin_payments_json=denorm_fields.termin_payments_json,
+            # Extended fields - Extraction Metadata
+            extraction_timestamp=denorm_fields.extraction_timestamp,
+            contract_processing_time_sec=denorm_fields.contract_processing_time_sec,
         )
         db.add(contract)
 
