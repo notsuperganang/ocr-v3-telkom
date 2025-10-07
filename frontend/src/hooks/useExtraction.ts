@@ -37,14 +37,27 @@ export function useJobStatus(jobId: number, shouldPoll = true) {
     queryKey: extractionKeys.status(jobId),
     queryFn: () => apiService.getJobStatus(jobId),
     staleTime: 0, // Always fresh for status
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Poll every 3 seconds if status indicates processing
-      if (shouldPoll && data?.state?.data && ['queued', 'processing', 'extracted'].includes(data.state.data.status)) {
-        return 3000;
+      const data = query.state.data;
+
+      // Explicitly return false if no data yet
+      if (!shouldPoll || !data) {
+        return false;
       }
-      return false;
+
+      const shouldRefetch = ['queued', 'processing', 'extracted'].includes(data.status);
+      return shouldRefetch ? 3000 : false;
     },
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: (query) => {
+      // Only refetch on window focus if job is still processing
+      const data = query.state.data;
+      if (!shouldPoll || !data) {
+        return false;
+      }
+      const shouldRefetch = ['queued', 'processing', 'extracted'].includes(data.status);
+      return shouldRefetch;
+    },
     retry: 3,
   });
 }
