@@ -1047,100 +1047,64 @@ export function ContractDetailPage() {
       />
 
       <motion.section
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        className="grid grid-cols-1"
         variants={staggerContainer}
         initial="initial"
         animate="animate"
         viewport={{ once: true, amount: 0.2 }}
       >
         <motion.div variants={cardVariants} whileHover="hover">
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <History className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Riwayat Kontrak
-              </CardTitle>
-              <CardDescription>
-                Kronologi penting dari siklus hidup dokumen kontrak ini
-              </CardDescription>
+          <Card className="overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
+            <CardHeader className="relative border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
+                    <History className="h-3.5 w-3.5" />
+                    Riwayat Kontrak
+                  </span>
+                  <CardTitle className="text-xl font-semibold text-slate-900">Riwayat Kronologis Dokumen</CardTitle>
+                  <CardDescription className="text-sm text-slate-600">Catatan kronologis peristiwa kunci sepanjang siklus hidup dokumen ini.</CardDescription>
+                </div>
+                <span className="rounded-full bg-white/80 p-2 shadow-inner shadow-rose-100">
+                  <History className="h-5 w-5 text-rose-500" />
+                </span>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-5" style={{ backgroundColor: telkomColors.white }}>
-              <div className="relative space-y-5">
-                <span className="absolute left-3 top-3 bottom-3 w-px bg-gradient-to-b from-rose-200 via-rose-100 to-transparent" />
+            <CardContent className="space-y-6 bg-white p-6">
+              <div className="relative space-y-5 pl-8">
+                <span className="absolute left-4 top-2 bottom-2 w-px bg-gradient-to-b from-rose-200 via-rose-100 to-transparent" />
+                {timelineEvents.length === 0 && (
+                  <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-rose-100 bg-white/70 p-8 text-center text-sm text-slate-500">
+                    <History className="h-5 w-5 text-rose-400" />
+                    <p>Belum ada peristiwa yang terekam untuk kontrak ini.</p>
+                  </div>
+                )}
                 {timelineEvents.map((event: TimelineEvent, index: number) => {
                   const Icon = event.icon;
                   return (
                     <motion.div
-                      key={event.label}
-                      className="relative flex items-start gap-3 rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-sm"
-                      initial={{ opacity: 0, y: 12 }}
+                      key={event.label + index}
+                      className="relative flex items-start gap-4 rounded-2xl border border-rose-100/70 bg-white/90 p-5 shadow-sm transition hover:border-rose-200"
+                      initial={{ opacity: 0, y: 14 }}
                       whileInView={{ opacity: 1, y: 0 }}
                       viewport={{ once: true, amount: 0.4 }}
                       transition={{ delay: index * 0.05 }}
                     >
-                      <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-                        <Icon className="h-4 w-4" />
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+                        <Icon className="h-5 w-5" />
                       </span>
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold text-slate-900">{event.label}</p>
-                        <p className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">
+                      <div className="flex flex-col gap-1">
+                        <p className="text-sm font-semibold text-slate-900 leading-tight">{event.label}</p>
+                        <p className="text-[0.6rem] font-medium uppercase tracking-[0.3em] text-rose-400">
                           {formatDateTime(event.timestamp)}
                         </p>
                         {event.description && (
-                          <p className="text-sm text-slate-600">{event.description}</p>
+                          <p className="text-sm text-slate-600 leading-snug">{event.description}</p>
                         )}
                       </div>
                     </motion.div>
                   );
                 })}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div variants={cardVariants} whileHover="hover">
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <Layers className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Metadata Sistem
-              </CardTitle>
-              <CardDescription>
-                Informasi audit trail untuk memastikan traceability pada pipeline pemrosesan
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5" style={{ backgroundColor: telkomColors.white }}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">File ID</p>
-                  <p className="mt-1 text-base font-semibold text-slate-900">#{contract.file_id}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Job ID</p>
-                  <p className="mt-1 text-base font-semibold text-slate-900">
-                    #{contract.source_job_id}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Dibuat</p>
-                  <p className="mt-1 text-sm font-medium text-slate-700">
-                    {formatDateTime(contract.created_at)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Diperbarui</p>
-                  <p className="mt-1 text-sm font-medium text-slate-700">
-                    {formatDateTime(contract.updated_at)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600">
-                <p className="font-semibold text-slate-800">Catatan</p>
-                <p className="mt-1 leading-relaxed">
-                  Versi <span className="font-semibold text-slate-900">v{contract.version}</span> merupakan data yang telah
-                  dikonfirmasi dan siap untuk distribusi. Gunakan tombol unduhan di atas untuk mengakses artefak JSON maupun PDF.
-                </p>
               </div>
             </CardContent>
           </Card>
