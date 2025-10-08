@@ -66,7 +66,7 @@ export function ReviewPage() {
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-muted-foreground hover:text-white focus-visible:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
             Kembali ke Upload
@@ -105,7 +105,7 @@ export function ReviewPage() {
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-muted-foreground hover:text-white focus-visible:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
             Kembali ke Upload
@@ -143,7 +143,7 @@ export function ReviewPage() {
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 text-muted-foreground hover:text-white focus-visible:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
             Kembali ke Upload
@@ -177,7 +177,7 @@ export function ReviewPage() {
               variant="ghost"
               onClick={handleBack}
               size="sm"
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground -ml-2 h-7"
+              className="flex items-center gap-1 text-muted-foreground hover:text-white focus-visible:text-white -ml-2 h-7"
             >
               <ArrowLeft className="w-3 h-3" />
               <span className="text-xs">Kembali ke Upload</span>
