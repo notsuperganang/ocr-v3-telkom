@@ -297,6 +297,25 @@ export function ContractDetailPage() {
   const serviceInfo = contractData?.layanan_utama || {};
   const paymentInfo = contractData?.tata_cara_pembayaran || {};
   const contactInfo = contractData?.kontak_person_telkom || {};
+  const telkomContactName = safeRenderValue(contactInfo.nama);
+  const telkomContactRole = safeRenderValue(contactInfo.jabatan);
+  const telkomContactEmail = safeRenderValue(contactInfo.email);
+  const telkomContactPhone = safeRenderValue(contactInfo.telepon);
+  const telkomContactFieldConfig: Array<{
+    key: string;
+    label: string;
+    value: string;
+    icon: LucideIcon;
+    span: string;
+    monospace?: boolean;
+  }> = [
+    { key: 'nama', label: 'Nama', value: telkomContactName, icon: UserRound, span: 'sm:col-span-1' },
+    { key: 'jabatan', label: 'Jabatan', value: telkomContactRole, icon: ClipboardList, span: 'sm:col-span-1' },
+    { key: 'email', label: 'Email', value: telkomContactEmail, icon: Mail, span: 'sm:col-span-2' },
+    { key: 'telepon', label: 'Telepon', value: telkomContactPhone, icon: Phone, span: 'sm:col-span-2', monospace: true },
+  ];
+  const telkomContactFields = telkomContactFieldConfig.filter((field) => field.value !== '-');
+  const hasTelkomContact = telkomContactName !== '-';
   const timeInfo = contractData?.jangka_waktu || {};
 
   const getRawString = (value: unknown): string => {
@@ -695,15 +714,16 @@ export function ContractDetailPage() {
         })}
       </motion.section>
 
+      {/* Bento Grid: 3-column layout with 2:1 ratio */}
       <motion.div
-        className="grid grid-cols-1 gap-6 lg:grid-cols-3"
+        className="grid grid-cols-1 gap-6 lg:grid-cols-3 auto-rows-min grid-flow-row-dense"
         variants={staggerContainer}
         initial="initial"
         animate="animate"
       >
-        {/* Customer Information */}
-        <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-2">
-          <Card className="h-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
+        {/* Left Column: Customer Information (2/3 width) */}
+        <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-2 lg:row-span-2">
+          <Card className="h-auto min-h-0 overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
             <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
               <div className="flex items-start justify-between">
                 <div>
@@ -721,45 +741,45 @@ export function ContractDetailPage() {
                 </span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6 bg-white p-6">
+            <CardContent className="space-y-4 bg-white p-5">
               <motion.div
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.2 }}
-                className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-rose-50 via-white to-white p-6 shadow-inner"
+                className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-rose-50 via-white to-white p-4 shadow-inner"
               >
                 <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-rose-100/60 blur-3xl" />
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-3">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Profil Pelanggan</p>
-                    <h3 className="text-2xl font-semibold text-slate-900">{customerNameDisplay}</h3>
-                    <p className="text-sm leading-relaxed text-slate-500">
+                    <h3 className="text-xl font-semibold text-slate-900">{customerNameDisplay}</h3>
+                    <p className="text-xs leading-relaxed text-slate-500">
                       Detail identitas resmi dan kontak utama pelanggan pada kontrak ini.
                     </p>
                   </div>
-                  <div className="flex w-full flex-col gap-3 sm:max-w-xs sm:self-end">
+                  <div className="flex w-full flex-col gap-2 sm:max-w-xs sm:self-end">
                     {profileHighlights.map((highlight) => (
                       <div
                         key={highlight.label}
-                        className="flex w-full items-center gap-3 rounded-2xl border border-white/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur"
+                        className="flex w-full items-center gap-2 rounded-2xl border border-white/80 bg-white/80 px-3 py-2 shadow-sm backdrop-blur"
                       >
-                        <span className="rounded-full bg-rose-50 p-2 text-rose-500">
-                          <highlight.icon className="h-4 w-4" />
+                        <span className="rounded-full bg-rose-50 p-1.5 text-rose-500">
+                          <highlight.icon className="h-3.5 w-3.5" />
                         </span>
                         <div className="flex w-full flex-col">
-                          <span className="text-xs font-semibold uppercase tracking-[0.26em] text-slate-400">
+                          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.26em] text-slate-400">
                             {highlight.label}
                           </span>
                           <span
                             title={highlight.value === '-' ? undefined : highlight.value}
-                            className={`text-sm font-semibold text-slate-800 leading-snug ${
+                            className={`text-xs font-semibold text-slate-800 leading-snug ${
                               highlight.monospace
-                                ? 'font-mono text-base tracking-wide text-slate-900 break-all'
+                                ? 'font-mono text-sm tracking-wide text-slate-900 break-all'
                                 : 'break-words'
                             }`}
                           >
                             {highlight.value}
                           </span>
-                          <span className="text-xs text-slate-400 break-words" title={highlight.helper}>
+                          <span className="text-[0.65rem] text-slate-400 break-words" title={highlight.helper}>
                             {highlight.helper}
                           </span>
                         </div>
@@ -769,41 +789,41 @@ export function ContractDetailPage() {
                 </div>
               </motion.div>
 
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <motion.div
                   whileHover={{ y: -3 }}
                   transition={{ duration: 0.2 }}
-                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-6 shadow-sm"
+                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-4 shadow-sm"
                 >
                   <div className="absolute right-6 top-6 h-16 w-16 rounded-full bg-rose-100/40 blur-3xl" />
-                  <div className="relative z-10 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <span aria-hidden="true" className="rounded-full bg-rose-50 p-2 text-rose-500">
-                        <Building2 className="h-4 w-4" />
+                  <div className="relative z-10 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span aria-hidden="true" className="rounded-full bg-rose-50 p-1.5 text-rose-500">
+                        <Building2 className="h-3.5 w-3.5" />
                       </span>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Profil</p>
-                        <h4 className="text-lg font-semibold text-slate-900">Informasi Perusahaan</h4>
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-rose-400">Profil</p>
+                        <h4 className="text-base font-semibold text-slate-900">Informasi Perusahaan</h4>
                       </div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {profileDetails.map((detail) => (
                         <div
                           key={detail.label}
-                          className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/95 p-4 shadow-inner shadow-rose-50 transition"
+                          className="flex items-start gap-2 rounded-2xl border border-white/70 bg-white/95 p-3 shadow-inner shadow-rose-50 transition"
                         >
                           <span
                             aria-hidden="true"
-                            className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-sm shadow-rose-100"
+                            className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100"
                           >
-                            <detail.icon className="h-4 w-4" />
+                            <detail.icon className="h-3.5 w-3.5" />
                           </span>
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-400">
+                          <div className="space-y-0.5">
+                            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
                               {detail.label}
                             </p>
                             <p
-                              className={`text-sm font-semibold text-slate-900 ${
+                              className={`text-xs font-semibold text-slate-900 ${
                                 detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'break-words'
                               }`}
                             >
@@ -819,62 +839,62 @@ export function ContractDetailPage() {
                 <motion.div
                   whileHover={{ y: -3 }}
                   transition={{ duration: 0.2 }}
-                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-6 shadow-sm"
+                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-4 shadow-sm"
                 >
                   <div className="absolute left-6 top-6 h-16 w-16 rounded-full bg-rose-100/50 blur-2xl" />
-                  <div className="relative z-10 space-y-4">
+                  <div className="relative z-10 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Kontak</p>
-                        <h4 className="text-lg font-semibold text-slate-900">Perwakilan & Kontak Person</h4>
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-[0.28em] text-rose-400">Kontak</p>
+                        <h4 className="text-base font-semibold text-slate-900">Perwakilan & Kontak Person</h4>
                       </div>
-                      <span className="rounded-full bg-white/90 p-2 text-rose-500 shadow-inner shadow-rose-100">
-                        <Users className="h-5 w-5" />
+                      <span className="rounded-full bg-white/90 p-1.5 text-rose-500 shadow-inner shadow-rose-100">
+                        <Users className="h-4 w-4" />
                       </span>
                     </div>
-                    <div className="space-y-3">
-                      <div className="rounded-2xl border border-white/70 bg-white/95 p-4 shadow-inner shadow-rose-50 transition">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-rose-400">
-                          <Users className="h-3.5 w-3.5 text-rose-500" aria-hidden="true" />
+                    <div className="space-y-2">
+                      <div className="rounded-2xl border border-white/70 bg-white/95 p-3 shadow-inner shadow-rose-50 transition">
+                        <div className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-400">
+                          <Users className="h-3 w-3 text-rose-500" aria-hidden="true" />
                           Perwakilan Resmi
                         </div>
-                        <div className="mt-3 space-y-3">
+                        <div className="mt-2 space-y-2">
                           {representativeDetails.map((detail) => (
-                            <div key={detail.label} className="flex items-start gap-3">
-                              <span aria-hidden="true" className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-sm shadow-rose-100">
-                                <detail.icon className="h-4 w-4" />
+                            <div key={detail.label} className="flex items-start gap-2">
+                              <span aria-hidden="true" className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100">
+                                <detail.icon className="h-3.5 w-3.5" />
                               </span>
-                              <div className="space-y-1">
-                                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
+                              <div className="space-y-0.5">
+                                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
                                   {detail.label}
                                 </p>
-                                <p className="text-sm font-medium text-slate-800">{detail.value}</p>
+                                <p className="text-xs font-medium text-slate-800">{detail.value}</p>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-white/70 bg-white/95 p-4 shadow-inner shadow-rose-50 transition">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-rose-400">
-                          <Phone className="h-3.5 w-3.5 text-rose-500" aria-hidden="true" />
+                      <div className="rounded-2xl border border-white/70 bg-white/95 p-3 shadow-inner shadow-rose-50 transition">
+                        <div className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-400">
+                          <Phone className="h-3 w-3 text-rose-500" aria-hidden="true" />
                           Kontak Person
                         </div>
-                        <div className="mt-3 space-y-3">
+                        <div className="mt-2 space-y-2">
                           {contactPersonDetails.map((detail) => (
                             <div
                               key={detail.label}
-                              className="flex items-start gap-3"
+                              className="flex items-start gap-2"
                             >
-                              <span aria-hidden="true" className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-sm shadow-rose-100">
-                                <detail.icon className="h-4 w-4" />
+                              <span aria-hidden="true" className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100">
+                                <detail.icon className="h-3.5 w-3.5" />
                               </span>
-                              <div className="space-y-1">
-                                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
+                              <div className="space-y-0.5">
+                                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
                                   {detail.label}
                                 </p>
                                 <p
-                                  className={`text-sm font-medium text-slate-800 ${
+                                  className={`text-xs font-medium text-slate-800 ${
                                     detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'break-words'
                                   }`}
                                 >
@@ -893,9 +913,10 @@ export function ContractDetailPage() {
           </Card>
         </motion.div>
 
-        {/* Service Information */}
-        <motion.div variants={cardVariants} whileHover={{ y: -4 }}>
-          <Card className="h-full border border-rose-100/80 shadow-lg shadow-rose-100/60">
+        {/* Right items are independent grid items so dense packing can close gaps */}
+        <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-1 lg:flex lg:w-full">
+          {/* Layanan Utama Card */}
+          <Card className="w-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40 lg:flex lg:h-full lg:flex-col">
             <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
               <div className="flex items-start justify-between">
                 <div>
@@ -905,15 +926,16 @@ export function ContractDetailPage() {
                   </span>
                   <CardTitle className="mt-3 text-xl font-semibold text-slate-900">Layanan Utama</CardTitle>
                   <CardDescription className="text-sm text-slate-500">
-                    Kuantitas layanan berdasarkan kategori utama</CardDescription>
+                    Kuantitas layanan berdasarkan kategori utama
+                  </CardDescription>
                 </div>
                 <span className="rounded-full bg-white/80 p-2 shadow-inner shadow-rose-100">
                   <Layers className="h-5 w-5 text-rose-500" />
                 </span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6 bg-white p-6">
-              <div className="grid grid-cols-1 gap-4">
+            <CardContent className="space-y-4 bg-white p-5 lg:flex lg:w-full lg:flex-col lg:justify-between">
+              <div className="grid grid-cols-1 gap-3 lg:flex-1 lg:w-full">
                 {([
                   {
                     label: 'Connectivity Telkom',
@@ -935,20 +957,20 @@ export function ContractDetailPage() {
                     key={item.label}
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                    className={`relative flex w-full min-h-[180px] flex-col justify-center overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-r ${item.gradient} p-6 shadow-lg`}
+                    className={`relative flex w-full flex-col justify-center overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-r ${item.gradient} p-4 shadow-lg`}
                   >
                     <div className="absolute right-4 top-4 h-12 w-12 rounded-full bg-white/50 blur-2xl" />
-                    <div className="relative z-10 flex flex-col items-start gap-3 text-left sm:flex-row sm:items-center sm:justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
-                        {item.label}
+                    <div className="relative z-10 flex flex-col items-start gap-2 text-left sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+                          {item.label}
                         </p>
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-600">
-                          <Sparkles className="h-3.5 w-3.5 text-rose-400" />
+                        <span className="inline-flex items-center gap-1 text-[0.65rem] text-slate-600">
+                          <Sparkles className="h-3 w-3 text-rose-400" />
                           Total layanan dalam kategori ini
                         </span>
                       </div>
-                      <p className="text-4xl font-bold text-slate-900 sm:text-5xl">{item.value}</p>
+                      <p className="text-3xl font-bold text-slate-900 sm:text-4xl">{item.value}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -957,165 +979,104 @@ export function ContractDetailPage() {
           </Card>
         </motion.div>
 
-        {/* Payment Information */}
-        <motion.div variants={cardVariants} whileHover="hover" className="lg:col-span-2">
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <CreditCard className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Tata Cara Pembayaran
-              </CardTitle>
-              <CardDescription>
-                {paymentInfo.description || 'Informasi pembayaran tidak tersedia'}
-              </CardDescription>
+        <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-1 lg:col-start-3 lg:row-start-2 lg:flex lg:w-full">
+          {/* Kontak Telkom Card */}
+          <Card className="w-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40 lg:flex lg:h-full lg:flex-col lg:min-h-[320px]">
+            <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50 pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
+                    <User className="h-3 w-3" aria-hidden="true" />
+                    Kontak
+                  </span>
+                  <CardTitle className="mt-2 text-base font-semibold text-slate-900">
+                    Kontak Person Telkom
+                  </CardTitle>
+                </div>
+                <span className="rounded-full bg-white/80 p-1.5 shadow-inner shadow-rose-100">
+                  <Phone className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                </span>
+              </div>
             </CardHeader>
-            <CardContent style={{ backgroundColor: telkomColors.white }}>
-              {paymentInfo.method_type === 'termin' && paymentInfo.termin_payments ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
-                    <div className="flex items-center">
-                      <DollarSign className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                      <span className="font-medium" style={{ color: telkomColors.gray800 }}>
-                        Total Kontrak
-                      </span>
-                    </div>
-                    <span className="text-xl font-bold" style={{ color: telkomColors.primary }}>
-                      {formatCurrency(paymentInfo.total_amount || 0)}
-                    </span>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {paymentInfo.termin_payments.map((termin: any, index: number) => (
-                      <motion.div
-                        key={index}
-                        className="p-4 border rounded-lg"
-                        style={{ borderColor: telkomColors.gray200 }}
-                        whileHover={{ scale: 1.02 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-medium" style={{ color: telkomColors.gray800 }}>
-                            {termin.period}
-                          </span>
-                          <Badge
-                            style={{
-                              backgroundColor: telkomColors.gray100,
-                              color: telkomColors.gray700,
-                              border: 'none'
-                            }}
-                          >
-                            #{termin.termin_number}
-                          </Badge>
-                        </div>
-                        <div className="text-lg font-semibold" style={{ color: telkomColors.primary }}>
-                          {formatCurrency(termin.amount)}
-                        </div>
-                        {termin.raw_text && (
-                          <div className="text-xs mt-2" style={{ color: telkomColors.gray600 }}>
-                            {termin.raw_text}
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-                  </div>
+            <CardContent className="bg-white p-4 lg:flex lg:w-full lg:flex-col">
+              {!hasTelkomContact ? (
+                <div className="flex flex-1 flex-col items-center justify-center py-6 text-center text-xs text-slate-500">
+                  <span className="rounded-full bg-slate-100 p-2 text-slate-400">
+                    <Phone className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  Informasi kontak tidak tersedia
                 </div>
               ) : (
-                <div className="text-center py-8" style={{ color: telkomColors.gray600 }}>
-                  <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Informasi pembayaran tidak tersedia</p>
+                <div className="grid grid-cols-1 gap-3 text-sm leading-tight sm:grid-cols-2 lg:flex-1 lg:w-full">
+                  {telkomContactFields.map((field) => (
+                    <div
+                      key={field.key}
+                      className={`flex items-start gap-3 rounded-2xl border border-rose-100/70 bg-white/95 p-3 shadow-sm ${field.span ?? ''}`}
+                    >
+                      <span aria-hidden="true" className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100">
+                        <field.icon className="h-3.5 w-3.5" />
+                      </span>
+                      <div className="space-y-1">
+                        <p className="text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-rose-400">
+                          {field.label}
+                        </p>
+                        <p
+                          className={`font-medium text-slate-900 ${
+                            field.monospace ? 'font-mono text-sm tracking-wide text-slate-900 break-all' : 'text-sm break-words'
+                          }`}
+                        >
+                          {field.value}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
         </motion.div>
+      </motion.div>
 
-        {/* Telkom Contact & Contract Period */}
-        <motion.div variants={cardVariants} whileHover="hover">
-          <Card className="border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <User className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Kontak Telkom & Jangka Waktu
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4" style={{ backgroundColor: telkomColors.white }}>
-              {/* Telkom Contact */}
-              <div>
-                <h4 className="font-medium mb-3" style={{ color: telkomColors.gray800 }}>
-                  Kontak Person Telkom
-                </h4>
-                <div className="space-y-2">
-                  {safeRenderValue(contactInfo.nama) !== '-' ? (
-                    <>
-                      <div className="flex items-center text-sm">
-                        <User className="w-4 h-4 mr-2" style={{ color: telkomColors.gray600 }} />
-                        <span style={{ color: telkomColors.gray800 }}>{safeRenderValue(contactInfo.nama)}</span>
-                      </div>
-                      {safeRenderValue(contactInfo.jabatan) !== '-' && (
-                        <div className="flex items-center text-sm">
-                          <Building2 className="w-4 h-4 mr-2" style={{ color: telkomColors.gray600 }} />
-                          <span style={{ color: telkomColors.gray800 }}>{safeRenderValue(contactInfo.jabatan)}</span>
-                        </div>
-                      )}
-                      {safeRenderValue(contactInfo.email) !== '-' && (
-                        <div className="flex items-center text-sm">
-                          <Mail className="w-4 h-4 mr-2" style={{ color: telkomColors.gray600 }} />
-                          <span style={{ color: telkomColors.gray800 }}>{safeRenderValue(contactInfo.email)}</span>
-                        </div>
-                      )}
-                      {safeRenderValue(contactInfo.telepon) !== '-' && (
-                        <div className="flex items-center text-sm">
-                          <Phone className="w-4 h-4 mr-2" style={{ color: telkomColors.gray600 }} />
-                          <span style={{ color: telkomColors.gray800 }}>{safeRenderValue(contactInfo.telepon)}</span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm" style={{ color: telkomColors.gray600 }}>
-                      Tidak tersedia
-                    </p>
-                  )}
-                </div>
+      {/* Contract Period - Full Width */}
+      <motion.div variants={cardVariants} whileHover="hover">
+        <Card className="border-gray-200 shadow-sm">
+          <CardHeader style={{ backgroundColor: telkomColors.white }}>
+            <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
+              <Calendar className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
+              Jangka Waktu Kontrak
+            </CardTitle>
+            <CardDescription>
+              Periode berlakunya kontrak
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4" style={{ backgroundColor: telkomColors.white }}>
+            {safeRenderValue(timeInfo.mulai) !== '-' || safeRenderValue(timeInfo.akhir) !== '-' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {safeRenderValue(timeInfo.mulai) !== '-' && (
+                  <div className="flex justify-between items-center p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
+                    <span className="text-sm font-medium" style={{ color: telkomColors.gray600 }}>Tanggal Mulai</span>
+                    <span className="text-sm font-semibold" style={{ color: telkomColors.gray800 }}>
+                      {format(new Date(timeInfo.mulai), 'dd MMMM yyyy', { locale: id })}
+                    </span>
+                  </div>
+                )}
+                {safeRenderValue(timeInfo.akhir) !== '-' && (
+                  <div className="flex justify-between items-center p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
+                    <span className="text-sm font-medium" style={{ color: telkomColors.gray600 }}>Tanggal Berakhir</span>
+                    <span className="text-sm font-semibold" style={{ color: telkomColors.gray800 }}>
+                      {format(new Date(timeInfo.akhir), 'dd MMMM yyyy', { locale: id })}
+                    </span>
+                  </div>
+                )}
               </div>
-
-              <hr style={{ backgroundColor: telkomColors.gray200, border: 'none', height: '1px' }} />
-
-              {/* Contract Period */}
-              <div>
-                <h4 className="font-medium mb-3 flex items-center" style={{ color: telkomColors.gray800 }}>
-                  <Calendar className="w-4 h-4 mr-2" style={{ color: telkomColors.primary }} />
-                  Jangka Waktu Kontrak
-                </h4>
-                <div className="space-y-2">
-                  {safeRenderValue(timeInfo.mulai) !== '-' || safeRenderValue(timeInfo.akhir) !== '-' ? (
-                    <>
-                      {safeRenderValue(timeInfo.mulai) !== '-' && (
-                        <div className="flex justify-between">
-                          <span className="text-sm" style={{ color: telkomColors.gray600 }}>Mulai:</span>
-                          <span className="text-sm font-medium" style={{ color: telkomColors.gray800 }}>
-                            {format(new Date(timeInfo.mulai), 'dd MMMM yyyy', { locale: id })}
-                          </span>
-                        </div>
-                      )}
-                      {safeRenderValue(timeInfo.akhir) !== '-' && (
-                        <div className="flex justify-between">
-                          <span className="text-sm" style={{ color: telkomColors.gray600 }}>Berakhir:</span>
-                          <span className="text-sm font-medium" style={{ color: telkomColors.gray800 }}>
-                            {format(new Date(timeInfo.akhir), 'dd MMMM yyyy', { locale: id })}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm" style={{ color: telkomColors.gray600 }}>
-                      Tidak tersedia
-                    </p>
-                  )}
-                </div>
+            ) : (
+              <div className="text-center py-8" style={{ color: telkomColors.gray600 }}>
+                <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>Informasi jangka waktu tidak tersedia</p>
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            )}
+          </CardContent>
+        </Card>
       </motion.div>
 
       {serviceItems.length > 0 && (
