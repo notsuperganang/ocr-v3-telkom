@@ -27,6 +27,7 @@ import {
   ClipboardList,
   Layers,
   ArrowUpRight,
+  Pencil,
 } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -637,6 +638,15 @@ export function ContractDetailPage() {
                 <CheckCircle className="w-4 h-4 mr-1" />
                 Dikonfirmasi
               </Badge>
+
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/contracts/${contract.id}/edit`)}
+                className="border-white/80 bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
 
               <Button
                 variant="outline"
