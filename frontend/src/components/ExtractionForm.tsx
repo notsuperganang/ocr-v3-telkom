@@ -29,14 +29,17 @@ interface ExtractionFormProps {
   onConfirm?: () => void;
   onDiscard?: () => void;
   disabled?: boolean;
+  mode?: 'job' | 'contract'; // 'job' for processing jobs, 'contract' for editing contracts
 }
 
 export function ExtractionForm({
   jobId,
   initialData,
+  onSave,
   onConfirm,
   onDiscard,
   disabled = false,
+  mode = 'job',
 }: ExtractionFormProps) {
   const [lastSaveTime, setLastSaveTime] = React.useState<Date | null>(null);
 
@@ -78,9 +81,14 @@ export function ExtractionForm({
   React.useEffect(() => {
     if (isDirty && isValid) {
       const backendData = formToBackend(currentFormData);
-      autoSave(backendData);
+      if (mode === 'job') {
+        autoSave(backendData);
+      } else if (mode === 'contract' && onSave) {
+        // For contract mode, use the onSave callback instead
+        onSave(backendData);
+      }
     }
-  }, [stableFormData, isDirty, isValid, autoSave]);
+  }, [stableFormData, isDirty, isValid, autoSave, mode, onSave]);
 
   // Update last save time when saving completes
   const prevIsSaving = React.useRef(isSaving);
@@ -113,10 +121,12 @@ export function ExtractionForm({
         return;
       }
 
-      // Flush any pending auto-save before confirming
-      await flush();
+      // Flush any pending auto-save before confirming (only for job mode)
+      if (mode === 'job') {
+        await flush();
+        confirmMutation.mutate(jobId);
+      }
 
-      confirmMutation.mutate(jobId);
       onConfirm?.();
     } catch (error) {
       console.error('Confirm failed:', error);
@@ -126,7 +136,10 @@ export function ExtractionForm({
   // Discard handler
   const handleDiscard = () => {
     if (confirm('Yakin ingin membatalkan dan menghapus job ini? Tindakan ini tidak dapat dibatalkan.')) {
-      discardMutation.mutate(jobId);
+      // Only call mutation for job mode, contract mode uses callback only
+      if (mode === 'job') {
+        discardMutation.mutate(jobId);
+      }
       onDiscard?.();
     }
   };
