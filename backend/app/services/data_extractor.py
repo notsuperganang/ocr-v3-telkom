@@ -564,9 +564,16 @@ def _generate_termin_payments_with_dates(
         # Generate termin payments with month assignments
         termin_payments = []
         for i in range(count):
-            # Calculate termin date: start + (interval * (i + 1))
-            months_to_add = int(interval_months * (i + 1))
-            termin_date = start + relativedelta(months=months_to_add)
+            # For the last termin, use the end date
+            if i == count - 1:
+                termin_date = end
+            else:
+                # Calculate termin month: distribute evenly within contract period
+                # Round to nearest month, with slight bias towards end of period
+                import math
+                target_month = round((duration_months / count) * (i + 1))
+                months_to_add = target_month - 1  # -1 because relativedelta is 0-indexed from start
+                termin_date = start + relativedelta(months=months_to_add)
 
             # Format period as "Bulan YYYY" (Indonesian)
             period = f"{month_names_id[termin_date.month - 1]} {termin_date.year}"
