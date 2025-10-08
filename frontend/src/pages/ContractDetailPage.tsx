@@ -35,6 +35,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useContract, useDownloadContractJson, useDownloadContractPdf } from '@/hooks/useContracts';
 import { formatNPWP, formatPhone } from '@/lib/validation';
+import { ServiceDetailsSection } from '@/components/contracts/ServiceDetailsSection';
 
 // Animation variants
 const pageVariants = {
@@ -1037,149 +1038,13 @@ export function ContractDetailPage() {
         </motion.div>
       </motion.div>
 
-      {/* Contract Period - Full Width */}
-      <motion.div variants={cardVariants} whileHover="hover">
-        <Card className="border-gray-200 shadow-sm">
-          <CardHeader style={{ backgroundColor: telkomColors.white }}>
-            <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-              <Calendar className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-              Jangka Waktu Kontrak
-            </CardTitle>
-            <CardDescription>
-              Periode berlakunya kontrak
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4" style={{ backgroundColor: telkomColors.white }}>
-            {safeRenderValue(timeInfo.mulai) !== '-' || safeRenderValue(timeInfo.akhir) !== '-' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {safeRenderValue(timeInfo.mulai) !== '-' && (
-                  <div className="flex justify-between items-center p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
-                    <span className="text-sm font-medium" style={{ color: telkomColors.gray600 }}>Tanggal Mulai</span>
-                    <span className="text-sm font-semibold" style={{ color: telkomColors.gray800 }}>
-                      {format(new Date(timeInfo.mulai), 'dd MMMM yyyy', { locale: id })}
-                    </span>
-                  </div>
-                )}
-                {safeRenderValue(timeInfo.akhir) !== '-' && (
-                  <div className="flex justify-between items-center p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
-                    <span className="text-sm font-medium" style={{ color: telkomColors.gray600 }}>Tanggal Berakhir</span>
-                    <span className="text-sm font-semibold" style={{ color: telkomColors.gray800 }}>
-                      {format(new Date(timeInfo.akhir), 'dd MMMM yyyy', { locale: id })}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8" style={{ color: telkomColors.gray600 }}>
-                <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Informasi jangka waktu tidak tersedia</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {serviceItems.length > 0 && (
-        <motion.section
-          className="space-y-4"
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate"
-          viewport={{ once: true, amount: 0.2 }}
-        >
-          <motion.div variants={cardVariants} whileHover="hover">
-            <Card className="border-gray-200 shadow-sm">
-              <CardHeader style={{ backgroundColor: telkomColors.white }}>
-                <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                  <ClipboardList className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                  Rincian Layanan
-                </CardTitle>
-                <CardDescription>
-                  Ringkasan layanan dan komponen biaya berdasarkan hasil ekstraksi
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6" style={{ backgroundColor: telkomColors.white }}>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {serviceItems.map((item: ServiceItem, index: number) => {
-                    const kategori = safeRenderValue(item?.kategori || item?.jenis_layanan);
-                    const install = parseAmount(item?.biaya_instalasi);
-                    const recurring = parseAmount(item?.biaya_langganan_tahunan);
-
-                    return (
-                      <motion.div
-                        key={index}
-                        className="rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-sm"
-                        whileHover={{ y: -3, scale: 1.01 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                          <span>Layanan #{index + 1}</span>
-                          {kategori !== '-' && (
-                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-600">
-                              {kategori}
-                            </Badge>
-                          )}
-                        </div>
-                        <h4 className="mt-3 text-lg font-semibold text-slate-900 leading-tight">
-                          {safeRenderValue(item?.nama_layanan || item?.nama)}
-                        </h4>
-                        {safeRenderValue(item?.deskripsi) !== '-' && (
-                          <p className="mt-2 text-sm text-slate-500">
-                            {safeRenderValue(item?.deskripsi)}
-                          </p>
-                        )}
-                        <div className="mt-4 space-y-2 text-sm">
-                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                            <span className="text-slate-500">Biaya Instalasi</span>
-                            <span className="font-semibold text-slate-900">
-                              {install > 0 ? formatCurrency(install) : '—'}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                            <span className="text-slate-500">Langganan Tahunan</span>
-                            <span className="font-semibold text-slate-900">
-                              {recurring > 0 ? formatCurrency(recurring) : '—'}
-                            </span>
-                          </div>
-                          {safeRenderValue(item?.satuan) !== '-' && (
-                            <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 px-3 py-2">
-                              <span className="text-slate-500">Satuan</span>
-                              <span className="font-medium text-slate-800">
-                                {safeRenderValue(item?.satuan)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-
-                <div className="grid gap-4 rounded-2xl border border-dashed border-rose-200 bg-rose-50/60 p-5 sm:grid-cols-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.25em] text-rose-400">Total Instalasi</p>
-                    <p className="mt-1 text-xl font-semibold text-rose-700">
-                      {totalInstallation > 0 ? formatCurrency(totalInstallation) : 'Rp 0'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.25em] text-rose-400">Total Langganan</p>
-                    <p className="mt-1 text-xl font-semibold text-rose-700">
-                      {totalSubscription > 0 ? formatCurrency(totalSubscription) : 'Rp 0'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.25em] text-rose-400">Estimasi Nilai Kontrak</p>
-                    <p className="mt-1 text-xl font-semibold text-rose-700">
-                      {computedContractValue > 0 ? formatCurrency(computedContractValue) : 'Rp 0'}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </motion.section>
-      )}
+      {/* Service Details with VAT Breakdown */}
+      <ServiceDetailsSection
+        serviceItems={serviceItems}
+        startDate={timeInfo.mulai}
+        endDate={timeInfo.akhir}
+        paymentMethod={paymentInfo}
+      />
 
       <motion.section
         className="grid grid-cols-1 lg:grid-cols-2 gap-6"
