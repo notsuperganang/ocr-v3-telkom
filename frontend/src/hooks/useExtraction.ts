@@ -250,8 +250,12 @@ export function useFormData(jobId: number) {
 export function useAutoSave(jobId: number, delay = 1000) {
   const updateMutation = useUpdateExtraction(jobId);
   const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const pendingDataRef = React.useRef<Partial<TelkomContractData> | null>(null);
 
   const autoSave = React.useCallback((data: Partial<TelkomContractData>) => {
+    // Store pending data
+    pendingDataRef.current = data;
+
     // Clear existing timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -260,8 +264,27 @@ export function useAutoSave(jobId: number, delay = 1000) {
     // Set new timeout
     timeoutRef.current = setTimeout(() => {
       updateMutation.mutate(data);
+      pendingDataRef.current = null;
     }, delay);
   }, [updateMutation.mutate, delay]);
+
+  // Flush pending save immediately
+  const flush = React.useCallback(async () => {
+    // Clear timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    // If there's pending data, save it immediately
+    if (pendingDataRef.current) {
+      const dataToSave = pendingDataRef.current;
+      pendingDataRef.current = null;
+
+      // Use mutateAsync to wait for completion
+      await updateMutation.mutateAsync(dataToSave);
+    }
+  }, [updateMutation.mutateAsync]);
 
   // Cleanup on unmount
   React.useEffect(() => {
@@ -274,6 +297,7 @@ export function useAutoSave(jobId: number, delay = 1000) {
 
   return {
     autoSave,
+    flush,
     isSaving: updateMutation.isPending,
     lastSaveError: updateMutation.error,
     lastSaveTime: updateMutation.data?.timestamp,

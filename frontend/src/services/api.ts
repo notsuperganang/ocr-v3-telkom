@@ -246,6 +246,38 @@ class ApiClient {
     return response.blob();
   }
 
+  async updateContract(contractId: number, updatedData: any, incrementVersion: boolean = false): Promise<ContractDetail> {
+    const queryParams = incrementVersion ? '?increment_version=true' : '';
+    return this.request<ContractDetail>(`/api/contracts/${contractId}${queryParams}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updatedData),
+    });
+  }
+
+  async getContractPdfStream(contractId: number): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/api/contracts/${contractId}/pdf/stream`, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to fetch PDF (${response.status})`;
+      try {
+        const errorText = await response.text();
+        if (errorText) {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorMessage;
+        }
+      } catch (e) {
+        errorMessage = `Failed to fetch PDF: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.blob();
+  }
+
   async deleteContract(contractId: number): Promise<any> {
     return this.request(`/api/contracts/${contractId}`, {
       method: 'DELETE',

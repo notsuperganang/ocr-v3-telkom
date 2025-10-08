@@ -394,6 +394,150 @@ async def download_contract_pdf(
         }
     )
 
+@router.patch("/{contract_id}")
+async def update_contract(
+    contract_id: int,
+    updated_data: Dict[str, Any],
+    increment_version: bool = Query(False, description="Increment contract version (use for confirmations)"),
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """Update contract data and recompute denormalized fields"""
+    db, current_user = db_and_user
+
+    # Import denormalization service
+    from app.services.denorm import compute_denorm_fields
+
+    # Get contract
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    try:
+        # Update final_data
+        contract.final_data = updated_data
+
+        # Recompute all denormalized fields
+        denorm_fields = compute_denorm_fields(updated_data)
+
+        # Update denormalized fields
+        contract.customer_name = denorm_fields.customer_name
+        contract.customer_npwp = denorm_fields.customer_npwp
+        contract.period_start = denorm_fields.period_start
+        contract.period_end = denorm_fields.period_end
+        contract.service_connectivity = denorm_fields.service_connectivity
+        contract.service_non_connectivity = denorm_fields.service_non_connectivity
+        contract.service_bundling = denorm_fields.service_bundling
+        contract.payment_method = denorm_fields.payment_method
+        contract.termin_count = denorm_fields.termin_count
+        contract.installation_cost = denorm_fields.installation_cost
+        contract.annual_subscription_cost = denorm_fields.annual_subscription_cost
+        contract.total_contract_value = denorm_fields.total_contract_value
+
+        # Extended fields - Customer & Representatives
+        contract.customer_address = denorm_fields.customer_address
+        contract.rep_name = denorm_fields.rep_name
+        contract.rep_title = denorm_fields.rep_title
+        contract.customer_contact_name = denorm_fields.customer_contact_name
+        contract.customer_contact_title = denorm_fields.customer_contact_title
+        contract.customer_contact_email = denorm_fields.customer_contact_email
+        contract.customer_contact_phone = denorm_fields.customer_contact_phone
+
+        # Extended fields - Contract Period Raw
+        contract.period_start_raw = denorm_fields.period_start_raw
+        contract.period_end_raw = denorm_fields.period_end_raw
+
+        # Extended fields - Telkom Contact
+        contract.telkom_contact_name = denorm_fields.telkom_contact_name
+        contract.telkom_contact_title = denorm_fields.telkom_contact_title
+        contract.telkom_contact_email = denorm_fields.telkom_contact_email
+        contract.telkom_contact_phone = denorm_fields.telkom_contact_phone
+
+        # Extended fields - Payment Details
+        contract.payment_description = denorm_fields.payment_description
+        contract.termin_total_count = denorm_fields.termin_total_count
+        contract.termin_total_amount = denorm_fields.termin_total_amount
+        contract.payment_raw_text = denorm_fields.payment_raw_text
+        contract.termin_payments_json = denorm_fields.termin_payments_json
+
+        # Extended fields - Extraction Metadata
+        contract.extraction_timestamp = denorm_fields.extraction_timestamp
+        contract.contract_processing_time_sec = denorm_fields.contract_processing_time_sec
+
+        # Increment version only if requested (for confirmations, not auto-save)
+        if increment_version:
+            contract.version += 1
+        contract.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+        db.refresh(contract)
+
+        # Get file info for response
+        file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
+
+        return ContractDetail(
+            id=contract.id,
+            file_id=contract.file_id,
+            source_job_id=contract.source_job_id,
+            filename=file_model.original_filename if file_model else "unknown",
+            final_data=contract.final_data,
+            version=contract.version,
+            confirmed_by=contract.confirmed_by,
+            confirmed_at=contract.confirmed_at,
+            created_at=contract.created_at,
+            updated_at=contract.updated_at,
+            file_size_bytes=file_model.size_bytes if file_model else 0,
+            processing_time_seconds=None
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update contract: {str(e)}"
+        )
+
+@router.get("/{contract_id}/pdf/stream")
+async def stream_contract_pdf(
+    contract_id: int,
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """Stream PDF file for contract editing preview"""
+    db, current_user = db_and_user
+
+    # Get contract
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    # Get file info
+    file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
+    if not file_model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Associated file not found"
+        )
+
+    # Check if PDF file exists
+    pdf_path = file_model.pdf_path
+    if not os.path.exists(pdf_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PDF file not found on disk"
+        )
+
+    # Stream PDF file (inline, not as attachment)
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename=file_model.original_filename
+    )
+
 @router.delete("/{contract_id}")
 async def delete_contract(
     contract_id: int,

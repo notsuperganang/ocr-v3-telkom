@@ -86,6 +86,25 @@ export function useDownloadContractPdf() {
   });
 }
 
+// Hook for updating a contract
+export function useUpdateContract() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ contractId, data, incrementVersion = false }: { contractId: number; data: any; incrementVersion?: boolean }) =>
+      apiService.updateContract(contractId, data, incrementVersion),
+    onSuccess: (updatedContract) => {
+      // Invalidate contract detail query to refetch latest data
+      queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedContract.id) });
+      // Invalidate contracts list to update any summary data
+      queryClient.invalidateQueries({ queryKey: contractKeys.lists() });
+    },
+    onError: (error) => {
+      console.error('Failed to update contract:', error);
+    },
+  });
+}
+
 // Hook for deleting a contract
 export function useDeleteContract() {
   const queryClient = useQueryClient();

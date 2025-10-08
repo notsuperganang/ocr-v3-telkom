@@ -9,8 +9,10 @@ import { DashboardPage } from './pages/DashboardPage';
 import { UploadPage } from './pages/UploadPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { ContractDetailPage } from './pages/ContractDetailPage';
+import { ContractEditPage } from './pages/ContractEditPage';
 import { ProcessingPage } from './pages/ProcessingPage';
 import { ReviewPage } from './pages/ReviewPage';
+import { Toaster } from './components/ui/toaster';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -42,6 +44,7 @@ function App() {
                       <Route path="/upload" element={<UploadPage />} />
                       <Route path="/contracts" element={<ContractsPage />} />
                       <Route path="/contracts/:contractId" element={<ContractDetailPage />} />
+                      <Route path="/contracts/:contractId/edit" element={<ContractEditPage />} />
                       <Route path="/processing/:jobId" element={<ProcessingPage />} />
                       <Route path="/review/:jobId" element={<ReviewPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
@@ -52,6 +55,7 @@ function App() {
             />
           </Routes>
         </Router>
+        <Toaster />
       </AuthProvider>
     </QueryClientProvider>
   );
