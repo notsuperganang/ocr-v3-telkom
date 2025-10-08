@@ -26,10 +26,24 @@ export function MainServicesSection({
     field: 'connectivity_telkom' | 'non_connectivity_telkom' | 'bundling',
     value: string
   ) => {
-    const numValue = parseInt(value) || 0;
-    if (numValue >= 0) {
+    // Handle empty string
+    if (value === '') {
+      setValue(`layanan_utama.${field}`, 0);
+      return;
+    }
+
+    // Parse the number
+    const numValue = parseInt(value, 10);
+
+    // Only set if it's a valid number >= 0
+    if (!isNaN(numValue) && numValue >= 0) {
       setValue(`layanan_utama.${field}`, numValue);
     }
+  };
+
+  // Handle focus to select all text
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select();
   };
 
   // Calculate total services
@@ -68,6 +82,7 @@ export function MainServicesSection({
               min="0"
               value={connectivityValue}
               onChange={(e) => handleNumberChange('connectivity_telkom', e.target.value)}
+              onFocus={handleFocus}
               placeholder="0"
               className={`text-center text-lg font-semibold ${
                 errors.layanan_utama?.connectivity_telkom ? 'border-red-500' : ''
@@ -104,6 +119,7 @@ export function MainServicesSection({
               min="0"
               value={nonConnectivityValue}
               onChange={(e) => handleNumberChange('non_connectivity_telkom', e.target.value)}
+              onFocus={handleFocus}
               placeholder="0"
               className={`text-center text-lg font-semibold ${
                 errors.layanan_utama?.non_connectivity_telkom ? 'border-red-500' : ''
@@ -140,6 +156,7 @@ export function MainServicesSection({
               min="0"
               value={bundlingValue}
               onChange={(e) => handleNumberChange('bundling', e.target.value)}
+              onFocus={handleFocus}
               placeholder="0"
               className={`text-center text-lg font-semibold ${
                 errors.layanan_utama?.bundling ? 'border-red-500' : ''
