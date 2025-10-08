@@ -17,11 +17,9 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
   const [error, setError] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [loadTimeout, setLoadTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Retry function for failed loads
   const retryLoad = () => {
-    console.log('Retrying PDF load...');
     setError(null);
     setIsLoading(true);
     setPdfBlob(null);
@@ -32,18 +30,10 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
   React.useEffect(() => {
     async function loadPdf() {
       try {
-        console.log(`Loading PDF for job ${jobId}... (attempt ${retryCount + 1})`);
         setIsLoading(true);
         setError(null);
 
-        // Clear any existing timeout
-        if (loadTimeout) {
-          clearTimeout(loadTimeout);
-          setLoadTimeout(null);
-        }
-
         const blob = await apiService.getJobPdf(jobId);
-        console.log(`PDF blob received: ${blob.size} bytes, type: ${blob.type}`);
 
         if (blob.size === 0) {
           throw new Error('Received empty PDF file');
@@ -51,17 +41,9 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
 
         const url = URL.createObjectURL(blob);
         setPdfBlob(url);
-        console.log('PDF blob URL created successfully');
-
-        // Set timeout fallback in case iframe doesn't trigger load events
-        const timeout = setTimeout(() => {
-          console.warn('PDF iframe load timeout - assuming loaded');
-          setIsLoading(false);
-        }, 5000);
-        setLoadTimeout(timeout);
+        setIsLoading(false);
 
       } catch (error) {
-        console.error('Failed to load PDF:', error);
         setError(error instanceof Error ? error.message : 'Failed to load PDF');
         setIsLoading(false);
       }
@@ -69,43 +51,17 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
 
     loadPdf();
 
-    // Cleanup blob URL and timeout on unmount
+    // Cleanup blob URL on unmount
     return () => {
       if (pdfBlob) {
         URL.revokeObjectURL(pdfBlob);
       }
-      if (loadTimeout) {
-        clearTimeout(loadTimeout);
-      }
     };
   }, [jobId, retryCount]); // Re-run when jobId changes or when retrying
 
-  // Handle iframe load success
-  const handleIframeLoad = () => {
-    console.log('✅ PDF iframe loaded successfully');
-
-    // Clear timeout since iframe loaded successfully
-    if (loadTimeout) {
-      clearTimeout(loadTimeout);
-      setLoadTimeout(null);
-    }
-
-    setIsLoading(false);
-    setError(null);
-  };
-
   // Handle iframe load error
   const handleIframeError = () => {
-    console.error('❌ PDF iframe failed to load');
-
-    // Clear timeout since we got an error
-    if (loadTimeout) {
-      clearTimeout(loadTimeout);
-      setLoadTimeout(null);
-    }
-
     setError('Failed to load PDF in browser viewer');
-    setIsLoading(false);
   };
 
 
@@ -145,7 +101,6 @@ export function PdfPreview({ jobId, className }: PdfPreviewProps) {
           src={pdfBlob}
           className="w-full h-full border-0"
           title="PDF Preview"
-          onLoad={handleIframeLoad}
           onError={handleIframeError}
         />
       ) : null}
