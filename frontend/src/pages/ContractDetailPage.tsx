@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import type { LucideIcon } from 'lucide-react';
 import {
   ArrowLeft,
   Calendar,
@@ -19,7 +20,13 @@ import {
   DollarSign,
   Users,
   Settings,
+  UserRound,
   AlertCircle,
+  Sparkles,
+  History,
+  ClipboardList,
+  Layers,
+  ArrowUpRight,
 } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useContract, useDownloadContractJson, useDownloadContractPdf } from '@/hooks/useContracts';
+import { formatNPWP, formatPhone } from '@/lib/validation';
 
 // Animation variants
 const pageVariants = {
@@ -99,6 +107,138 @@ const formatFileSize = (bytes: number) => {
   return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
 };
 
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return format(date, 'dd MMMM yyyy, HH:mm', { locale: id });
+};
+
+const parseAmount = (value: unknown): number => {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^\d,-]/g, '').replace(',', '.');
+    const parsed = parseFloat(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const MONTH_NAME_MAP: Record<string, number> = {
+  januari: 0,
+  jan: 0,
+  febuari: 1,
+  februari: 1,
+  feb: 1,
+  maret: 2,
+  mar: 2,
+  mart: 2,
+  april: 3,
+  apr: 3,
+  mei: 4,
+  may: 4,
+  juni: 5,
+  jun: 5,
+  july: 6,
+  juli: 6,
+  jul: 6,
+  agustus: 7,
+  agst: 7,
+  agu: 7,
+  agt: 7,
+  september: 8,
+  sept: 8,
+  sep: 8,
+  oktober: 9,
+  okt: 9,
+  october: 9,
+  november: 10,
+  nov: 10,
+  desember: 11,
+  december: 11,
+  des: 11,
+  dec: 11,
+};
+
+const parseTerminPeriod = (period?: string | null): Date | null => {
+  if (!period || typeof period !== 'string') return null;
+  let normalized = period.normalize('NFKD');
+  normalized = normalized.replace(/([A-Za-z])([0-9])/g, '$1 $2');
+  normalized = normalized.replace(/([0-9])([A-Za-z])/g, '$1 $2');
+  normalized = normalized.replace(/[^A-Za-z0-9]+/g, ' ').trim();
+  if (!normalized) return null;
+
+  const tokens = normalized.split(/\s+/);
+  let monthIndex: number | undefined;
+  let year: number | undefined;
+
+  tokens.forEach((token) => {
+    if (monthIndex === undefined) {
+      const lower = token.toLowerCase();
+      if (MONTH_NAME_MAP.hasOwnProperty(lower)) {
+        monthIndex = MONTH_NAME_MAP[lower];
+        return;
+      }
+    }
+
+    if (year === undefined) {
+      const numeric = parseInt(token, 10);
+      if (!Number.isNaN(numeric) && numeric > 1900) {
+        year = numeric;
+      }
+    }
+  });
+
+  if (monthIndex === undefined || year === undefined) {
+    return null;
+  }
+
+  return new Date(Date.UTC(year, monthIndex, 1));
+};
+
+type ServiceItem = {
+  kategori?: string | null;
+  jenis_layanan?: string | null;
+  nama_layanan?: string | null;
+  nama?: string | null;
+  deskripsi?: string | null;
+  biaya_instalasi?: number | string | null;
+  biaya_langganan_tahunan?: number | string | null;
+  satuan?: string | null;
+};
+
+type QuickStatValue = string | { primary: string; secondary?: string };
+
+type QuickStat = {
+  label: string;
+  value: QuickStatValue;
+  icon: LucideIcon;
+  accent: string;
+};
+
+const isComplexStatValue = (value: QuickStatValue): value is { primary: string; secondary?: string } =>
+  typeof value === 'object' && value !== null && 'primary' in value;
+
+type TimelineEvent = {
+  label: string;
+  timestamp: string;
+  description?: string;
+  icon: LucideIcon;
+};
+
+type TerminSummary = {
+  termin_number?: number;
+  period?: string;
+  raw_text?: string;
+};
+
+type TerminWithDate = {
+  item: TerminSummary;
+  date: Date | null;
+};
+
 export function ContractDetailPage() {
   const { contractId } = useParams();
   const navigate = useNavigate();
@@ -159,6 +299,231 @@ export function ContractDetailPage() {
   const contactInfo = contractData?.kontak_person_telkom || {};
   const timeInfo = contractData?.jangka_waktu || {};
 
+  const getRawString = (value: unknown): string => {
+    const raw = safeRenderValue(value);
+    if (!raw || raw === '-') {
+      return '';
+    }
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : '';
+  };
+
+  const displayValueOrDash = (value: unknown): string => {
+    const raw = getRawString(value);
+    return raw.length > 0 ? raw : '-';
+  };
+
+  const customerNameDisplay = displayValueOrDash(customerInfo.nama_pelanggan);
+  const customerAddressDisplay = displayValueOrDash(customerInfo.alamat);
+  const npwpRaw = getRawString(customerInfo.npwp);
+  const formattedNPWP = npwpRaw ? formatNPWP(npwpRaw) : '';
+  const customerNPWP = formattedNPWP.length > 0 ? formattedNPWP : npwpRaw || '-';
+
+  const representativeName = displayValueOrDash(customerInfo?.perwakilan?.nama);
+  const representativeTitle = displayValueOrDash(customerInfo?.perwakilan?.jabatan);
+
+  const contactPersonName = displayValueOrDash(customerInfo?.kontak_person?.nama);
+  const contactPersonTitle = displayValueOrDash(customerInfo?.kontak_person?.jabatan);
+  const contactPersonEmailRaw = getRawString(customerInfo?.kontak_person?.email);
+  const contactPersonEmail = contactPersonEmailRaw ? contactPersonEmailRaw.toLowerCase() : '-';
+  const contactPersonPhoneRaw = getRawString(customerInfo?.kontak_person?.telepon);
+  const formattedContactPhone = contactPersonPhoneRaw ? formatPhone(contactPersonPhoneRaw) : '';
+  const contactPersonPhone = formattedContactPhone.length > 0 ? formattedContactPhone : contactPersonPhoneRaw || '-';
+
+  const profileHighlights: Array<{
+    label: string;
+    value: string;
+    helper: string;
+    icon: LucideIcon;
+    monospace?: boolean;
+  }> = [
+    {
+      label: 'NPWP',
+      value: customerNPWP,
+      helper: customerNPWP === '-' ? 'Belum tersedia pada dokumen' : 'Nomor Pokok Wajib Pajak',
+      icon: Hash,
+      monospace: true,
+    },
+    {
+      label: 'Perwakilan',
+      value: representativeName,
+      helper: representativeTitle === '-' ? 'Jabatan belum tersedia' : representativeTitle,
+      icon: Users,
+    },
+    {
+      label: 'Kontak Person',
+      value: contactPersonName,
+      helper: contactPersonPhone === '-' ? 'Telepon belum tersedia' : `Telepon ${contactPersonPhone}`,
+      icon: Phone,
+    },
+  ];
+
+  const profileDetails: Array<{ label: string; value: string; icon: LucideIcon; monospace?: boolean }> = [
+    { label: 'Nama Pelanggan', value: customerNameDisplay, icon: UserRound },
+    { label: 'Alamat', value: customerAddressDisplay, icon: MapPin },
+    { label: 'NPWP', value: customerNPWP, icon: Hash, monospace: true },
+  ];
+
+  const representativeDetails: Array<{ label: string; value: string; icon: LucideIcon }> = [
+    { label: 'Nama', value: representativeName, icon: Users },
+    { label: 'Jabatan', value: representativeTitle, icon: ClipboardList },
+  ];
+
+  const contactPersonDetails: Array<{ label: string; value: string; icon: LucideIcon; monospace?: boolean }> = [
+    { label: 'Nama', value: contactPersonName, icon: Users },
+    { label: 'Jabatan', value: contactPersonTitle, icon: ClipboardList },
+    { label: 'Email', value: contactPersonEmail, icon: Mail },
+    { label: 'Telepon', value: contactPersonPhone, icon: Phone, monospace: true },
+  ];
+
+  const serviceItems: ServiceItem[] = Array.isArray(contractData?.rincian_layanan)
+    ? (contractData.rincian_layanan as ServiceItem[])
+    : [];
+
+  const totalInstallation = serviceItems.reduce<number>(
+    (sum, item) => sum + parseAmount(item?.biaya_instalasi),
+    0
+  );
+  const totalSubscription = serviceItems.reduce<number>(
+    (sum, item) => sum + parseAmount(item?.biaya_langganan_tahunan),
+    0
+  );
+  const computedContractValue = totalInstallation + totalSubscription;
+  const totalServiceCount =
+    (Number(serviceInfo.connectivity_telkom) || 0) +
+    (Number(serviceInfo.non_connectivity_telkom) || 0) +
+    (Number(serviceInfo.bundling) || 0);
+
+  const paymentMethodMap: Record<string, string> = {
+    termin: 'Termin',
+    recurring: 'Recurring',
+    one_time_charge: 'One Time Charge',
+  };
+  const paymentMethodType =
+    typeof paymentInfo?.method_type === 'string' ? paymentInfo.method_type : undefined;
+  const paymentMethodLabel = paymentMethodType
+    ? paymentMethodMap[paymentMethodType] ?? paymentMethodType
+    : 'Tidak tersedia';
+
+  const terminPayments: TerminSummary[] = Array.isArray(paymentInfo?.termin_payments)
+    ? (paymentInfo.termin_payments as TerminSummary[])
+    : [];
+  const sortedTerminPayments = [...terminPayments].sort((a, b) => {
+    const aNum = typeof a?.termin_number === 'number' ? a.termin_number : Number.MAX_SAFE_INTEGER;
+    const bNum = typeof b?.termin_number === 'number' ? b.termin_number : Number.MAX_SAFE_INTEGER;
+    return aNum - bNum;
+  });
+  const terminCount = sortedTerminPayments.length;
+  const terminWithDates: TerminWithDate[] = sortedTerminPayments.map((item) => ({
+    item,
+    date: parseTerminPeriod(item?.period ?? item?.raw_text ?? null),
+  }));
+
+  const now = new Date();
+  const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  const upcomingWithDate = terminWithDates
+    .filter(({ date }) => date !== null)
+    .sort((a, b) => (a.date!.getTime() - b.date!.getTime()))
+    .find(({ date }) => (date as Date).getTime() >= currentMonth.getTime());
+
+  const fallbackWithDate = terminWithDates
+    .filter(({ date }) => date !== null)
+    .sort((a, b) => (a.date!.getTime() - b.date!.getTime()))
+    .pop();
+
+  const fallbackByOrder = sortedTerminPayments[0];
+
+  const fallbackByOrderEntry: TerminWithDate | undefined = fallbackByOrder
+    ? {
+        item: fallbackByOrder,
+        date: parseTerminPeriod(fallbackByOrder.period ?? fallbackByOrder.raw_text ?? null),
+      }
+    : undefined;
+
+  const upcomingTerminEntry = upcomingWithDate ?? fallbackWithDate ?? fallbackByOrderEntry;
+
+  const upcomingTerminLabel = upcomingTerminEntry
+    ? upcomingTerminEntry.date
+      ? new Intl.DateTimeFormat('id-ID', {
+          month: 'long',
+          year: 'numeric',
+        }).format(upcomingTerminEntry.date)
+      : upcomingTerminEntry.item.period ??
+        (typeof upcomingTerminEntry.item.termin_number === 'number'
+          ? `Termin ${upcomingTerminEntry.item.termin_number}`
+          : undefined)
+    : undefined;
+
+  const paymentStatValue: QuickStatValue =
+    paymentMethodType === 'termin'
+      ? terminCount > 0
+        ? {
+            primary: `${paymentMethodLabel} • ${terminCount} termin`,
+            secondary: `Berikutnya: ${upcomingTerminLabel ?? 'Belum dijadwalkan'}`,
+          }
+        : `${paymentMethodLabel} • Jadwal termin belum tersedia`
+      : paymentMethodLabel;
+
+  const heroChips = [
+    { label: 'ID Kontrak', value: `#${contract.id}` },
+    { label: 'Versi', value: `v${contract.version}` },
+    { label: 'Ukuran File', value: formatFileSize(contract.file_size_bytes) },
+    { label: 'Total Layanan', value: totalServiceCount.toString() },
+  ];
+
+  const quickStats: QuickStat[] = [
+    {
+      label: 'Nilai Kontrak Total',
+      value: computedContractValue > 0 ? formatCurrency(computedContractValue) : 'Rp 0',
+      icon: DollarSign,
+      accent: 'bg-rose-50 text-rose-600',
+    },
+    {
+      label: 'Metode Pembayaran',
+      value: paymentStatValue,
+      icon: CreditCard,
+      accent: 'bg-amber-50 text-amber-600',
+    },
+    {
+      label: 'Tanggal Dikonfirmasi',
+      value: formatDateTime(contract.confirmed_at),
+      icon: CheckCircle,
+      accent: 'bg-indigo-50 text-indigo-600',
+    },
+    {
+      label: 'Terakhir Diperbarui',
+      value: formatDateTime(contract.updated_at),
+      icon: History,
+      accent: 'bg-slate-100 text-slate-700',
+    },
+  ];
+
+  const timelineEvents: TimelineEvent[] = [];
+  if (contract.confirmed_at) {
+    timelineEvents.push({
+      label: 'Kontrak Dikonfirmasi',
+      timestamp: contract.confirmed_at,
+      description: contract.confirmed_by ? `oleh ${contract.confirmed_by}` : undefined,
+      icon: CheckCircle,
+    });
+  }
+  if (contract.updated_at) {
+    timelineEvents.push({
+      label: 'Diperbarui',
+      timestamp: contract.updated_at,
+      description: 'Pembaharuan terakhir pada data kontrak',
+      icon: FileText,
+    });
+  }
+  if (contract.created_at) {
+    timelineEvents.push({
+      label: 'Dibuat',
+      timestamp: contract.created_at,
+      description: 'Kontrak diunggah ke sistem',
+      icon: ArrowUpRight,
+    });
+  }
   return (
     <motion.div
       className="p-6 space-y-6 min-h-screen"
@@ -169,240 +534,424 @@ export function ContractDetailPage() {
       exit="exit"
       transition={{ duration: 0.4, ease: "easeOut" }}
     >
-      {/* Header */}
-      <motion.div
-        className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
-        initial={{ opacity: 0, y: -20 }}
+      {/* Hero Header */}
+      <motion.section
+        initial={{ opacity: 0, y: -18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+        transition={{ delay: 0.08 }}
+        className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 shadow-sm"
       >
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/contracts')}
-            className="hover:bg-gray-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold" style={{ color: telkomColors.gray800 }}>
-              Detail Kontrak
-            </h1>
-            <p className="text-lg" style={{ color: telkomColors.gray600 }}>
-              {contract.filename}
-            </p>
+        <motion.span
+          className="pointer-events-none absolute -top-16 right-0 h-56 w-56 rounded-full bg-rose-100 opacity-80 blur-3xl"
+          animate={{ scale: [1, 1.1, 1], opacity: [0.7, 0.9, 0.7] }}
+          transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
+        />
+
+        <div className="relative z-10 flex flex-col gap-6 p-6 lg:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate('/contracts')}
+                  className="hover:bg-white/70 transition-colors border border-transparent hover:border-rose-100"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <div className="flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-rose-600 shadow-sm ring-1 ring-rose-100">
+                  <Sparkles className="w-4 h-4" />
+                  Kontrak Telkom
+                </div>
+              </div>
+
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                  Detail Kontrak
+                </h1>
+                <p className="mt-2 text-base text-slate-600 lg:max-w-xl">
+                  {contract.filename}
+                </p>
+              </div>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {heroChips.map((chip) => (
+                  <span
+                    key={chip.label}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-sm"
+                  >
+                    <span className="text-slate-400">{chip.label}</span>
+                    <span className="text-slate-800">{chip.value}</span>
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                <div className="flex items-center gap-2 font-semibold text-rose-600">
+                  <CheckCircle className="w-4 h-4" />
+                  {formatDateTime(contract.confirmed_at)}
+                  {contract.confirmed_by && (
+                    <span className="font-normal text-slate-500">oleh {contract.confirmed_by}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  Dibuat {formatDateTime(contract.created_at)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-slate-400" />
+                  Pembaharuan {formatDateTime(contract.updated_at)}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge
+                className="px-3 py-1 text-sm shadow-sm"
+                style={{
+                  backgroundColor: telkomColors.success,
+                  color: telkomColors.white,
+                  border: 'none'
+                }}
+              >
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Dikonfirmasi
+              </Badge>
+
+              <Button
+                variant="outline"
+                onClick={handleDownloadJson}
+                disabled={downloadJsonMutation.isPending}
+                className="border-white/80 bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                {downloadJsonMutation.isPending ? 'Mengunduh...' : 'JSON'}
+              </Button>
+
+              <Button
+                onClick={handleDownloadPdf}
+                disabled={downloadPdfMutation.isPending}
+                style={{
+                  backgroundColor: telkomColors.primary,
+                  borderColor: telkomColors.primary,
+                  color: telkomColors.white
+                }}
+                className="hover:opacity-90 transition-opacity"
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                {downloadPdfMutation.isPending ? 'Mengunduh...' : 'PDF'}
+              </Button>
+            </div>
           </div>
         </div>
+      </motion.section>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge
-            className="px-3 py-1"
-            style={{
-              backgroundColor: telkomColors.success,
-              color: telkomColors.white,
-              border: 'none'
-            }}
+      <motion.section
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+      >
+        {quickStats.map((stat) => {
+          const Icon = stat.icon;
+          let primaryText: string;
+          let secondaryText: string | undefined;
+
+          if (isComplexStatValue(stat.value)) {
+            primaryText = stat.value.primary;
+            secondaryText = stat.value.secondary;
+          } else {
+            primaryText = stat.value;
+            secondaryText = undefined;
+          }
+          return (
+          <motion.div
+            key={stat.label}
+            variants={cardVariants}
+            whileHover={{ y: -4, scale: 1.01 }}
+            transition={{ type: 'spring', stiffness: 180, damping: 20 }}
+            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
           >
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Dikonfirmasi
-          </Badge>
-          
-          <Button
-            variant="outline"
-            onClick={handleDownloadJson}
-            disabled={downloadJsonMutation.isPending}
-            className="border-gray-300 hover:bg-gray-100"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {downloadJsonMutation.isPending ? 'Mengunduh...' : 'JSON'}
-          </Button>
-          
-          <Button
-            onClick={handleDownloadPdf}
-            disabled={downloadPdfMutation.isPending}
-            style={{
-              backgroundColor: telkomColors.primary,
-              borderColor: telkomColors.primary,
-              color: telkomColors.white
-            }}
-            className="hover:opacity-90 transition-opacity"
-          >
-            <FileText className="w-4 h-4 mr-2" />
-            {downloadPdfMutation.isPending ? 'Mengunduh...' : 'PDF'}
-          </Button>
-        </div>
-      </motion.div>
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  {stat.label}
+                </p>
+                <div className="space-y-1">
+                  <p className="text-xl font-semibold text-slate-900">{primaryText}</p>
+                  {secondaryText && (
+                    <p className="text-xs font-semibold text-amber-600">
+                      {secondaryText}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <span className={`inline-flex items-center justify-center rounded-full p-2 ${stat.accent}`}>
+                <Icon className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+            </div>
+          </motion.div>
+        );
+        })}
+      </motion.section>
 
       <motion.div
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        className="grid grid-cols-1 gap-6 lg:grid-cols-3"
         variants={staggerContainer}
         initial="initial"
         animate="animate"
       >
-        {/* Contract Overview */}
-        <motion.div variants={cardVariants} whileHover="hover">
-          <Card className="h-full border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <FileText className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Informasi Kontrak
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4" style={{ backgroundColor: telkomColors.white }}>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: telkomColors.gray600 }}>ID Kontrak</span>
-                  <span className="font-medium" style={{ color: telkomColors.gray800 }}>#{contract.id}</span>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: telkomColors.gray600 }}>Versi</span>
-                  <Badge variant="outline" className="border-gray-300">v{contract.version}</Badge>
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: telkomColors.gray600 }}>Ukuran File</span>
-                  <span className="font-medium" style={{ color: telkomColors.gray800 }}>
-                    {formatFileSize(contract.file_size_bytes)}
-                  </span>
-                </div>
-                
-                {contract.processing_time_seconds && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm" style={{ color: telkomColors.gray600 }}>Waktu Proses</span>
-                    <span className="font-medium" style={{ color: telkomColors.gray800 }}>
-                      {contract.processing_time_seconds.toFixed(1)}s
-                    </span>
-                  </div>
-                )}
-                
-                <hr style={{ backgroundColor: telkomColors.gray200, border: 'none', height: '1px' }} />
-                
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm" style={{ color: telkomColors.gray600 }}>
-                    <User className="w-4 h-4 mr-2" />
-                    Dikonfirmasi oleh: {contract.confirmed_by}
-                  </div>
-                  <div className="flex items-center text-sm" style={{ color: telkomColors.gray600 }}>
-                    <Calendar className="w-4 h-4 mr-2" />
-                    {format(new Date(contract.confirmed_at), 'dd MMMM yyyy, HH:mm', { locale: id })}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
         {/* Customer Information */}
-        <motion.div variants={cardVariants} whileHover="hover">
-          <Card className="h-full border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <Building2 className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Informasi Pelanggan
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4" style={{ backgroundColor: telkomColors.white }}>
-              <div className="space-y-3">
+        <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-2">
+          <Card className="h-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
+            <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+              <div className="flex items-start justify-between">
                 <div>
-                  <label className="text-sm font-medium" style={{ color: telkomColors.gray600 }}>
-                    Nama Pelanggan
-                  </label>
-                  <p className="mt-1 font-medium" style={{ color: telkomColors.gray800 }}>
-                    {safeRenderValue(customerInfo.nama_pelanggan)}
-                  </p>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Pelanggan
+                  </span>
+                  <CardTitle className="mt-3 text-xl font-semibold text-slate-900">Informasi Pelanggan</CardTitle>
+                  <CardDescription className="text-sm text-slate-500">
+                    Data identitas dan kontak perwakilan pelanggan
+                  </CardDescription>
                 </div>
-                
-                {safeRenderValue(customerInfo.alamat) !== '-' && (
-                  <div>
-                    <label className="text-sm font-medium flex items-center" style={{ color: telkomColors.gray600 }}>
-                      <MapPin className="w-4 h-4 mr-1" />
-                      Alamat
-                    </label>
-                    <p className="mt-1" style={{ color: telkomColors.gray800 }}>
-                      {safeRenderValue(customerInfo.alamat)}
+                <span className="rounded-full bg-white/80 p-2 shadow-inner shadow-rose-100">
+                  <Users className="h-5 w-5 text-rose-500" />
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6 bg-white p-6">
+              <motion.div
+                whileHover={{ y: -2 }}
+                transition={{ duration: 0.2 }}
+                className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-rose-50 via-white to-white p-6 shadow-inner"
+              >
+                <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-rose-100/60 blur-3xl" />
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Profil Pelanggan</p>
+                    <h3 className="text-2xl font-semibold text-slate-900">{customerNameDisplay}</h3>
+                    <p className="text-sm leading-relaxed text-slate-500">
+                      Detail identitas resmi dan kontak utama pelanggan pada kontrak ini.
                     </p>
                   </div>
-                )}
-                
-                {safeRenderValue(customerInfo.npwp) !== '-' && (
-                  <div>
-                    <label className="text-sm font-medium flex items-center" style={{ color: telkomColors.gray600 }}>
-                      <Hash className="w-4 h-4 mr-1" />
-                      NPWP
-                    </label>
-                    <p className="mt-1 font-mono" style={{ color: telkomColors.gray800 }}>
-                      {safeRenderValue(customerInfo.npwp)}
-                    </p>
+                  <div className="flex w-full flex-col gap-3 sm:max-w-xs sm:self-end">
+                    {profileHighlights.map((highlight) => (
+                      <div
+                        key={highlight.label}
+                        className="flex w-full items-center gap-3 rounded-2xl border border-white/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur"
+                      >
+                        <span className="rounded-full bg-rose-50 p-2 text-rose-500">
+                          <highlight.icon className="h-4 w-4" />
+                        </span>
+                        <div className="flex w-full flex-col">
+                          <span className="text-xs font-semibold uppercase tracking-[0.26em] text-slate-400">
+                            {highlight.label}
+                          </span>
+                          <span
+                            title={highlight.value === '-' ? undefined : highlight.value}
+                            className={`text-sm font-semibold text-slate-800 leading-snug ${
+                              highlight.monospace
+                                ? 'font-mono text-base tracking-wide text-slate-900 break-all'
+                                : 'break-words'
+                            }`}
+                          >
+                            {highlight.value}
+                          </span>
+                          <span className="text-xs text-slate-400 break-words" title={highlight.helper}>
+                            {highlight.helper}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-                
-                {safeRenderValue(customerInfo.perwakilan) !== '-' && (
-                  <div>
-                    <label className="text-sm font-medium flex items-center" style={{ color: telkomColors.gray600 }}>
-                      <Users className="w-4 h-4 mr-1" />
-                      Perwakilan
-                    </label>
-                    <p className="mt-1" style={{ color: telkomColors.gray800 }}>
-                      {safeRenderValue(customerInfo.perwakilan)}
-                    </p>
+                </div>
+              </motion.div>
+
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+                <motion.div
+                  whileHover={{ y: -3 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-6 shadow-sm"
+                >
+                  <div className="absolute right-6 top-6 h-16 w-16 rounded-full bg-rose-100/40 blur-3xl" />
+                  <div className="relative z-10 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <span aria-hidden="true" className="rounded-full bg-rose-50 p-2 text-rose-500">
+                        <Building2 className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Profil</p>
+                        <h4 className="text-lg font-semibold text-slate-900">Informasi Perusahaan</h4>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {profileDetails.map((detail) => (
+                        <div
+                          key={detail.label}
+                          className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/95 p-4 shadow-inner shadow-rose-50 transition"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-sm shadow-rose-100"
+                          >
+                            <detail.icon className="h-4 w-4" />
+                          </span>
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-400">
+                              {detail.label}
+                            </p>
+                            <p
+                              className={`text-sm font-semibold text-slate-900 ${
+                                detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'break-words'
+                              }`}
+                            >
+                              {detail.value}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                )}
-                
-                {safeRenderValue(customerInfo.kontak_person) !== '-' && (
-                  <div>
-                    <label className="text-sm font-medium flex items-center" style={{ color: telkomColors.gray600 }}>
-                      <Phone className="w-4 h-4 mr-1" />
-                      Kontak Person
-                    </label>
-                    <p className="mt-1" style={{ color: telkomColors.gray800 }}>
-                      {safeRenderValue(customerInfo.kontak_person)}
-                    </p>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -3 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-6 shadow-sm"
+                >
+                  <div className="absolute left-6 top-6 h-16 w-16 rounded-full bg-rose-100/50 blur-2xl" />
+                  <div className="relative z-10 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Kontak</p>
+                        <h4 className="text-lg font-semibold text-slate-900">Perwakilan & Kontak Person</h4>
+                      </div>
+                      <span className="rounded-full bg-white/90 p-2 text-rose-500 shadow-inner shadow-rose-100">
+                        <Users className="h-5 w-5" />
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="rounded-2xl border border-white/70 bg-white/95 p-4 shadow-inner shadow-rose-50 transition">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-rose-400">
+                          <Users className="h-3.5 w-3.5 text-rose-500" aria-hidden="true" />
+                          Perwakilan Resmi
+                        </div>
+                        <div className="mt-3 space-y-3">
+                          {representativeDetails.map((detail) => (
+                            <div key={detail.label} className="flex items-start gap-3">
+                              <span aria-hidden="true" className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-sm shadow-rose-100">
+                                <detail.icon className="h-4 w-4" />
+                              </span>
+                              <div className="space-y-1">
+                                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
+                                  {detail.label}
+                                </p>
+                                <p className="text-sm font-medium text-slate-800">{detail.value}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-white/70 bg-white/95 p-4 shadow-inner shadow-rose-50 transition">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-rose-400">
+                          <Phone className="h-3.5 w-3.5 text-rose-500" aria-hidden="true" />
+                          Kontak Person
+                        </div>
+                        <div className="mt-3 space-y-3">
+                          {contactPersonDetails.map((detail) => (
+                            <div
+                              key={detail.label}
+                              className="flex items-start gap-3"
+                            >
+                              <span aria-hidden="true" className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-sm shadow-rose-100">
+                                <detail.icon className="h-4 w-4" />
+                              </span>
+                              <div className="space-y-1">
+                                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
+                                  {detail.label}
+                                </p>
+                                <p
+                                  className={`text-sm font-medium text-slate-800 ${
+                                    detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'break-words'
+                                  }`}
+                                >
+                                  {detail.value}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
+                </motion.div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Service Information */}
-        <motion.div variants={cardVariants} whileHover="hover">
-          <Card className="h-full border-gray-200 shadow-sm">
-            <CardHeader style={{ backgroundColor: telkomColors.white }}>
-              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
-                <Settings className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
-                Layanan Utama
-              </CardTitle>
+        <motion.div variants={cardVariants} whileHover={{ y: -4 }}>
+          <Card className="h-full border border-rose-100/80 shadow-lg shadow-rose-100/60">
+            <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">
+                    <Settings className="h-3.5 w-3.5" />
+                    Layanan
+                  </span>
+                  <CardTitle className="mt-3 text-xl font-semibold text-slate-900">Layanan Utama</CardTitle>
+                  <CardDescription className="text-sm text-slate-500">
+                    Kuantitas layanan berdasarkan kategori utama</CardDescription>
+                </div>
+                <span className="rounded-full bg-white/80 p-2 shadow-inner shadow-rose-100">
+                  <Layers className="h-5 w-5 text-rose-500" />
+                </span>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4" style={{ backgroundColor: telkomColors.white }}>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
-                  <div className="text-2xl font-bold" style={{ color: telkomColors.primary }}>
-                    {serviceInfo.connectivity_telkom || 0}
-                  </div>
-                  <div className="text-sm" style={{ color: telkomColors.gray600 }}>
-                    Connectivity Telkom
-                  </div>
-                </div>
-                
-                <div className="text-center p-4 rounded-lg" style={{ backgroundColor: telkomColors.gray50 }}>
-                  <div className="text-2xl font-bold" style={{ color: telkomColors.primary }}>
-                    {serviceInfo.non_connectivity_telkom || 0}
-                  </div>
-                  <div className="text-sm" style={{ color: telkomColors.gray600 }}>
-                    Non-Connectivity
-                  </div>
-                </div>
-                
-                <div className="text-center p-4 rounded-lg col-span-2" style={{ backgroundColor: telkomColors.gray50 }}>
-                  <div className="text-2xl font-bold" style={{ color: telkomColors.primary }}>
-                    {serviceInfo.bundling || 0}
-                  </div>
-                  <div className="text-sm" style={{ color: telkomColors.gray600 }}>
-                    Bundling Services
-                  </div>
-                </div>
+            <CardContent className="space-y-6 bg-white p-6">
+              <div className="grid grid-cols-1 gap-4">
+                {([
+                  {
+                    label: 'Connectivity Telkom',
+                    value: Number(serviceInfo.connectivity_telkom) || 0,
+                    gradient: 'from-rose-500/30 via-rose-400/20 to-rose-300/20',
+                  },
+                  {
+                    label: 'Non-Connectivity',
+                    value: Number(serviceInfo.non_connectivity_telkom) || 0,
+                    gradient: 'from-slate-600/25 via-slate-500/20 to-slate-400/15',
+                  },
+                  {
+                    label: 'Bundling Services',
+                    value: Number(serviceInfo.bundling) || 0,
+                    gradient: 'from-emerald-500/25 via-emerald-400/18 to-emerald-300/15',
+                  },
+                ] as Array<{ label: string; value: number; gradient: string }>).map((item) => (
+                  <motion.div
+                    key={item.label}
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                    className={`relative flex w-full min-h-[180px] flex-col justify-center overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-r ${item.gradient} p-6 shadow-lg`}
+                  >
+                    <div className="absolute right-4 top-4 h-12 w-12 rounded-full bg-white/50 blur-2xl" />
+                    <div className="relative z-10 flex flex-col items-start gap-3 text-left sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
+                        {item.label}
+                        </p>
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-600">
+                          <Sparkles className="h-3.5 w-3.5 text-rose-400" />
+                          Total layanan dalam kategori ini
+                        </span>
+                      </div>
+                      <p className="text-4xl font-bold text-slate-900 sm:text-5xl">{item.value}</p>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -568,6 +1117,209 @@ export function ContractDetailPage() {
           </Card>
         </motion.div>
       </motion.div>
+
+      {serviceItems.length > 0 && (
+        <motion.section
+          className="space-y-4"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          <motion.div variants={cardVariants} whileHover="hover">
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader style={{ backgroundColor: telkomColors.white }}>
+                <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
+                  <ClipboardList className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
+                  Rincian Layanan
+                </CardTitle>
+                <CardDescription>
+                  Ringkasan layanan dan komponen biaya berdasarkan hasil ekstraksi
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6" style={{ backgroundColor: telkomColors.white }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {serviceItems.map((item: ServiceItem, index: number) => {
+                    const kategori = safeRenderValue(item?.kategori || item?.jenis_layanan);
+                    const install = parseAmount(item?.biaya_instalasi);
+                    const recurring = parseAmount(item?.biaya_langganan_tahunan);
+
+                    return (
+                      <motion.div
+                        key={index}
+                        className="rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-sm"
+                        whileHover={{ y: -3, scale: 1.01 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          <span>Layanan #{index + 1}</span>
+                          {kategori !== '-' && (
+                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-600">
+                              {kategori}
+                            </Badge>
+                          )}
+                        </div>
+                        <h4 className="mt-3 text-lg font-semibold text-slate-900 leading-tight">
+                          {safeRenderValue(item?.nama_layanan || item?.nama)}
+                        </h4>
+                        {safeRenderValue(item?.deskripsi) !== '-' && (
+                          <p className="mt-2 text-sm text-slate-500">
+                            {safeRenderValue(item?.deskripsi)}
+                          </p>
+                        )}
+                        <div className="mt-4 space-y-2 text-sm">
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                            <span className="text-slate-500">Biaya Instalasi</span>
+                            <span className="font-semibold text-slate-900">
+                              {install > 0 ? formatCurrency(install) : '—'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                            <span className="text-slate-500">Langganan Tahunan</span>
+                            <span className="font-semibold text-slate-900">
+                              {recurring > 0 ? formatCurrency(recurring) : '—'}
+                            </span>
+                          </div>
+                          {safeRenderValue(item?.satuan) !== '-' && (
+                            <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 px-3 py-2">
+                              <span className="text-slate-500">Satuan</span>
+                              <span className="font-medium text-slate-800">
+                                {safeRenderValue(item?.satuan)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                <div className="grid gap-4 rounded-2xl border border-dashed border-rose-200 bg-rose-50/60 p-5 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-rose-400">Total Instalasi</p>
+                    <p className="mt-1 text-xl font-semibold text-rose-700">
+                      {totalInstallation > 0 ? formatCurrency(totalInstallation) : 'Rp 0'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-rose-400">Total Langganan</p>
+                    <p className="mt-1 text-xl font-semibold text-rose-700">
+                      {totalSubscription > 0 ? formatCurrency(totalSubscription) : 'Rp 0'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-rose-400">Estimasi Nilai Kontrak</p>
+                    <p className="mt-1 text-xl font-semibold text-rose-700">
+                      {computedContractValue > 0 ? formatCurrency(computedContractValue) : 'Rp 0'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.section>
+      )}
+
+      <motion.section
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+        viewport={{ once: true, amount: 0.2 }}
+      >
+        <motion.div variants={cardVariants} whileHover="hover">
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader style={{ backgroundColor: telkomColors.white }}>
+              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
+                <History className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
+                Riwayat Kontrak
+              </CardTitle>
+              <CardDescription>
+                Kronologi penting dari siklus hidup dokumen kontrak ini
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5" style={{ backgroundColor: telkomColors.white }}>
+              <div className="relative space-y-5">
+                <span className="absolute left-3 top-3 bottom-3 w-px bg-gradient-to-b from-rose-200 via-rose-100 to-transparent" />
+                {timelineEvents.map((event: TimelineEvent, index: number) => {
+                  const Icon = event.icon;
+                  return (
+                    <motion.div
+                      key={event.label}
+                      className="relative flex items-start gap-3 rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-sm"
+                      initial={{ opacity: 0, y: 12 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.4 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <span className="mt-1 flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-900">{event.label}</p>
+                        <p className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">
+                          {formatDateTime(event.timestamp)}
+                        </p>
+                        {event.description && (
+                          <p className="text-sm text-slate-600">{event.description}</p>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={cardVariants} whileHover="hover">
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader style={{ backgroundColor: telkomColors.white }}>
+              <CardTitle className="flex items-center text-lg" style={{ color: telkomColors.gray800 }}>
+                <Layers className="w-5 h-5 mr-2" style={{ color: telkomColors.primary }} />
+                Metadata Sistem
+              </CardTitle>
+              <CardDescription>
+                Informasi audit trail untuk memastikan traceability pada pipeline pemrosesan
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5" style={{ backgroundColor: telkomColors.white }}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">File ID</p>
+                  <p className="mt-1 text-base font-semibold text-slate-900">#{contract.file_id}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Job ID</p>
+                  <p className="mt-1 text-base font-semibold text-slate-900">
+                    #{contract.source_job_id}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Dibuat</p>
+                  <p className="mt-1 text-sm font-medium text-slate-700">
+                    {formatDateTime(contract.created_at)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Diperbarui</p>
+                  <p className="mt-1 text-sm font-medium text-slate-700">
+                    {formatDateTime(contract.updated_at)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-600">
+                <p className="font-semibold text-slate-800">Catatan</p>
+                <p className="mt-1 leading-relaxed">
+                  Versi <span className="font-semibold text-slate-900">v{contract.version}</span> merupakan data yang telah
+                  dikonfirmasi dan siap untuk distribusi. Gunakan tombol unduhan di atas untuk mengakses artefak JSON maupun PDF.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.section>
     </motion.div>
   );
 }

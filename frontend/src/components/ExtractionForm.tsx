@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +34,6 @@ interface ExtractionFormProps {
 export function ExtractionForm({
   jobId,
   initialData,
-  onSave,
   onConfirm,
   onDiscard,
   disabled = false,
@@ -61,7 +60,7 @@ export function ExtractionForm({
   } = form;
 
   // Auto-save functionality
-  const { autoSave, isSaving } = useAutoSave(jobId, 2000); // 2 second delay
+  const { autoSave, flush, isSaving } = useAutoSave(jobId, 2000); // 2 second delay
 
   // Mutations
   const confirmMutation = useConfirmExtraction();
@@ -98,21 +97,6 @@ export function ExtractionForm({
     reset(newFormData);
   }, [initialData, reset]);
 
-  // Manual save handler
-  const handleManualSave = async () => {
-    try {
-      const isFormValid = await form.trigger();
-      if (isFormValid) {
-        const currentFormData = form.getValues();
-        const backendData = formToBackend(currentFormData);
-        onSave?.(backendData);
-        setLastSaveTime(new Date());
-      }
-    } catch (error) {
-      console.error('Manual save failed:', error);
-    }
-  };
-
   // Confirm handler
   const handleConfirm = async () => {
     try {
@@ -128,6 +112,9 @@ export function ExtractionForm({
         alert(`Tidak dapat mengkonfirmasi:\n${validationErrors.join('\n')}`);
         return;
       }
+
+      // Flush any pending auto-save before confirming
+      await flush();
 
       confirmMutation.mutate(jobId);
       onConfirm?.();
@@ -295,26 +282,14 @@ export function ExtractionForm({
         <Card>
           <CardContent className="p-6">
             <div className="flex flex-col sm:flex-row gap-3 justify-between">
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleManualSave}
-                  disabled={disabled || !isDirty || isSaving}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  Simpan Perubahan
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={handleDiscard}
-                  disabled={disabled || discardMutation.isPending}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  Batalkan
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                onClick={handleDiscard}
+                disabled={disabled || discardMutation.isPending}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Batalkan
+              </Button>
 
               <Button
                 onClick={handleConfirm}
