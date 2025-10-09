@@ -81,6 +81,31 @@ export interface ContractListResponse {
   total_pages: number;
 }
 
+export interface UnifiedContractItem {
+  item_type: 'contract' | 'job';
+  status: 'confirmed' | 'awaiting_review';
+  id: number;
+  file_id: number;
+  source_job_id?: number | null;
+  filename: string;
+  customer_name?: string | null;
+  contract_start_date?: string | null;
+  contract_end_date?: string | null;
+  payment_method?: string | null;
+  confirmed_by?: string | null;
+  confirmed_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface UnifiedContractListResponse {
+  items: UnifiedContractItem[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
 export interface ContractDetail {
   id: number;
   file_id: number;
