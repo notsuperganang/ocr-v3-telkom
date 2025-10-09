@@ -495,6 +495,104 @@ def _auto_generate_termin_payments(count: int, total_amount: float) -> List[Term
         for i in range(count)
     ]
 
+
+def _generate_termin_payments_with_dates(
+    count: int,
+    total_amount: float,
+    start_date: Optional[str],
+    end_date: Optional[str]
+) -> List[TerminPayment]:
+    """
+    Generate termin payments with actual month/year assignments based on contract duration.
+
+    Distributes termin payment dates evenly across the contract period by dividing
+    the total duration by the number of termins.
+
+    Args:
+        count: Number of termin periods (e.g., 4 for "Termin 4X")
+        total_amount: Total contract amount to split
+        start_date: Contract start date in YYYY-MM-DD format
+        end_date: Contract end date in YYYY-MM-DD format
+
+    Returns:
+        List of TerminPayment objects with month/year period assignments.
+        Falls back to basic generation if dates are invalid.
+
+    Example:
+        >>> _generate_termin_payments_with_dates(4, 100000000, "2024-01-01", "2024-12-31")
+        [
+            TerminPayment(termin_number=1, period="Maret 2024", amount=25000000, ...),
+            TerminPayment(termin_number=2, period="Juni 2024", amount=25000000, ...),
+            TerminPayment(termin_number=3, period="September 2024", amount=25000000, ...),
+            TerminPayment(termin_number=4, period="Desember 2024", amount=25000000, ...),
+        ]
+    """
+    if count <= 0 or total_amount <= 0:
+        return []
+
+    # Fallback to basic generation if dates are missing
+    if not start_date or not end_date:
+        return _auto_generate_termin_payments(count, total_amount)
+
+    try:
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+
+        # Parse dates
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+
+        # Calculate total contract duration in months
+        duration_months = (end.year - start.year) * 12 + (end.month - start.month) + 1
+
+        if duration_months <= 0:
+            # Invalid duration, fall back to basic generation
+            return _auto_generate_termin_payments(count, total_amount)
+
+        # Calculate interval between termins
+        interval_months = duration_months / count
+
+        # Calculate equal split amount per termin
+        amount_per_termin = total_amount / count
+
+        # Indonesian month names
+        month_names_id = [
+            "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        ]
+
+        # Generate termin payments with month assignments
+        termin_payments = []
+        for i in range(count):
+            # For the last termin, use the end date
+            if i == count - 1:
+                termin_date = end
+            else:
+                # Calculate termin month: distribute evenly within contract period
+                # Round to nearest month, with slight bias towards end of period
+                import math
+                target_month = round((duration_months / count) * (i + 1))
+                months_to_add = target_month - 1  # -1 because relativedelta is 0-indexed from start
+                termin_date = start + relativedelta(months=months_to_add)
+
+            # Format period as "Bulan YYYY" (Indonesian)
+            period = f"{month_names_id[termin_date.month - 1]} {termin_date.year}"
+
+            termin_payments.append(
+                TerminPayment(
+                    termin_number=i + 1,
+                    period=period,
+                    amount=amount_per_termin,
+                    raw_text=f"Auto-generated: {period}, dibagi rata dari total Rp {total_amount:,.0f}"
+                )
+            )
+
+        return termin_payments
+
+    except (ValueError, ImportError) as e:
+        # If date parsing fails or dateutil not available, fall back to basic generation
+        return _auto_generate_termin_payments(count, total_amount)
+
 # -------------------- Robust Text Matching Utilities --------------------
 
 def _normalize_text_for_matching(text: str) -> str:
@@ -1879,6 +1977,49 @@ def merge_with_page2(existing: TelkomContractData, ocr_json_page2: Any) -> Telko
         existing.jangka_waktu.mulai = existing.jangka_waktu.mulai or start_date
     if end_date:
         existing.jangka_waktu.akhir = existing.jangka_waktu.akhir or end_date
+
+    # 1.5) Regenerate termin payments with date assignments if applicable
+    if (existing.tata_cara_pembayaran
+        and existing.tata_cara_pembayaran.method_type == "termin"
+        and existing.tata_cara_pembayaran.termin_payments
+        and existing.jangka_waktu
+        and existing.jangka_waktu.mulai
+        and existing.jangka_waktu.akhir):
+
+        # Check if termin payments were auto-generated (look for "Auto-generated" in raw_text)
+        termin_list = existing.tata_cara_pembayaran.termin_payments
+        is_auto_generated = any(
+            tp.raw_text and "Auto-generated" in tp.raw_text
+            for tp in termin_list
+        )
+
+        # Also check if periods are generic "Termin X" format
+        has_generic_periods = any(
+            tp.period and tp.period.startswith("Termin ")
+            for tp in termin_list
+        )
+
+        # Regenerate if auto-generated or has generic periods
+        if is_auto_generated or has_generic_periods:
+            count = len(termin_list)
+            total_amount = existing.tata_cara_pembayaran.total_amount or sum(
+                tp.amount for tp in termin_list
+            )
+
+            # Generate new termin payments with date assignments
+            new_termin_payments = _generate_termin_payments_with_dates(
+                count=count,
+                total_amount=total_amount,
+                start_date=existing.jangka_waktu.mulai,
+                end_date=existing.jangka_waktu.akhir
+            )
+
+            if new_termin_payments:
+                existing.tata_cara_pembayaran.termin_payments = new_termin_payments
+                # Update description to reflect date-aware generation
+                existing.tata_cara_pembayaran.description = (
+                    f"Pembayaran termin ({count} periode, dengan jadwal bulanan)"
+                )
 
     # 2) Enhanced kontak person extraction (TELKOM & PELANGGAN)
     telkom, pelanggan = _extract_contact_blocks(texts)

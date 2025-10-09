@@ -34,9 +34,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useContract, useDownloadContractJson, useDownloadContractPdf } from '@/hooks/useContracts';
+import { useContract, useDownloadContractJson } from '@/hooks/useContracts';
 import { formatNPWP, formatPhone } from '@/lib/validation';
 import { ServiceDetailsSection } from '@/components/contracts/ServiceDetailsSection';
+import { apiService } from '@/services/api';
 
 // Animation variants
 const pageVariants = {
@@ -247,7 +248,6 @@ export function ContractDetailPage() {
   
   const { data: contract, isLoading, error } = useContract(Number(contractId));
   const downloadJsonMutation = useDownloadContractJson();
-  const downloadPdfMutation = useDownloadContractPdf();
 
   const handleDownloadJson = () => {
     if (contract) {
@@ -255,9 +255,18 @@ export function ContractDetailPage() {
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleViewPdf = async () => {
     if (contract) {
-      downloadPdfMutation.mutate(contract.id);
+      try {
+        const blob = await apiService.getContractPdfStream(contract.id);
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+
+        // Clean up the URL after a delay to allow the new tab to load
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      } catch (error) {
+        console.error('Failed to open PDF:', error);
+      }
     }
   };
 
@@ -659,8 +668,7 @@ export function ContractDetailPage() {
               </Button>
 
               <Button
-                onClick={handleDownloadPdf}
-                disabled={downloadPdfMutation.isPending}
+                onClick={handleViewPdf}
                 style={{
                   backgroundColor: telkomColors.primary,
                   borderColor: telkomColors.primary,
@@ -669,7 +677,7 @@ export function ContractDetailPage() {
                 className="hover:opacity-90 transition-opacity"
               >
                 <FileText className="w-4 h-4 mr-2" />
-                {downloadPdfMutation.isPending ? 'Mengunduh...' : 'PDF'}
+                PDF
               </Button>
             </div>
           </div>

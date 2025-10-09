@@ -59,23 +59,28 @@ def validate_file(file: UploadFile) -> None:
             detail=f"MIME type not allowed. Supported: {', '.join(ALLOWED_MIME_TYPES)}"
         )
 
-async def save_uploaded_file(file: UploadFile, file_id: str) -> str:
-    """Save uploaded file to storage directory"""
+async def save_uploaded_file(file: UploadFile, file_id: str) -> tuple[str, int]:
+    """Save uploaded file to storage directory
+
+    Returns:
+        tuple: (file_path, file_size_bytes)
+    """
     try:
         # Create storage directory if it doesn't exist
         storage_dir = Path("storage/uploads")
         storage_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate unique filename
         file_extension = Path(file.filename).suffix.lower()
         saved_filename = f"{file_id}_{file.filename}"
         file_path = storage_dir / saved_filename
-        
+
         # Save file
         content = await file.read()
-        
+        file_size = len(content)
+
         # Check file size
-        if len(content) > MAX_FILE_SIZE:
+        if file_size > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB"
@@ -83,8 +88,8 @@ async def save_uploaded_file(file: UploadFile, file_id: str) -> str:
         
         with open(file_path, "wb") as f:
             f.write(content)
-        
-        return str(file_path)
+
+        return str(file_path), file_size
     
     except Exception as e:
         raise HTTPException(
@@ -193,14 +198,11 @@ async def upload_file(
     try:
         # Generate unique file ID
         file_id = str(uuid.uuid4())
-        
-        # Save file to storage
-        file_path = await save_uploaded_file(file, file_id)
-        
+
+        # Save file to storage and get file size
+        file_path, file_size = await save_uploaded_file(file, file_id)
+
         # Create file record
-        file_size = len(await file.read())
-        await file.seek(0)  # Reset file pointer
-        
         file_model = FileModel(
             original_filename=file.filename,
             size_bytes=file_size,
@@ -256,14 +258,11 @@ async def upload_batch(
             
             # Generate unique file ID
             file_id = str(uuid.uuid4())
-            
-            # Save file to storage
-            file_path = await save_uploaded_file(file, file_id)
-            
+
+            # Save file to storage and get file size
+            file_path, file_size = await save_uploaded_file(file, file_id)
+
             # Create file record
-            file_size = len(await file.read())
-            await file.seek(0)  # Reset file pointer
-            
             file_model = FileModel(
                 original_filename=file.filename,
                 size_bytes=file_size,
