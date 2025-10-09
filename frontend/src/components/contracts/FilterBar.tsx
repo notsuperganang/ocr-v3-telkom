@@ -19,9 +19,17 @@ interface FilterBarProps {
   onSearchChange: (value: string) => void;
   selectedPaymentMethods: string[];
   onPaymentMethodToggle: (method: string) => void;
+  selectedStatus: string;
+  onStatusChange: (status: string) => void;
   onClearFilters: () => void;
   className?: string;
 }
+
+const STATUS_FILTERS = [
+  { value: 'all', label: 'Semua' },
+  { value: 'confirmed', label: 'Dikonfirmasi' },
+  { value: 'awaiting_review', label: 'Menunggu Review' },
+];
 
 const PAYMENT_METHODS = [
   { value: 'OTC', label: 'OTC' },
@@ -34,10 +42,12 @@ export function FilterBar({
   onSearchChange,
   selectedPaymentMethods,
   onPaymentMethodToggle,
+  selectedStatus,
+  onStatusChange,
   onClearFilters,
   className,
 }: FilterBarProps) {
-  const hasActiveFilters = search || selectedPaymentMethods.length > 0;
+  const hasActiveFilters = search || selectedPaymentMethods.length > 0 || selectedStatus !== 'all';
 
   return (
     <motion.div
@@ -81,7 +91,44 @@ export function FilterBar({
         )}
       </div>
 
-      {/* Filter Chips */}
+      {/* Status Filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground font-medium">
+          Status:
+        </span>
+        {STATUS_FILTERS.map((status) => {
+          const isSelected = selectedStatus === status.value;
+
+          return (
+            <Badge
+              key={status.value}
+              variant={isSelected ? 'default' : 'outline'}
+              className={cn(
+                'cursor-pointer select-none transition-all duration-150',
+                isSelected
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                  : 'hover:bg-primary/10 hover:text-primary hover:border-primary/50',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
+              )}
+              onClick={() => onStatusChange(status.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onStatusChange(status.value);
+                }
+              }}
+              tabIndex={0}
+              role="radio"
+              aria-checked={isSelected}
+              aria-label={`Filter ${status.label}`}
+            >
+              {status.label}
+            </Badge>
+          );
+        })}
+      </div>
+
+      {/* Payment Method Filter */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground font-medium">
           Metode Pembayaran:
@@ -125,15 +172,24 @@ export function FilterBar({
           animate={{ opacity: 1, y: 0 }}
           className="text-xs text-muted-foreground"
         >
+          {selectedStatus !== 'all' && (
+            <span>
+              Status:{' '}
+              <span className="font-medium text-foreground">
+                {STATUS_FILTERS.find(s => s.value === selectedStatus)?.label}
+              </span>
+            </span>
+          )}
+          {selectedStatus !== 'all' && selectedPaymentMethods.length > 0 && <span> • </span>}
           {selectedPaymentMethods.length > 0 && (
             <span>
-              Menampilkan:{' '}
+              Metode Pembayaran:{' '}
               <span className="font-medium text-foreground">
                 {selectedPaymentMethods.join(', ')}
               </span>
             </span>
           )}
-          {search && selectedPaymentMethods.length > 0 && <span> • </span>}
+          {search && (selectedPaymentMethods.length > 0 || selectedStatus !== 'all') && <span> • </span>}
           {search && (
             <span>
               Pencarian:{' '}

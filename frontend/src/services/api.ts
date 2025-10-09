@@ -8,6 +8,7 @@ import type {
   JobStatusResponse,
   JobDataResponse,
   ContractListResponse,
+  UnifiedContractListResponse,
   ContractDetail,
   ContractStatsResponse,
   ApiError
@@ -212,6 +213,25 @@ class ApiClient {
     const endpoint = `/api/contracts${query ? `?${query}` : ''}`;
     
     return this.request<ContractListResponse>(endpoint);
+  }
+
+  async getUnifiedContracts(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    status_filter?: string;
+  }): Promise<UnifiedContractListResponse> {
+    const searchParams = new URLSearchParams();
+
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.per_page) searchParams.append('per_page', params.per_page.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.status_filter) searchParams.append('status_filter', params.status_filter);
+
+    const query = searchParams.toString();
+    const endpoint = `/api/contracts/all/items${query ? `?${query}` : ''}`;
+
+    return this.request<UnifiedContractListResponse>(endpoint);
   }
 
   async getContract(contractId: number): Promise<ContractDetail> {

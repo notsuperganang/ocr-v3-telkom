@@ -28,7 +28,7 @@ export function MainServicesSection({
   ) => {
     // Handle empty string
     if (value === '') {
-      setValue(`layanan_utama.${field}`, 0);
+      setValue(`layanan_utama.${field}`, 0, { shouldDirty: true });
       return;
     }
 
@@ -37,7 +37,7 @@ export function MainServicesSection({
 
     // Only set if it's a valid number >= 0
     if (!isNaN(numValue) && numValue >= 0) {
-      setValue(`layanan_utama.${field}`, numValue);
+      setValue(`layanan_utama.${field}`, numValue, { shouldDirty: true });
     }
   };
 

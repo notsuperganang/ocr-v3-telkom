@@ -7,6 +7,9 @@ export const contractKeys = {
   lists: () => [...contractKeys.all, 'list'] as const,
   list: (params?: { page?: number; per_page?: number; search?: string }) =>
     [...contractKeys.lists(), params] as const,
+  unifiedLists: () => [...contractKeys.all, 'unified-list'] as const,
+  unifiedList: (params?: { page?: number; per_page?: number; search?: string; status_filter?: string }) =>
+    [...contractKeys.unifiedLists(), params] as const,
   details: () => [...contractKeys.all, 'detail'] as const,
   detail: (id: number) => [...contractKeys.details(), id] as const,
 };
@@ -20,6 +23,22 @@ export function useContracts(params?: {
   return useQuery({
     queryKey: contractKeys.list(params),
     queryFn: () => apiService.getContracts(params),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false,
+    retry: 2,
+  });
+}
+
+// Hook for fetching unified contracts list (includes both confirmed contracts and awaiting_review jobs)
+export function useUnifiedContracts(params?: {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  status_filter?: string;
+}) {
+  return useQuery({
+    queryKey: contractKeys.unifiedList(params),
+    queryFn: () => apiService.getUnifiedContracts(params),
     staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: false,
     retry: 2,
@@ -114,9 +133,26 @@ export function useDeleteContract() {
     onSuccess: () => {
       // Invalidate and refetch contracts list
       queryClient.invalidateQueries({ queryKey: contractKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: contractKeys.unifiedLists() });
     },
     onError: (error) => {
       console.error('Failed to delete contract:', error);
+    },
+  });
+}
+
+// Hook for discarding an awaiting_review job
+export function useDiscardJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (jobId: number) => apiService.discardJob(jobId),
+    onSuccess: () => {
+      // Invalidate and refetch unified contracts list
+      queryClient.invalidateQueries({ queryKey: contractKeys.unifiedLists() });
+    },
+    onError: (error) => {
+      console.error('Failed to discard job:', error);
     },
   });
 }

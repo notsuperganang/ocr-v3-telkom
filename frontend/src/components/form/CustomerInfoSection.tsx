@@ -26,14 +26,14 @@ export function CustomerInfoSection({
   const handleNPWPChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
     if (value.length <= 19) {
-      setValue('informasi_pelanggan.npwp', value);
+      setValue('informasi_pelanggan.npwp', value, { shouldDirty: true });
     }
   };
 
   // Handle phone formatting
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    setValue('informasi_pelanggan.kontak_person.telepon', value);
+    setValue('informasi_pelanggan.kontak_person.telepon', value, { shouldDirty: true });
   };
 
   // Format NPWP for display
