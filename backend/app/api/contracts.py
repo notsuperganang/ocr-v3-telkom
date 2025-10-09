@@ -89,6 +89,65 @@ class ContractStatsResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UnifiedContractItem(BaseModel):
+    """Unified response model for both confirmed contracts and awaiting_review jobs"""
+    item_type: str  # 'contract' or 'job'
+    status: str  # 'confirmed' or 'awaiting_review'
+    id: int
+    file_id: int
+    source_job_id: Optional[int] = None
+    filename: str
+    customer_name: Optional[str] = None
+    contract_start_date: Optional[str] = None
+    contract_end_date: Optional[str] = None
+    payment_method: Optional[str] = None
+    confirmed_by: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class UnifiedContractListResponse(BaseModel):
+    items: List[UnifiedContractItem]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
+    """Extract display data from processing job's edited_data or extracted_data"""
+    # Prefer edited_data (user modifications) over extracted_data (raw OCR)
+    data = job.edited_data or job.extracted_data or {}
+
+    # Safely extract nested data with fallbacks
+    customer_name = None
+    contract_start_date = None
+    contract_end_date = None
+    payment_method = None
+
+    try:
+        if 'informasi_pelanggan' in data:
+            customer_name = data['informasi_pelanggan'].get('nama_pelanggan')
+
+        if 'jangka_waktu' in data:
+            contract_start_date = data['jangka_waktu'].get('mulai')
+            contract_end_date = data['jangka_waktu'].get('akhir')
+
+        if 'tata_cara_pembayaran' in data:
+            payment_method = data['tata_cara_pembayaran'].get('method_type')
+    except (AttributeError, TypeError, KeyError):
+        # If data structure is unexpected, return None values
+        pass
+
+    return {
+        'customer_name': customer_name,
+        'contract_start_date': contract_start_date,
+        'contract_end_date': contract_end_date,
+        'payment_method': payment_method,
+    }
+
 def _format_payment_method(payment_method: Optional[str]) -> str:
     """Format payment method enum to friendly label"""
     if not payment_method:
@@ -245,6 +304,132 @@ async def list_contracts(
     
     return ContractListResponse(
         contracts=contract_summaries,
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages
+    )
+
+@router.get("/all/items", response_model=UnifiedContractListResponse)
+async def list_all_contract_items(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(10, ge=1, le=100, description="Items per page"),
+    search: Optional[str] = Query(None, description="Search in filename or contract data"),
+    status_filter: Optional[str] = Query(None, description="Filter by status: confirmed, awaiting_review, or all"),
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """
+    Get paginated list of both confirmed contracts AND awaiting_review jobs
+    Returns unified list for contracts page display
+    """
+    db, current_user = db_and_user
+
+    all_items = []
+
+    # Fetch confirmed contracts
+    contract_query = db.query(Contract).join(FileModel, Contract.file_id == FileModel.id)
+
+    # Apply search filter to contracts
+    if search:
+        search_term = f"%{search}%"
+        contract_query = contract_query.filter(
+            or_(
+                FileModel.original_filename.ilike(search_term),
+                cast(Contract.final_data, String).ilike(search_term)
+            )
+        )
+
+    # Apply status filter
+    if status_filter and status_filter.lower() != 'all':
+        if status_filter.lower() == 'confirmed':
+            # Only fetch contracts
+            pass
+        elif status_filter.lower() == 'awaiting_review':
+            # Skip contracts, only fetch jobs
+            contract_query = contract_query.filter(Contract.id == -1)  # No results
+
+    contracts = contract_query.order_by(desc(Contract.confirmed_at)).all()
+
+    # Convert contracts to unified items
+    for contract in contracts:
+        file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
+        all_items.append(UnifiedContractItem(
+            item_type='contract',
+            status='confirmed',
+            id=contract.id,
+            file_id=contract.file_id,
+            source_job_id=contract.source_job_id,
+            filename=file_model.original_filename if file_model else "Unknown",
+            customer_name=contract.customer_name,
+            contract_start_date=contract.period_start.isoformat() if contract.period_start else None,
+            contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
+            payment_method=_format_payment_method(contract.payment_method),
+            confirmed_by=contract.confirmed_by,
+            confirmed_at=contract.confirmed_at,
+            created_at=contract.created_at,
+            updated_at=contract.updated_at
+        ))
+
+    # Fetch awaiting_review jobs
+    job_query = db.query(ProcessingJob).join(FileModel, ProcessingJob.file_id == FileModel.id).filter(
+        ProcessingJob.status == JobStatus.AWAITING_REVIEW
+    )
+
+    # Apply search filter to jobs
+    if search:
+        search_term = f"%{search}%"
+        job_query = job_query.filter(
+            or_(
+                FileModel.original_filename.ilike(search_term),
+                cast(ProcessingJob.edited_data, String).ilike(search_term),
+                cast(ProcessingJob.extracted_data, String).ilike(search_term)
+            )
+        )
+
+    # Apply status filter
+    if status_filter and status_filter.lower() != 'all':
+        if status_filter.lower() == 'confirmed':
+            # Skip jobs
+            job_query = job_query.filter(ProcessingJob.id == -1)  # No results
+        elif status_filter.lower() == 'awaiting_review':
+            # Only fetch jobs
+            pass
+
+    jobs = job_query.order_by(desc(ProcessingJob.created_at)).all()
+
+    # Convert jobs to unified items
+    for job in jobs:
+        file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
+        display_data = _extract_job_display_data(job)
+
+        all_items.append(UnifiedContractItem(
+            item_type='job',
+            status='awaiting_review',
+            id=job.id,
+            file_id=job.file_id,
+            source_job_id=None,  # Jobs don't have source_job_id yet
+            filename=file_model.original_filename if file_model else "Unknown",
+            customer_name=display_data.get('customer_name'),
+            contract_start_date=display_data.get('contract_start_date'),
+            contract_end_date=display_data.get('contract_end_date'),
+            payment_method=_format_payment_method(display_data.get('payment_method')),
+            confirmed_by=None,
+            confirmed_at=None,
+            created_at=job.created_at,
+            updated_at=job.updated_at
+        ))
+
+    # Sort all items by creation/confirmation date (newest first)
+    all_items.sort(key=lambda x: x.confirmed_at or x.created_at, reverse=True)
+
+    # Apply pagination
+    total = len(all_items)
+    total_pages = (total + per_page - 1) // per_page
+    offset = (page - 1) * per_page
+    paginated_items = all_items[offset:offset + per_page]
+
+    return UnifiedContractListResponse(
+        items=paginated_items,
         total=total,
         page=page,
         per_page=per_page,
