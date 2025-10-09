@@ -7,7 +7,7 @@ import { FileText, Calendar, Wallet, TrendingUp, FileX } from 'lucide-react';
 import { ContractsTable } from '@/components/contracts/ContractsTable';
 import { FilterBar } from '@/components/contracts/FilterBar';
 import { KpiCard } from '@/components/contracts/KpiCard';
-import { useContracts, useContractStats } from '@/hooks/useContracts';
+import { useUnifiedContracts, useContractStats } from '@/hooks/useContracts';
 import { staggerContainer, slideDown } from '@/lib/motion';
 import { formatCurrency } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ export function ContractsPage() {
   const [search, setSearch] = React.useState('');
   const [debouncedSearch, setDebouncedSearch] = React.useState('');
   const [selectedPaymentMethods, setSelectedPaymentMethods] = React.useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = React.useState<string>('all');
 
   // Debounce search input
   React.useEffect(() => {
@@ -28,15 +29,16 @@ export function ContractsPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Query for contracts data
+  // Query for unified contracts data (confirmed + awaiting_review)
   const {
     data: rawContractsData,
     isLoading: isLoadingContracts,
     error: contractsError,
-  } = useContracts({
+  } = useUnifiedContracts({
     page,
     per_page: 10,
     search: debouncedSearch || undefined,
+    status_filter: selectedStatus !== 'all' ? selectedStatus : undefined,
   });
 
   // Client-side filtering for payment methods
@@ -47,15 +49,15 @@ export function ContractsPage() {
       return rawContractsData;
     }
 
-    const filteredContracts = rawContractsData.contracts.filter((contract) =>
-      selectedPaymentMethods.includes(contract.payment_method || '')
+    const filteredItems = rawContractsData.items.filter((item) =>
+      selectedPaymentMethods.includes(item.payment_method || '')
     );
 
     return {
       ...rawContractsData,
-      contracts: filteredContracts,
-      total: filteredContracts.length,
-      total_pages: Math.ceil(filteredContracts.length / rawContractsData.per_page),
+      items: filteredItems,
+      total: filteredItems.length,
+      total_pages: Math.ceil(filteredItems.length / rawContractsData.per_page),
     };
   }, [rawContractsData, selectedPaymentMethods]);
 
@@ -82,9 +84,15 @@ export function ContractsPage() {
     setPage(1); // Reset to first page when filtering
   };
 
+  const handleStatusChange = (status: string) => {
+    setSelectedStatus(status);
+    setPage(1); // Reset to first page when filtering
+  };
+
   const handleClearFilters = () => {
     setSearch('');
     setSelectedPaymentMethods([]);
+    setSelectedStatus('all');
     setPage(1);
   };
 
@@ -183,6 +191,8 @@ export function ContractsPage() {
               onSearchChange={handleSearchChange}
               selectedPaymentMethods={selectedPaymentMethods}
               onPaymentMethodToggle={handlePaymentMethodToggle}
+              selectedStatus={selectedStatus}
+              onStatusChange={handleStatusChange}
               onClearFilters={handleClearFilters}
             />
           </CardContent>
@@ -228,7 +238,7 @@ export function ContractsPage() {
             </motion.div>
           ) : (
             <ContractsTable
-              data={contractsData || { contracts: [], total: 0, page: 1, per_page: 10, total_pages: 0 }}
+              data={contractsData || { items: [], total: 0, page: 1, per_page: 10, total_pages: 0 }}
               isLoading={isLoadingContracts}
               onPageChange={handlePageChange}
             />
