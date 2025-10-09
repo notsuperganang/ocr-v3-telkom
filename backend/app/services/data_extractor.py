@@ -182,13 +182,23 @@ def _parse_rupiah_token(tok: str) -> float:
         return 0.0
 
 def _next_money(texts: List[str], start_idx: int) -> float:
-    """Ambil token uang pada posisi sesudah start_idx."""
+    """Ambil token uang pada posisi sesudah start_idx.
+
+    Returns the monetary amount if found and realistic (>= 1000),
+    otherwise returns 0.0 to avoid extracting section numbers as costs.
+    """
     for j in range(start_idx + 1, min(start_idx + 5, len(texts))):
         if _MONEY_TOKEN.match(texts[j]):
-            return _parse_rupiah_token(texts[j])
+            amount = _parse_rupiah_token(texts[j])
+            # Validate: reject unrealistic small amounts (e.g., section numbers like "4")
+            if amount >= 1000:
+                return amount
     # fallback: token persis setelahnya
     if start_idx + 1 < len(texts) and any(ch.isdigit() for ch in texts[start_idx + 1]):
-        return _parse_rupiah_token(texts[start_idx + 1])
+        amount = _parse_rupiah_token(texts[start_idx + 1])
+        # Same validation for fallback
+        if amount >= 1000:
+            return amount
     return 0.0
 
 def _find_count_after_phrase(texts: List[str], phrase: str) -> int:
@@ -310,57 +320,24 @@ def _detect_payment_type(texts: List[str]) -> tuple[str, str, str]:
     """
     # Ekstrak teks dari seksi pembayaran
     payment_text = _get_payment_section_text(texts)
-    normalized_text = _normalize_payment_text(payment_text)
-    
-    # Pattern untuk deteksi termin (prioritas tinggi - exclude dari recurring)
-    termin_patterns = [
-        r'\btermin[-\s]*\d+[x]*\b',                    # Termin4X, Termin-4X, Termin 4X, Termin4, Termin 4
-        r'\btermin\s+(pertama|kedua|ketiga|keempat|kelima)\b',  # Termin pertama, dll
-        r'\b\d+[x]*\s*termin\b',                       # 4X termin, 4 termin, 4X Termin
-        r'\btermin[-\s]*(\d+)[-\s]*[kx]\b',           # Termin-4K, Termin 4X, Termin4K
-    ]
-    
-    # Cek eksplisit "One Time Charge" untuk prioritas tinggi
-    if re.search(r'\bone\s*time\s*charge\b', normalized_text, re.I):
-        return "one_time_charge", "One Time Charge", "high"
-    
-    # Cek apakah ada pola termin
-    for pattern in termin_patterns:
-        if re.search(pattern, normalized_text, re.I):
-            # Deteksi termin sebagai method type tersendiri
-            return "termin", "Pembayaran termin terdeteksi", "high"
-    
-    # Pattern untuk deteksi recurring (Indonesian + English)
-    recurring_patterns = [
-        r'\brecurring\b',                          # Explicit "recurring"
-        r'\bperbulan\b|\bper\s*bulan\b',          # "perbulan", "per bulan"
-        r'\bbulanan\b',                           # "bulanan"
-        r'\bsetiap\s*bulan\b',                    # "setiap bulan"
-        r'\bpembayaran\s*bulanan\b',              # "pembayaran bulanan"
-        r'\btagihan\s*bulanan\b',                 # "tagihan bulanan"
-        r'\blangganan\s*bulanan\b',               # "langganan bulanan"
-        r'\bmonthly\b',                           # "monthly"
-        r'\brecurring\s*monthly\b',               # "recurring monthly"
-        r'\bbilling\s*cycle\s*:\s*monthly\b',     # "billing cycle: monthly"
-        r'\bper\s*/?\s*bulan\b',                  # "per/bulan"
-    ]
-    
-    # Cari pola recurring dalam teks seksi pembayaran (confidence tinggi)
-    payment_section_only = _slice_after_keyword(texts, "TATA CARA PEMBAYARAN", span=20)
-    if payment_section_only:
-        normalized_section = _normalize_payment_text(payment_section_only)
-        for pattern in recurring_patterns:
-            match = re.search(pattern, normalized_section, re.I)
-            if match:
-                matched_phrase = match.group(0)
-                return "recurring", f"Pembayaran bulanan terdeteksi (frasa: '{matched_phrase}')", "high"
-    
-    # Cari pola recurring di seluruh dokumen (confidence medium)
-    for pattern in recurring_patterns:
-        match = re.search(pattern, normalized_text, re.I)
-        if match:
-            matched_phrase = match.group(0)
-            return "recurring", f"Pembayaran bulanan terdeteksi (frasa: '{matched_phrase}')", "medium"
+    normalized_text = _normalize_payment_text(payment_text).lower()
+
+    # Simplified detection: just check for keyword presence
+    # Priority 1: Check for "termin" (highest priority)
+    if 'termin' in normalized_text:
+        return "termin", "Pembayaran termin terdeteksi", "high"
+
+    # Priority 2: Check for "one time charge" or "otc"
+    otc_keywords = ['one time charge', 'onetime', 'otc', 'sekali bayar']
+    for keyword in otc_keywords:
+        if keyword in normalized_text:
+            return "one_time_charge", f"One Time Charge terdeteksi ('{keyword}')", "high"
+
+    # Priority 3: Check for "recurring" theme
+    recurring_keywords = ['recurring', 'perbulan', 'per bulan', 'bulanan', 'monthly', 'setiap bulan']
+    for keyword in recurring_keywords:
+        if keyword in normalized_text:
+            return "recurring", f"Pembayaran bulanan terdeteksi ('{keyword}')", "high"
     
     # NOTE: Removed unreliable "BULANAN" header detection as it causes false positives
     # Header tables are not reliable indicators of payment method
@@ -405,9 +382,11 @@ def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int
     payment_text = _get_payment_section_text(texts)
     
     # Pattern untuk menangkap termin dengan berbagai format
-    # Cocokkan bulan dan tahun, lalu kata kunci sebelum Rp
+    # Use \s* (zero or more spaces) to handle OCR text with missing spaces
+    # Captures date range: "Januari2025-Maret2025" or "Januari 2025-Maret 2025"
+    # Made "yaitu periode" and "sebesar" optional to handle OCR variations
     termin_pattern = re.compile(
-        r'Termin[-\s]*(\d+)[,\s]*yaitu\s+periode\s+(\w+\s*\d{4})\s*(?:sebesar\s*[:]*\s*)?[:]?\s*Rp\.?([\d\.,]+)',
+        r'Termin[-\s]*(\d+)[,\s]*(?:yaitu\s*periode\s*)?(\w+\s*\d{4})[\s-]*(\w+\s*\d{4})?[\s:]*(?:sebesar\s*[:]*\s*)?Rp\.?([\d\.,]+)',
         re.IGNORECASE
     )
     
@@ -420,32 +399,39 @@ def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int
     for match in matches:
         try:
             termin_num = int(match[0])
-            period = match[1].strip()
-            amount_str = match[2].strip()
-            
+            start_date = match[1].strip()
+            end_date = match[2].strip() if match[2] else ""
+            amount_str = match[3].strip()
+
+            # Format period dengan date range jika end_date tersedia
+            if end_date:
+                period = f"{start_date} - {end_date}"
+            else:
+                period = start_date
+
             # Bersihkan amount string dari karakter trailing
             amount_str = re.sub(r'[^\d\.,]', '', amount_str)
             # Parse amount dengan handling format Indonesia (titik sebagai thousand separator, koma sebagai decimal)
             amount = _parse_rupiah_token("Rp " + amount_str)
-            
+
             # Buat raw text untuk debugging
             raw_match = re.search(
                 rf'Termin[-\s]*{termin_num}[^R]*?[Rp\.\s]*{re.escape(amount_str)}[,\.]?',
                 payment_text, re.IGNORECASE
             )
             raw_text = raw_match.group(0) if raw_match else f"Termin-{termin_num} {period} {amount_str}"
-            
+
             termin_payment = TerminPayment(
                 termin_number=termin_num,
                 period=period,
                 amount=amount,
                 raw_text=raw_text.strip()
             )
-            
+
             termin_payments.append(termin_payment)
             total_amount += amount
-            
-        except (ValueError, IndexError) as e:
+
+        except (ValueError, IndexError):
             # Log error tapi lanjutkan parsing termin lainnya
             continue
     
@@ -778,12 +764,21 @@ def _extract_cost_from_biaya_section(texts: List[str], cost_type: str) -> float:
         # Look for langganan cost with more pattern variations
         if (("Biaya Langganan Tahunan" in current_text or
              "BiayaLanggananTahunan" in current_text or
+             "BiayaLanggananITahun" in current_text or  # OCR variation: "I" instead of "1"
+             "BiayaLangganan1Tahun" in current_text or  # OCR variation: explicit "1"
              "BiayaLangganan12Bulan" in current_text or  # PT MIFA format
              "Biaya Langganan 12 Bulan" in current_text or
+             "Biaya Langganan Bulanan" in current_text or  # PT KLIK DATA: monthly fee
+             "BiayaLanggananBulanan" in current_text or  # Concatenated variation
              "Biaya Langganan Selama" in current_text) and i + 1 < len(texts)):
             next_token = texts[i + 1].strip()
             if _MONEY_TOKEN.match(next_token):
-                langganan_amount = _parse_rupiah_token(next_token)
+                amount = _parse_rupiah_token(next_token)
+                # Check if it's monthly fee - multiply by 12 to get yearly
+                if "Bulanan" in current_text or "bulanan" in current_text:
+                    langganan_amount = amount * 12
+                else:
+                    langganan_amount = amount
                 i += 2  # Skip the money token
                 continue
         
@@ -1242,7 +1237,7 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
 
     # Try special cases first (Free, combined patterns)
     special_instalasi, special_langganan = _extract_cost_special_cases(texts)
-    if special_instalasi >= 0 or special_langganan > 0:  # Allow 0 for instalasi (Free case)
+    if special_instalasi > 0 or special_langganan > 0:  # Only use if we found actual values
         biaya_instalasi = special_instalasi
         biaya_langganan_tahunan = special_langganan
     else:
@@ -1258,15 +1253,18 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
         langganan_patterns = [
             "Biaya Langganan Tahunan",       # Most specific first
             "BiayaLanggananTahunan",
-            "BIAYA LANGGANAN TAHUNAN", 
+            "BiayaLanggananITahun",          # OCR variation: "I" (capital i) instead of "1"
+            "BiayaLangganan1Tahun",          # OCR variation: explicit number "1"
+            "BIAYA LANGGANAN TAHUNAN",
             "Biaya Langganan Selama1Tahun",  # Handle concatenated case
             "Biaya Langganan Selama1tahun",  # Handle lowercase OCR variation
-            "Biaya Langganan Selama 1Tahun", # Handle spaced variation  
+            "Biaya Langganan Selama 1Tahun", # Handle spaced variation
             "Biaya Langganan Selama 1tahun", # Handle spaced + lowercase variation
             "BiayaLanggananSelama1Tahun",    # Handle completely concatenated
             "BiayaLanggananSelama1tahun",    # Handle concatenated + lowercase
             "Biaya Langganan Selama",        # Keep this for general "Selama" patterns
-            "Biaya Langganan Bulanan"        # Handle PT MPG edge case where contract says "Bulanan" but means annual
+            "Biaya Langganan Bulanan",       # Monthly fee (will be multiplied by 12)
+            "BiayaLanggananBulanan"          # Monthly fee concatenated
         ]
         
         # First try structured biaya section parsing
@@ -1748,7 +1746,15 @@ def _extract_contact_blocks(texts: List[str]) -> tuple[Dict[str, str], Dict[str,
     Menggunakan fuzzy matching dan multiple strategies.
     """
     # Strategy 1: Cari anchor "7.KONTAK PERSON" dengan fuzzy matching
-    kontak_patterns = ["7.KONTAK PERSON", "7. KONTAK PERSON", "7.KONTAKPERSON", "KONTAK PERSON", "7KONTAK PERSON"]
+    kontak_patterns = [
+        "7. KONTAKPERSON",      # PT KLIK DATA: space after period, concatenated word
+        "7.KONTAKPERSON",       # No space after period, concatenated
+        "7. KONTAK PERSON",     # Space after period, spaced words
+        "7.KONTAK PERSON",      # No space after period, spaced words
+        "KONTAKPERSON",         # Just header, concatenated
+        "KONTAK PERSON",        # Just header, spaced
+        "7KONTAK PERSON"        # Missing period
+    ]
     start = _find_near_label(texts, kontak_patterns)
     
     if start is None:
@@ -1833,11 +1839,20 @@ def _extract_contact_blocks(texts: List[str]) -> tuple[Dict[str, str], Dict[str,
                 
                 # Enhanced validation dengan OCR error tolerance
                 if last_label == "email":
+                    # Fix common OCR errors in email addresses FIRST
+                    # Pattern: 406090atelkom.co.id → 406090@telkom.co.id
+                    fixed_val = val
+                    if re.match(r'^\d+a[a-z]+\.(co\.id|com)', fixed_val, re.I):
+                        fixed_val = re.sub(r'(\d+)a([a-z]+)', r'\1@\2', fixed_val, count=1)
+                    # Pattern: 406090attelkom.co.id → 406090@telkom.co.id
+                    elif re.match(r'^\d+at[a-z]+\.(co\.id|com)', fixed_val, re.I):
+                        fixed_val = re.sub(r'(\d+)at([a-z]+)', r'\1@\2', fixed_val, count=1)
+
                     # Cek current token dan next token untuk email
-                    email_candidates = [val]
+                    email_candidates = [fixed_val, val]  # Try fixed version first
                     if i + 1 < len(seq):
                         email_candidates.append(seq[i + 1].strip())
-                    
+
                     valid_email = None
                     for email_candidate in email_candidates:
                         if _is_email(email_candidate):
