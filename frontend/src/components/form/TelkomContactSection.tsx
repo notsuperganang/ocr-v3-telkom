@@ -25,7 +25,7 @@ export function TelkomContactSection({
   // Handle phone formatting
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    setValue('kontak_person_telkom.telepon', value);
+    setValue('kontak_person_telkom.telepon', value, { shouldDirty: true });
   };
 
   // Format phone for display
