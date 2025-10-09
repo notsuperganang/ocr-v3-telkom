@@ -66,7 +66,7 @@ export function ServiceDetailsSection({
                 <CurrencyInput
                   label="Biaya Instalasi"
                   value={instalationCost}
-                  onChange={(value) => setValue('rincian_layanan.0.biaya_instalasi', value)}
+                  onChange={(value) => setValue('rincian_layanan.0.biaya_instalasi', value, { shouldDirty: true })}
                   placeholder="0"
                   error={errors.rincian_layanan?.[0]?.biaya_instalasi?.message}
                 />
@@ -77,7 +77,7 @@ export function ServiceDetailsSection({
                 <CurrencyInput
                   label="Biaya Langganan Tahunan"
                   value={subscriptionCost}
-                  onChange={(value) => setValue('rincian_layanan.0.biaya_langganan_tahunan', value)}
+                  onChange={(value) => setValue('rincian_layanan.0.biaya_langganan_tahunan', value, { shouldDirty: true })}
                   placeholder="0"
                   error={errors.rincian_layanan?.[0]?.biaya_langganan_tahunan?.message}
                 />

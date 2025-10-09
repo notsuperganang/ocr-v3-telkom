@@ -40,17 +40,18 @@ import {
   FileX,
   Loader2,
 } from 'lucide-react';
-import type { ContractListResponse } from '@/types/api';
+import type { UnifiedContractListResponse } from '@/types/api';
 import {
   useDownloadContractJson,
   useDownloadContractPdf,
   useDeleteContract,
+  useDiscardJob,
 } from '@/hooks/useContracts';
 import { PaymentMethodBadge } from './PaymentMethodBadge';
 import { tableRowStagger, tableRowItem } from '@/lib/motion';
 
 interface ContractsTableProps {
-  data: ContractListResponse;
+  data: UnifiedContractListResponse;
   isLoading: boolean;
   onPageChange: (page: number) => void;
 }
@@ -60,6 +61,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
   const downloadJsonMutation = useDownloadContractJson();
   const downloadPdfMutation = useDownloadContractPdf();
   const deleteContractMutation = useDeleteContract();
+  const discardJobMutation = useDiscardJob();
 
   const handleDownloadJson = (contractId: number) => {
     downloadJsonMutation.mutate(contractId);
@@ -73,6 +75,10 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
     deleteContractMutation.mutate(contractId);
   };
 
+  const handleDiscardJob = (jobId: number) => {
+    discardJobMutation.mutate(jobId);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -84,7 +90,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
     );
   }
 
-  if (!data.contracts.length) {
+  if (!data.items.length) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -96,11 +102,10 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
           <FileX className="w-20 h-20 text-muted-foreground" />
         </div>
         <h3 className="text-xl font-semibold text-foreground mb-3">
-          Belum Ada Kontrak Terkonfirmasi
+          Belum Ada Data
         </h3>
         <p className="text-muted-foreground mb-8 max-w-md mx-auto text-sm">
-          Upload file kontrak pertama Anda untuk memulai. Setelah diproses dan dikonfirmasi,
-          kontrak akan muncul di sini.
+          Upload file kontrak untuk memulai. Kontrak yang diproses dan perlu direview akan muncul di sini.
         </p>
         <Button onClick={() => window.location.href = '/upload'} size="lg">
           <FileText className="mr-2 h-4 w-4" />
@@ -122,7 +127,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                 <TableHead className="font-semibold">Pelanggan</TableHead>
                 <TableHead className="font-semibold">Periode Kontrak</TableHead>
                 <TableHead className="font-semibold">Metode Pembayaran</TableHead>
-                <TableHead className="font-semibold">Dikonfirmasi</TableHead>
+                <TableHead className="font-semibold">Tanggal</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="w-[100px] font-semibold">Aksi</TableHead>
               </TableRow>
@@ -132,9 +137,9 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
               initial="hidden"
               animate="visible"
             >
-              {data.contracts.map((contract) => (
+              {data.items.map((item) => (
                 <motion.tr
-                  key={contract.id}
+                  key={`${item.item_type}-${item.id}`}
                   variants={tableRowItem}
                   className="group border-b transition-all duration-150 hover:bg-muted/50 even:bg-muted/20"
                 >
@@ -142,10 +147,10 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                 <TableCell>
                   <div className="space-y-1">
                     <div className="font-medium text-sm truncate max-w-[200px]">
-                      {contract.filename}
+                      {item.filename}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      ID: {contract.id}
+                      {item.item_type === 'contract' ? 'ID Kontrak' : 'ID Job'}: {item.id}
                     </div>
                   </div>
                 </TableCell>
@@ -155,58 +160,84 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                   <div className="flex items-center space-x-2">
                     <Building2 className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm">
-                      {contract.customer_name || 'Tidak diketahui'}
+                      {item.customer_name || <span className="italic text-muted-foreground">Tidak diketahui</span>}
                     </span>
                   </div>
                 </TableCell>
 
                 {/* Contract Period */}
                 <TableCell>
-                  {contract.contract_start_date && contract.contract_end_date ? (
+                  {item.contract_start_date && item.contract_end_date ? (
                     <div className="text-sm">
                       <div className="font-medium">
-                        {format(new Date(contract.contract_start_date), 'dd MMM yyyy', {
+                        {format(new Date(item.contract_start_date), 'dd MMM yyyy', {
                           locale: id,
                         })}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        s/d {format(new Date(contract.contract_end_date), 'dd MMM yyyy', {
+                        s/d {format(new Date(item.contract_end_date), 'dd MMM yyyy', {
                           locale: id,
                         })}
                       </div>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground text-sm">-</span>
+                    <span className="text-muted-foreground text-sm italic">-</span>
                   )}
                 </TableCell>
 
                 {/* Payment Method */}
                 <TableCell>
-                  <PaymentMethodBadge method={contract.payment_method || ''} />
+                  {item.payment_method ? (
+                    <PaymentMethodBadge method={item.payment_method} />
+                  ) : (
+                    <span className="text-muted-foreground text-sm italic">-</span>
+                  )}
                 </TableCell>
 
-                {/* Confirmed Date */}
+                {/* Confirmed/Created Date */}
                 <TableCell>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <div className="text-sm">
-                      <div>
-                        {format(new Date(contract.confirmed_at), 'dd MMM yyyy', {
-                          locale: id,
-                        })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(new Date(contract.confirmed_at), 'HH:mm')}
+                  {item.status === 'confirmed' && item.confirmed_at ? (
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <div className="text-sm">
+                        <div>
+                          {format(new Date(item.confirmed_at), 'dd MMM yyyy', {
+                            locale: id,
+                          })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(new Date(item.confirmed_at), 'HH:mm')}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <div className="text-sm">
+                        <div>
+                          {format(new Date(item.created_at), 'dd MMM yyyy', {
+                            locale: id,
+                          })}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {format(new Date(item.created_at), 'HH:mm')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </TableCell>
 
                 {/* Status */}
                 <TableCell>
-                  <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90">
-                    Dikonfirmasi
-                  </Badge>
+                  {item.status === 'confirmed' ? (
+                    <Badge variant="default" className="bg-success text-success-foreground hover:bg-success/90">
+                      Dikonfirmasi
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200">
+                      Menunggu Review
+                    </Badge>
+                  )}
                 </TableCell>
 
                 {/* Actions */}
@@ -219,56 +250,98 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => navigate(`/contracts/${contract.id}`)}>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Lihat Detail
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => handleDownloadPdf(contract.id)}
-                        disabled={downloadPdfMutation.isPending}
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        Download PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDownloadJson(contract.id)}
-                        disabled={downloadJsonMutation.isPending}
-                      >
-                        <FileJson className="mr-2 h-4 w-4" />
-                        Download JSON
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4 text-red-600" />
-                            Hapus Kontrak
+                      {item.status === 'confirmed' ? (
+                        <>
+                          <DropdownMenuItem onClick={() => navigate(`/contracts/${item.id}`)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Lihat Detail
                           </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Hapus Kontrak?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Aksi ini tidak dapat dibatalkan. Kontrak dan file terkait akan
-                              dihapus secara permanen.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Batal</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteContract(contract.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                              disabled={deleteContractMutation.isPending}
-                            >
-                              {deleteContractMutation.isPending ? 'Menghapus...' : 'Hapus'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleDownloadPdf(item.id)}
+                            disabled={downloadPdfMutation.isPending}
+                          >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Download PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDownloadJson(item.id)}
+                            disabled={downloadJsonMutation.isPending}
+                          >
+                            <FileJson className="mr-2 h-4 w-4" />
+                            Download JSON
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
+                                onSelect={(e) => e.preventDefault()}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4 text-red-600" />
+                                Hapus Kontrak
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Hapus Kontrak?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Aksi ini tidak dapat dibatalkan. Kontrak dan file terkait akan
+                                  dihapus secara permanen.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteContract(item.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                  disabled={deleteContractMutation.isPending}
+                                >
+                                  {deleteContractMutation.isPending ? 'Menghapus...' : 'Hapus'}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      ) : (
+                        <>
+                          <DropdownMenuItem onClick={() => navigate(`/review/${item.id}`)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Review
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
+                                onSelect={(e) => e.preventDefault()}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4 text-red-600" />
+                                Hapus
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Hapus Job?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Aksi ini tidak dapat dibatalkan. Job dan file terkait akan
+                                  dihapus secara permanen.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDiscardJob(item.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                  disabled={discardJobMutation.isPending}
+                                >
+                                  {discardJobMutation.isPending ? 'Menghapus...' : 'Hapus'}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

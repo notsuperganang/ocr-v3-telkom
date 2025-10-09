@@ -27,26 +27,27 @@ export function PaymentMethodSection({
 
   // Handle payment method type change
   const handleMethodTypeChange = (newType: PaymentMethodType) => {
-    setValue('tata_cara_pembayaran.method_type', newType);
+    setValue('tata_cara_pembayaran.method_type', newType, { shouldDirty: true });
 
     // Clear method-specific fields when switching
     if (newType !== 'termin') {
-      setValue('tata_cara_pembayaran.termin_payments', []);
-      setValue('tata_cara_pembayaran.total_termin_count', undefined);
-      setValue('tata_cara_pembayaran.total_amount', undefined);
+      setValue('tata_cara_pembayaran.termin_payments', [], { shouldDirty: true });
+      setValue('tata_cara_pembayaran.total_termin_count', undefined, { shouldDirty: true });
+      setValue('tata_cara_pembayaran.total_amount', undefined, { shouldDirty: true });
     }
 
     if (newType === 'termin') {
-      setValue('tata_cara_pembayaran.description', undefined);
+      setValue('tata_cara_pembayaran.description', undefined, { shouldDirty: true });
     }
   };
 
   // Handle termin payments change
   const handleTerminPaymentsChange = (payments: TerminPayment[]) => {
-    setValue('tata_cara_pembayaran.termin_payments', payments);
-    setValue('tata_cara_pembayaran.total_termin_count', payments.length);
+    setValue('tata_cara_pembayaran.termin_payments', payments, { shouldDirty: true });
+    setValue('tata_cara_pembayaran.total_termin_count', payments.length, { shouldDirty: true });
     setValue('tata_cara_pembayaran.total_amount',
-      payments.reduce((sum: number, payment) => sum + (payment.amount || 0), 0)
+      payments.reduce((sum: number, payment) => sum + (payment.amount || 0), 0),
+      { shouldDirty: true }
     );
   };
 
