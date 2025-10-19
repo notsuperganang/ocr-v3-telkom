@@ -15,7 +15,6 @@ import {
   Eye,
   FileJson,
   FileText,
-  Filter,
   ListFilter,
   RefreshCw,
   Search,
@@ -23,8 +22,10 @@ import {
   Upload,
 } from "lucide-react"
 import { twMerge } from "tailwind-merge"
+import { toast } from "sonner"
 
 import { useUnifiedContracts, useContractStats, useDownloadContractJson, useDownloadContractPdf, useDeleteContract, useDiscardJob } from "@/hooks/useContracts"
+import { useConfirmExtraction } from "@/hooks/useExtraction"
 import type { ContractStatsResponse, UnifiedContractItem } from "@/types/api"
 
 import { Badge } from "@/components/ui/badge"
@@ -51,18 +52,17 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import { cn, formatCurrency } from "@/lib/utils"
 
-type Density = "comfortable" | "compact"
 type PaymentMethod = "OTC" | "Termin" | "Recurring"
 type ContractStatus = "confirmed" | "awaiting_review"
 type FilterStatus = "all" | ContractStatus
-type SortableColumn = "fileName" | "customerName" | "date"
+type FilterPaymentMethod = "all" | PaymentMethod
+type SortableColumn = "fileName" | "customerName" | "date" | "value"
 type SortDirection = "ascending" | "descending"
 
 interface ContractRecord {
@@ -149,21 +149,15 @@ const paymentBadgeStyles: Record<PaymentMethod, string> = {
 }
 
 const tableColumns = [
-  { id: "fileName", label: "File", sortable: true },
-  { id: "customerName", label: "Pelanggan", sortable: true },
-  { id: "period", label: "Periode", sortable: false },
-  { id: "method", label: "Metode", sortable: false },
-  { id: "value", label: "Nilai Kontrak", sortable: false },
-  { id: "date", label: "Tanggal", sortable: true },
-  { id: "status", label: "Status", sortable: false },
-  { id: "actions", label: "Aksi", sortable: false },
+  { id: "fileName", label: "File", sortable: true, filterable: false },
+  { id: "customerName", label: "Pelanggan", sortable: true, filterable: false },
+  { id: "period", label: "Periode", sortable: false, filterable: true },
+  { id: "method", label: "Metode", sortable: false, filterable: true },
+  { id: "value", label: "Nilai Kontrak", sortable: true, filterable: false },
+  { id: "date", label: "Tanggal", sortable: true, filterable: false },
+  { id: "status", label: "Status", sortable: false, filterable: true },
+  { id: "actions", label: "Aksi", sortable: false, filterable: false },
 ] as const
-
-// Density switches map to row heights (56px ↔ 44px per brief)
-const densityHeights: Record<Density, string> = {
-  comfortable: "h-14",
-  compact: "h-11",
-}
 
 function useDebouncedValue<T>(value: T, delay = 250) {
   // Debounce live filters/search so UI updates feel intentional (250ms per brief)
@@ -248,14 +242,18 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
   const thisMonth = stats?.contracts_this_month ?? 0
   const totalValue = Number(stats?.total_contract_value ?? 0)
   const avgProcessing = stats?.avg_processing_time_sec ?? null
+  
+  // Calculate percentage and additional insights
+  const monthPercentage = totalContracts > 0 ? Math.round((thisMonth / totalContracts) * 100) : 0
+  const avgContractValue = totalContracts > 0 ? totalValue / totalContracts : 0
 
   return [
     {
       id: "total",
       label: "Total Kontrak",
       value: totalContracts,
-      auxLabel: "Kontrak aktif",
-      auxValue: formatNumber(totalContracts),
+      auxLabel: "Kontrak bulan ini",
+      auxValue: `${thisMonth} kontrak`,
       formattedValue: formatNumber(totalContracts),
       sparkline: generateSparkline(totalContracts || 5),
       icon: <FileText className="size-5 text-foreground/80" aria-hidden="true" />,
@@ -264,8 +262,8 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       id: "month",
       label: "Bulan Ini",
       value: thisMonth,
-      auxLabel: "Dari total",
-      auxValue: formatNumber(totalContracts),
+      auxLabel: "Persentase dari total",
+      auxValue: `${monthPercentage}% dari total`,
       formattedValue: formatNumber(thisMonth),
       sparkline: generateSparkline(thisMonth || 4),
       icon: <ListFilter className="size-5 text-foreground/80" aria-hidden="true" />,
@@ -275,8 +273,8 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       label: "Nilai Total",
       value: totalValue,
       formattedValue: stats ? formatCurrency(totalValue) : undefined,
-      auxLabel: "Semua kontrak",
-      auxValue: stats ? formatCurrency(totalValue) : undefined,
+      auxLabel: "Rata-rata per kontrak",
+      auxValue: stats ? formatCurrency(avgContractValue) : "Rp 0",
       sparkline: generateSparkline(totalValue || 6),
       icon: <Columns className="size-5 text-foreground/80" aria-hidden="true" />,
     },
@@ -286,8 +284,8 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       value: avgProcessing ?? 0,
       formattedValue: formatProcessingTime(avgProcessing),
       suffix: avgProcessing != null ? "" : undefined,
-      auxLabel: "Rata-rata OCR",
-      auxValue: avgProcessing != null ? formatProcessingTime(avgProcessing) : "—",
+      auxLabel: totalContracts > 0 ? `${totalContracts} dokumen diproses` : "Tidak ada data",
+      auxValue: avgProcessing != null ? formatProcessingTime(avgProcessing) : "Belum ada proses",
       sparkline: generateSparkline(avgProcessing ?? 2),
       icon: <RefreshCw className="size-5 text-foreground/80" aria-hidden="true" />,
     },
@@ -342,30 +340,6 @@ function Breadcrumbs() {
     </nav>
   )
 }
-
-const Sparkline: React.FC<{ values: number[]; intent?: "neutral" | "positive" }> =
-  ({ values, intent = "neutral" }) => {
-    const path = React.useMemo(() => createSparklinePath(values), [values])
-    return (
-      <svg
-        viewBox="0 0 48 18"
-        role="presentation"
-        aria-hidden="true"
-        className={twMerge(
-          "h-12 w-full overflow-visible transition-colors",
-          intent === "positive" ? "text-emerald-500" : "text-foreground/60"
-        )}
-      >
-        <path
-          d={path}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    )
-  }
 
 type TooltipChild = React.ReactElement<React.HTMLAttributes<HTMLElement>>
 
@@ -482,8 +456,8 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
             {loading ? (
               <Skeleton className="h-8 w-40" />
             ) : (
-              <CardTitle className="flex items-baseline gap-2 text-3xl font-semibold text-foreground">
-                <span className="font-bold tabular-nums">{primaryValue}</span>
+              <CardTitle className="flex items-baseline gap-2 text-3xl font-semibold">
+                <span className="font-bold tabular-nums text-[#d71920]">{primaryValue}</span>
                 {suffix ? (
                   <span className="text-base font-medium text-muted-foreground">
                     {suffix}
@@ -494,20 +468,43 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
           </div>
           <div
             className={twMerge(
-              "flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-background/80 shadow-inner",
+              "flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner",
               designTokens.focusRing
             )}
           >
-            {icon}
+            <div className="text-[#d71920]">{icon}</div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {loading ? (
             <Skeleton className="h-10 w-full" />
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                {delta ? (
+            <div className="space-y-4">
+              {/* Sparkline graph */}
+              <div className="flex items-end justify-end">
+                <svg
+                  viewBox="0 0 48 18"
+                  role="presentation"
+                  aria-hidden="true"
+                  className="h-12 w-full overflow-visible transition-colors text-[#d71920]"
+                >
+                  <path
+                    d={createSparklinePath(sparkline)}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              {/* Additional info section */}
+              <div className="space-y-2 border-t border-border/40 pt-3">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{auxLabel}</span>
+                  <span className="text-xs font-semibold text-[#d71920] text-right">{auxValue}</span>
+                </div>
+                {delta && (
                   <Tooltip
                     content={
                       <span className="font-medium text-foreground">
@@ -515,16 +512,15 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
                       </span>
                     }
                   >
-                    {/* Delta chip summarises relative change vs 30 hari terakhir */}
                     <Badge
                       variant="outline"
                       className={twMerge(
-                        "border-none bg-transparent px-3 py-1 text-xs font-semibold transition-all",
+                        "w-full justify-center border-dashed text-xs font-semibold transition-all",
                         trendIntent === "positive"
-                          ? "text-emerald-600"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950"
                           : trendIntent === "negative"
-                            ? "text-rose-600"
-                            : "text-muted-foreground"
+                            ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950"
+                            : "border-border bg-muted/50 text-muted-foreground"
                       )}
                     >
                       {trendIntent === "positive" ? (
@@ -538,22 +534,11 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
                           : delta.trend === "flat"
                             ? ""
                             : "+"}
-                        {delta.value}%
+                        {delta.value}% vs periode sebelumnya
                       </span>
                     </Badge>
                   </Tooltip>
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
                 )}
-                {/* Inline SVG sparkline to illustrate 7-day trend */}
-                <Sparkline
-                  values={sparkline}
-                  intent={trendIntent === "positive" ? "positive" : "neutral"}
-                />
-              </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{auxLabel ?? "—"}</span>
-                <span className="font-medium text-foreground">{auxValue ?? "—"}</span>
               </div>
             </div>
           )}
@@ -594,10 +579,6 @@ ChipButton.displayName = "ChipButton"
 interface FilterBarProps {
   search: string
   onSearchChange: (value: string) => void
-  status: FilterStatus
-  onStatusChange: (value: FilterStatus) => void
-  paymentFilters: PaymentMethod[]
-  onPaymentToggle: (value: PaymentMethod) => void
   onClearFilters: () => void
   activeFilters: number
   resultsCount: number
@@ -612,7 +593,8 @@ const statusOptions: Array<{
   { value: "awaiting_review", label: "Menunggu Review" },
 ]
 
-const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
+const paymentOptions: Array<{ value: FilterPaymentMethod; label: string }> = [
+  { value: "all", label: "Semua" },
   { value: "OTC", label: "OTC" },
   { value: "Termin", label: "Termin" },
   { value: "Recurring", label: "Recurring" },
@@ -621,31 +603,10 @@ const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
 const FilterBar: React.FC<FilterBarProps> = ({
   search,
   onSearchChange,
-  status,
-  onStatusChange,
-  paymentFilters,
-  onPaymentToggle,
   onClearFilters,
   activeFilters,
   resultsCount,
 }) => {
-  const statusRefs = React.useRef<Array<HTMLButtonElement | null>>([])
-  const paymentRefs = React.useRef<Array<HTMLButtonElement | null>>([])
-
-  const handleChipKeyDown = (
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    refs: React.MutableRefObject<Array<HTMLButtonElement | null>>
-  ) => {
-    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return
-    event.preventDefault()
-    const direction = event.key === "ArrowRight" ? 1 : -1
-    const items = refs.current.filter(
-      (item): item is HTMLButtonElement => Boolean(item)
-    )
-    const currentIdx = items.findIndex((item) => item === event.currentTarget)
-    const nextIdx = (currentIdx + direction + items.length) % items.length
-    items[nextIdx]?.focus()
-  }
 
   return (
     <motion.section
@@ -662,90 +623,32 @@ const FilterBar: React.FC<FilterBarProps> = ({
       aria-label="Filter kontrak"
     >
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <label htmlFor="search-contracts" className="text-sm font-medium">
-            Cari Kontrak
-          </label>
-          <div className="relative flex items-center">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
-            />
-            <Input
-              id="search-contracts"
-              type="search"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Cari berdasarkan nama file, pelanggan, atau ID..."
-              className={twMerge("pl-9 pr-28", designTokens.radius.xl)}
-              aria-describedby="search-help-text"
-            />
-            <span
-              id="search-help-text"
-              className="absolute right-3 text-xs text-muted-foreground"
-            >
-              {resultsCount} hasil
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Filter className="size-4" aria-hidden="true" />
-              Status
-            </div>
-            <div
-              role="radiogroup"
-              aria-label="Status kontrak"
-              className="flex flex-wrap gap-2"
-            >
-              {statusOptions.map((option, index) => (
-                <ChipButton
-                  key={option.value}
-                  ref={(node) => {
-                    statusRefs.current[index] = node
-                  }}
-                  selected={status === option.value}
-                  role="radio"
-                  aria-checked={status === option.value}
-                  onKeyDown={(event) => handleChipKeyDown(event, statusRefs)}
-                  onClick={() => onStatusChange(option.value)}
-                >
-                  {option.label}
-                </ChipButton>
-              ))}
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <div className="relative flex items-center">
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
+              />
+              <Input
+                id="search-contracts"
+                type="search"
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+                placeholder="Cari berdasarkan nama file, pelanggan, atau ID..."
+                className={twMerge("pl-9 pr-28", designTokens.radius.xl)}
+                aria-describedby="search-help-text"
+              />
+              <span
+                id="search-help-text"
+                className="absolute right-3 text-xs text-muted-foreground"
+              >
+                {resultsCount} hasil
+              </span>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <ListFilter className="size-4" aria-hidden="true" />
-              Metode Pembayaran
-            </div>
-            <div
-              role="group"
-              aria-label="Metode pembayaran"
-              className="flex flex-wrap gap-2"
-            >
-              {paymentOptions.map((option, index) => (
-                <ChipButton
-                  key={option.value}
-                  ref={(node) => {
-                    paymentRefs.current[index] = node
-                  }}
-                  selected={paymentFilters.includes(option.value)}
-                  aria-pressed={paymentFilters.includes(option.value)}
-                  onKeyDown={(event) => handleChipKeyDown(event, paymentRefs)}
-                  onClick={() => onPaymentToggle(option.value)}
-                >
-                  {option.label}
-                </ChipButton>
-              ))}
-            </div>
-          </div>
-
-          <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-3">
             {activeFilters > 0 ? (
               <Badge
                 variant="outline"
@@ -754,7 +657,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
                 {activeFilters} filter aktif
               </Badge>
             ) : (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
                 Tidak ada filter aktif
               </span>
             )}
@@ -764,7 +667,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
               size="sm"
               onClick={onClearFilters}
               className={cn(
-                "text-muted-foreground hover:text-foreground",
+                "text-muted-foreground hover:text-foreground whitespace-nowrap",
                 designTokens.focusRing
               )}
               disabled={activeFilters === 0}
@@ -783,10 +686,9 @@ interface ContractsToolbarProps {
   onExport: () => void
   onConfirm: () => void
   onDelete: () => void
-  density: Density
-  onDensityChange: (value: Density) => void
   visibleColumns: Set<(typeof tableColumns)[number]["id"]>
   onToggleColumn: (columnId: (typeof tableColumns)[number]["id"]) => void
+  disabled?: boolean
 }
 
 const ContractsToolbar: React.FC<ContractsToolbarProps> = ({
@@ -794,10 +696,9 @@ const ContractsToolbar: React.FC<ContractsToolbarProps> = ({
   onExport,
   onConfirm,
   onDelete,
-  density,
-  onDensityChange,
   visibleColumns,
   onToggleColumn,
+  disabled = false,
 }) => {
   return (
     <motion.section
@@ -825,6 +726,7 @@ const ContractsToolbar: React.FC<ContractsToolbarProps> = ({
                 size="sm"
                 variant="outline"
                 onClick={onExport}
+                disabled={disabled}
                 className={designTokens.focusRing}
               >
                 <Upload className="mr-2 size-4" aria-hidden="true" />
@@ -834,6 +736,7 @@ const ContractsToolbar: React.FC<ContractsToolbarProps> = ({
                 size="sm"
                 variant="default"
                 onClick={onConfirm}
+                disabled={disabled}
                 className={twMerge(
                   "bg-[#d71920] text-white hover:bg-[#b5141b]",
                   designTokens.focusRing
@@ -846,11 +749,14 @@ const ContractsToolbar: React.FC<ContractsToolbarProps> = ({
                 size="sm"
                 variant="ghost"
                 onClick={onDelete}
+                disabled={disabled}
                 className={twMerge(
-                  "text-destructive hover:bg-destructive/10",
+                  "text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50",
+                  "transition-colors duration-200",
                   designTokens.focusRing
                 )}
               >
+                <Trash2 className="mr-2 size-4" aria-hidden="true" />
                 Hapus
               </Button>
             </motion.div>
@@ -859,32 +765,6 @@ const ContractsToolbar: React.FC<ContractsToolbarProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className={twMerge(
-            "flex items-center gap-2",
-            density === "comfortable" ? "bg-primary/10 text-primary" : "",
-            designTokens.focusRing
-          )}
-          onClick={() => onDensityChange("comfortable")}
-        >
-          Nyaman
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className={twMerge(
-            "flex items-center gap-2",
-            density === "compact" ? "bg-primary/10 text-primary" : "",
-            designTokens.focusRing
-          )}
-          onClick={() => onDensityChange("compact")}
-        >
-          Ringkas
-        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -927,7 +807,6 @@ const MotionTableRow = motion(TableRow as React.ComponentType<
 
 interface ContractsTableProps {
   data: ContractRecord[]
-  density: Density
   sortState: SortState | null
   onSortChange: (column: SortableColumn, direction: SortDirection) => void
   page: number
@@ -941,11 +820,16 @@ interface ContractsTableProps {
   onToggleAll: (checked: boolean) => void
   visibleColumns: Set<(typeof tableColumns)[number]["id"]>
   isFetching?: boolean
+  status: FilterStatus
+  onStatusChange: (value: FilterStatus) => void
+  paymentMethod: FilterPaymentMethod
+  onPaymentMethodChange: (value: FilterPaymentMethod) => void
+  periodFilter: { start: string | null; end: string | null }
+  onPeriodFilterChange: (filter: { start: string | null; end: string | null }) => void
 }
 
 const ContractsTable: React.FC<ContractsTableProps> = ({
   data,
-  density,
   sortState,
   onSortChange,
   page,
@@ -959,6 +843,12 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
   onToggleAll,
   visibleColumns,
   isFetching,
+  status,
+  onStatusChange,
+  paymentMethod,
+  onPaymentMethodChange,
+  periodFilter,
+  onPeriodFilterChange,
 }) => {
   const navigate = useNavigate()
   const downloadJsonMutation = useDownloadContractJson()
@@ -1073,18 +963,130 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                     />
                   </label>
                 </TableHead>
-                {tableColumns.map((column) => {
+                {tableColumns.map((column): React.JSX.Element | null => {
                   if (!visibleColumns.has(column.id)) return null
                   if (column.id === "actions") {
                     return (
                       <TableHead
                         key={column.id}
-                        className="text-right text-xs uppercase tracking-wide text-muted-foreground"
+                        className="text-center text-xs uppercase tracking-wide text-[#d71920] font-bold"
                       >
                         {column.label}
                       </TableHead>
                     )
                   }
+
+                  if (column.filterable) {
+                    // Filterable columns (method, status, and period)
+                    const isMethod = column.id === "method"
+                    const isStatus = column.id === "status"
+                    const isPeriod = column.id === "period"
+
+                    return (
+                      <TableHead
+                        key={column.id}
+                        className="align-middle"
+                      >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className={twMerge(
+                                "flex items-center gap-2 rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wide text-[#d71920] transition-all hover:bg-red-50 dark:hover:bg-red-950/20",
+                                designTokens.focusRing
+                              )}
+                            >
+                              {column.label}
+                              <ChevronDown className="size-3" aria-hidden="true" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="min-w-52">
+                            <DropdownMenuLabel>
+                              Filter {column.label}
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+
+                            {isStatus && (
+                              <>
+                                {statusOptions.map((option) => (
+                                  <DropdownMenuCheckboxItem
+                                    key={option.value}
+                                    checked={status === option.value}
+                                    onCheckedChange={() => onStatusChange(option.value)}
+                                  >
+                                    {option.label}
+                                  </DropdownMenuCheckboxItem>
+                                ))}
+                              </>
+                            )}
+
+                            {isMethod && (
+                              <>
+                                {paymentOptions.map((option) => (
+                                  <DropdownMenuCheckboxItem
+                                    key={option.value}
+                                    checked={paymentMethod === option.value}
+                                    onCheckedChange={() => onPaymentMethodChange(option.value)}
+                                  >
+                                    {option.label}
+                                  </DropdownMenuCheckboxItem>
+                                ))}
+                              </>
+                            )}
+
+                            {isPeriod && (
+                              <div className="p-3 space-y-3">
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-foreground">
+                                    Tanggal Mulai
+                                  </label>
+                                  <Input
+                                    type="date"
+                                    value={periodFilter.start || ""}
+                                    onChange={(e) =>
+                                      onPeriodFilterChange({
+                                        ...periodFilter,
+                                        start: e.target.value || null,
+                                      })
+                                    }
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-xs font-medium text-foreground">
+                                    Tanggal Akhir
+                                  </label>
+                                  <Input
+                                    type="date"
+                                    value={periodFilter.end || ""}
+                                    onChange={(e) =>
+                                      onPeriodFilterChange({
+                                        ...periodFilter,
+                                        end: e.target.value || null,
+                                      })
+                                    }
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() =>
+                                    onPeriodFilterChange({ start: null, end: null })
+                                  }
+                                  disabled={!periodFilter.start && !periodFilter.end}
+                                >
+                                  Reset Filter
+                                </Button>
+                              </div>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableHead>
+                    )
+                  }
+
                   if (column.sortable) {
                     const ariaSort = sortDirectionFor(
                       column.id as SortableColumn
@@ -1104,7 +1106,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                             handleSortKeyDown(event, column.id as SortableColumn)
                           }
                           className={twMerge(
-                            "flex items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-all",
+                            "flex items-center gap-2 rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wide text-[#d71920] transition-all hover:bg-red-50 dark:hover:bg-red-950/20",
                             designTokens.focusRing
                           )}
                         >
@@ -1118,7 +1120,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                                   : 0,
                               opacity: sortState?.column === column.id ? 1 : 0.4,
                             }}
-                            className="flex items-center justify-center text-muted-foreground"
+                            className="flex items-center justify-center text-[#d71920]"
                           >
                             <ChevronDown className="size-3" aria-hidden="true" />
                           </motion.span>
@@ -1127,12 +1129,15 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                     )
                   }
 
+                  // Default: non-sortable, non-filterable columns (shouldn't reach here based on current config)
+                  // But TypeScript needs this for type safety
+                  const typedColumn = column as typeof tableColumns[number]
                   return (
                     <TableHead
-                      key={column.id}
-                      className="text-xs uppercase tracking-wide text-muted-foreground"
+                      key={typedColumn.id}
+                      className="text-xs uppercase tracking-wide text-[#d71920] font-bold"
                     >
-                      {column.label}
+                      {typedColumn.label}
                     </TableHead>
                   )
                 })}
@@ -1149,7 +1154,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.18 }}
                     className={twMerge(
-                      "group border-b border-border/40 bg-background/70 transition-colors",
+                      "group border-b border-border/40 bg-background/70 transition-all duration-200",
                       "hover:bg-primary/5",
                       "even:bg-muted/30"
                     )}
@@ -1170,10 +1175,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                     </TableCell>
                     {visibleColumns.has("fileName") && (
                       <TableCell
-                        className={twMerge(
-                          "max-w-[280px] truncate font-medium text-foreground",
-                          densityHeights[density]
-                        )}
+                        className="max-w-[280px] truncate font-medium text-foreground"
                       >
                         <div className="flex flex-col">
                           <span className="truncate">{record.fileName}</span>
@@ -1186,7 +1188,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       </TableCell>
                     )}
                     {visibleColumns.has("customerName") && (
-                      <TableCell className={densityHeights[density]}>
+                      <TableCell>
                         <div className="flex flex-col">
                           <div className="flex items-center gap-2">
                             <Building2
@@ -1206,12 +1208,12 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       </TableCell>
                     )}
                     {visibleColumns.has("period") && (
-                      <TableCell className={densityHeights[density]}>
+                      <TableCell>
                         {renderPeriod(record)}
                       </TableCell>
                     )}
                     {visibleColumns.has("method") && (
-                      <TableCell className={densityHeights[density]}>
+                      <TableCell>
                         {record.paymentMethod ? (
                           <Badge
                             variant="outline"
@@ -1230,7 +1232,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       </TableCell>
                     )}
                     {visibleColumns.has("value") && (
-                      <TableCell className={densityHeights[density]}>
+                      <TableCell>
                         {record.totalContractValue ? (
                           <span className="font-semibold text-sm text-foreground tabular-nums">
                             {formatCurrency(Number(record.totalContractValue))}
@@ -1243,14 +1245,14 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       </TableCell>
                     )}
                     {visibleColumns.has("date") && (
-                      <TableCell className={densityHeights[density]}>
+                      <TableCell>
                         <span className="text-sm font-medium text-foreground tabular-nums">
                           {formatDate(record.date)}
                         </span>
                       </TableCell>
                     )}
                     {visibleColumns.has("status") && (
-                      <TableCell className={densityHeights[density]}>
+                      <TableCell>
                         <Badge
                           variant="outline"
                           className={twMerge(
@@ -1270,7 +1272,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       </TableCell>
                     )}
                     {visibleColumns.has("actions") && (
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -1407,7 +1409,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
           </Table>
         )}
       </div>
-      <TableFooter className="flex flex-col items-start gap-4 bg-card/90 p-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col items-start gap-4 bg-card/90 p-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between border-t border-border/60">
         <div>
           {totalCount === 0 ? (
             "Tidak ada kontrak"
@@ -1477,7 +1479,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
             </Button>
           </div>
         </div>
-      </TableFooter>
+      </div>
     </div>
   )
 }
@@ -1549,6 +1551,49 @@ const ErrorState: React.FC<{ message: string; onRetry: () => void }> = ({
   </div>
 )
 
+const BulkOperationOverlay: React.FC<{ 
+  isOperating: boolean
+  message?: string
+}> = ({ isOperating, message = "Memproses..." }) => {
+  if (!isOperating) return null
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          className={twMerge(
+            "flex flex-col items-center gap-4 rounded-2xl border border-border/70 bg-card p-8 shadow-2xl",
+            designTokens.surface.base
+          )}
+        >
+          <div className="relative">
+            <RefreshCw className="size-12 animate-spin text-[#d71920]" aria-hidden="true" />
+            <div className="absolute inset-0 animate-ping">
+              <RefreshCw className="size-12 text-[#d71920]/30" aria-hidden="true" />
+            </div>
+          </div>
+          <div className="space-y-2 text-center">
+            <h3 className="text-lg font-semibold text-foreground">
+              {message}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Mohon tunggu, jangan tutup halaman ini
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
 function applySorting(
   data: ContractRecord[],
   sortState: SortState | null
@@ -1564,6 +1609,12 @@ function applySorting(
       )
     }
 
+    if (column === "value") {
+      const valueA = Number(a.totalContractValue ?? 0)
+      const valueB = Number(b.totalContractValue ?? 0)
+      return (valueA - valueB) * multiplier
+    }
+
     const valueA = (a[column] ?? "").toString().toLowerCase()
     const valueB = (b[column] ?? "").toString().toLowerCase()
     if (valueA < valueB) return -1 * multiplier
@@ -1576,8 +1627,8 @@ function applySorting(
 export function ContractsPage() {
   const [search, setSearch] = React.useState("")
   const [status, setStatus] = React.useState<FilterStatus>("all")
-  const [paymentFilters, setPaymentFilters] = React.useState<PaymentMethod[]>([])
-  const [density, setDensity] = React.useState<Density>("comfortable")
+  const [paymentMethod, setPaymentMethod] = React.useState<FilterPaymentMethod>("all")
+  const [periodFilter, setPeriodFilter] = React.useState<{ start: string | null; end: string | null }>({ start: null, end: null })
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [sortState, setSortState] = React.useState<SortState | null>({
     column: "date",
@@ -1588,8 +1639,14 @@ export function ContractsPage() {
   const [visibleColumns, setVisibleColumns] = React.useState<
     Set<(typeof tableColumns)[number]["id"]>
   >(new Set(tableColumns.map((column) => column.id)))
+  const [isBulkOperating, setIsBulkOperating] = React.useState(false)
 
   const debouncedSearch = useDebouncedValue(search, 250)
+
+  // Bulk operation hooks
+  const confirmExtractionMutation = useConfirmExtraction()
+  const deleteContractMutation = useDeleteContract()
+  const discardJobMutation = useDiscardJob()
 
   const {
     data: rawContractsData,
@@ -1617,27 +1674,49 @@ export function ContractsPage() {
     (isLoadingStats && !statsData)
 
   const filteredItems = React.useMemo(() => {
-    const items = rawContractsData?.items ?? []
-    if (paymentFilters.length === 0) {
-      return items
+    let items = rawContractsData?.items ?? []
+
+    // Filter by payment method
+    if (paymentMethod !== "all") {
+      items = items.filter((item) => {
+        const mapped = mapPaymentMethod(item.payment_method)
+        return mapped === paymentMethod
+      })
     }
-    return items.filter((item) => {
-      const mapped = mapPaymentMethod(item.payment_method)
-      return mapped && paymentFilters.includes(mapped)
-    })
-  }, [rawContractsData, paymentFilters])
+
+    // Filter by period
+    if (periodFilter.start || periodFilter.end) {
+      items = items.filter((item) => {
+        const startDate = item.contract_start_date
+        const endDate = item.contract_end_date
+
+        if (!startDate || !endDate) return false
+
+        // Check if contract period overlaps with filter period
+        if (periodFilter.start && endDate < periodFilter.start) return false
+        if (periodFilter.end && startDate > periodFilter.end) return false
+
+        return true
+      })
+    }
+
+    return items
+  }, [rawContractsData, paymentMethod, periodFilter])
 
   const records = React.useMemo(() => {
     const transformed = filteredItems.map(toContractRecord)
     return applySorting(transformed, sortState)
   }, [filteredItems, sortState])
 
-  const totalResults =
-    paymentFilters.length > 0
+  const hasClientSideFilters =
+    paymentMethod !== "all" ||
+    periodFilter.start !== null ||
+    periodFilter.end !== null
+
+  const totalResults = hasClientSideFilters
       ? records.length
       : rawContractsData?.total ?? records.length
-  const totalPages =
-    paymentFilters.length > 0
+  const totalPages = hasClientSideFilters
       ? records.length === 0
         ? 0
         : 1
@@ -1650,7 +1729,8 @@ export function ContractsPage() {
 
   const activeFiltersCount =
     (status !== "all" ? 1 : 0) +
-    (paymentFilters.length > 0 ? 1 : 0) +
+    (paymentMethod !== "all" ? 1 : 0) +
+    (periodFilter.start || periodFilter.end ? 1 : 0) +
     (debouncedSearch ? 1 : 0)
 
   const selectedRecords = React.useMemo(
@@ -1658,13 +1738,255 @@ export function ContractsPage() {
     [records, selectedIds]
   )
 
-  const handleTogglePayment = (value: PaymentMethod) => {
-    setPaymentFilters((prev) => {
-      const next = prev.includes(value)
-        ? prev.filter((item) => item !== value)
-        : [...prev, value]
-      return next
-    })
+  // Bulk Confirm Handler
+  const handleBulkConfirm = async () => {
+    const jobsToConfirm = selectedRecords.filter((r) => r.item.item_type === 'job')
+    const alreadyConfirmed = selectedRecords.filter((r) => r.item.item_type === 'contract')
+
+    if (jobsToConfirm.length === 0) {
+      toast.error('Tidak ada job yang dapat dikonfirmasi', {
+        description: alreadyConfirmed.length > 0
+          ? `${alreadyConfirmed.length} item sudah terkonfirmasi`
+          : 'Pilih job dengan status "Menunggu Review"'
+      })
+      return
+    }
+
+    if (alreadyConfirmed.length > 0) {
+      toast.warning(`${alreadyConfirmed.length} item sudah terkonfirmasi`, {
+        description: `Hanya ${jobsToConfirm.length} job yang akan dikonfirmasi`
+      })
+    }
+
+    setIsBulkOperating(true)
+    let successCount = 0
+    let failedCount = 0
+
+    for (let i = 0; i < jobsToConfirm.length; i++) {
+      const job = jobsToConfirm[i]
+      toast.loading(
+        `Mengkonfirmasi ${i + 1} dari ${jobsToConfirm.length}...`, 
+        {
+          id: 'bulk-confirm-progress',
+          description: `${job.fileName.substring(0, 40)}${job.fileName.length > 40 ? '...' : ''}`
+        }
+      )
+
+      try {
+        await confirmExtractionMutation.mutateAsync(job.item.id)
+        successCount++
+        // Remove from selection on success
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(job.uid)
+          return next
+        })
+      } catch (error) {
+        failedCount++
+        console.error(`Failed to confirm job ${job.item.id}:`, error)
+      }
+    }
+
+    toast.dismiss('bulk-confirm-progress')
+    setIsBulkOperating(false)
+
+    if (successCount > 0) {
+      toast.success(`${successCount} kontrak berhasil dikonfirmasi`, {
+        description: failedCount > 0 ? `${failedCount} gagal dikonfirmasi` : undefined
+      })
+      await refetchContracts()
+    }
+
+    if (failedCount > 0 && successCount === 0) {
+      toast.error('Gagal mengkonfirmasi kontrak', {
+        description: `Semua ${failedCount} percobaan gagal`
+      })
+    }
+  }
+
+  // Bulk Delete Handler
+  const handleBulkDelete = async () => {
+    const contracts = selectedRecords.filter((r) => r.item.item_type === 'contract')
+    const jobs = selectedRecords.filter((r) => r.item.item_type === 'job')
+    const totalCount = selectedRecords.length
+
+    if (totalCount === 0) {
+      toast.error('Tidak ada item yang dipilih')
+      return
+    }
+
+    const confirmMessage =
+      contracts.length > 0 && jobs.length > 0
+        ? `Yakin ingin menghapus ${contracts.length} kontrak dan ${jobs.length} job?`
+        : contracts.length > 0
+        ? `Yakin ingin menghapus ${contracts.length} kontrak?`
+        : `Yakin ingin menghapus ${jobs.length} job?`
+
+    if (!confirm(`${confirmMessage}\n\nTindakan ini tidak dapat dibatalkan.`)) {
+      return
+    }
+
+    setIsBulkOperating(true)
+    let successCount = 0
+    let failedCount = 0
+
+    // Delete contracts
+    for (let i = 0; i < contracts.length; i++) {
+      const contract = contracts[i]
+      toast.loading(
+        `Menghapus ${i + 1} dari ${totalCount}...`, 
+        {
+          id: 'bulk-delete-progress',
+          description: `${contract.fileName.substring(0, 40)}${contract.fileName.length > 40 ? '...' : ''}`
+        }
+      )
+
+      try {
+        await deleteContractMutation.mutateAsync(contract.item.id)
+        successCount++
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(contract.uid)
+          return next
+        })
+      } catch (error) {
+        failedCount++
+        console.error(`Failed to delete contract ${contract.item.id}:`, error)
+      }
+    }
+
+    // Discard jobs
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i]
+      toast.loading(
+        `Menghapus ${contracts.length + i + 1} dari ${totalCount}...`, 
+        {
+          id: 'bulk-delete-progress',
+          description: `${job.fileName.substring(0, 40)}${job.fileName.length > 40 ? '...' : ''}`
+        }
+      )
+
+      try {
+        await discardJobMutation.mutateAsync(job.item.id)
+        successCount++
+        setSelectedIds((prev) => {
+          const next = new Set(prev)
+          next.delete(job.uid)
+          return next
+        })
+      } catch (error) {
+        failedCount++
+        console.error(`Failed to discard job ${job.item.id}:`, error)
+      }
+    }
+
+    toast.dismiss('bulk-delete-progress')
+    setIsBulkOperating(false)
+
+    if (successCount > 0) {
+      toast.success(`${successCount} item berhasil dihapus`, {
+        description: failedCount > 0 ? `${failedCount} gagal dihapus` : undefined
+      })
+      
+      // Refetch and adjust pagination
+      await refetchContracts()
+      
+      // After refetch, check if current page is now empty
+      // Calculate new total after deletion
+      const itemsDeleted = successCount
+      const newTotal = totalResults - itemsDeleted
+      const newTotalPages = Math.ceil(newTotal / pageSize)
+      
+      // If current page is beyond new total pages, navigate to last page
+      if (page > newTotalPages && newTotalPages > 0) {
+        setPage(newTotalPages)
+      } else if (newTotal === 0) {
+        // If no items left, go to page 1 to show empty state
+        setPage(1)
+      }
+    }
+
+    if (failedCount > 0 && successCount === 0) {
+      toast.error('Gagal menghapus item', {
+        description: `Semua ${failedCount} percobaan gagal`
+      })
+    }
+  }
+
+  // Bulk Export to CSV Handler
+  const handleBulkExport = () => {
+    const confirmedContracts = selectedRecords.filter((r) => r.item.item_type === 'contract')
+    const jobs = selectedRecords.filter((r) => r.item.item_type === 'job')
+
+    if (confirmedContracts.length === 0) {
+      toast.error('Tidak ada kontrak terkonfirmasi yang dipilih', {
+        description: jobs.length > 0
+          ? `${jobs.length} job tidak dapat diekspor. Konfirmasi terlebih dahulu.`
+          : 'Pilih kontrak dengan status "Dikonfirmasi"'
+      })
+      return
+    }
+
+    if (jobs.length > 0) {
+      toast.warning(`${jobs.length} job tidak dapat diekspor`, {
+        description: `Hanya ${confirmedContracts.length} kontrak terkonfirmasi yang akan diekspor`
+      })
+    }
+
+    try {
+      // Generate CSV content
+      const headers = ['File Name', 'Customer Name', 'Contract Period', 'Payment Method', 'Contract Value', 'Confirmation Date', 'Status']
+      const rows = confirmedContracts.map((record) => {
+        const period = record.periodStart && record.periodEnd
+          ? `${formatDate(record.periodStart)} - ${formatDate(record.periodEnd)}`
+          : '-'
+
+        const value = record.totalContractValue
+          ? formatCurrency(Number(record.totalContractValue))
+          : '-'
+
+        const confirmDate = record.item.confirmed_at
+          ? formatDate(record.item.confirmed_at)
+          : '-'
+
+        return [
+          `"${record.fileName}"`,
+          `"${record.customerName}"`,
+          `"${period}"`,
+          `"${record.paymentMethod || '-'}"`,
+          `"${value}"`,
+          `"${confirmDate}"`,
+          `"${statusTokens[record.status].label}"`
+        ].join(',')
+      })
+
+      const csvContent = [headers.join(','), ...rows].join('\n')
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
+      link.href = url
+      link.download = `kontrak_export_${timestamp}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      toast.success(`${confirmedContracts.length} kontrak berhasil diekspor`, {
+        description: `File: kontrak_export_${timestamp}.csv`
+      })
+    } catch (error) {
+      console.error('Failed to export contracts:', error)
+      toast.error('Gagal mengekspor kontrak', {
+        description: 'Terjadi kesalahan saat membuat file CSV'
+      })
+    }
+  }
+
+  const handlePaymentMethodChange = (value: FilterPaymentMethod) => {
+    setPaymentMethod(value)
     setPage(1)
   }
 
@@ -1728,7 +2050,8 @@ export function ContractsPage() {
   const handleClearFilters = () => {
     setSearch("")
     setStatus("all")
-    setPaymentFilters([])
+    setPaymentMethod("all")
+    setPeriodFilter({ start: null, end: null })
     setSelectedIds(new Set())
     setPage(1)
   }
@@ -1739,7 +2062,7 @@ export function ContractsPage() {
 
   React.useEffect(() => {
     setSelectedIds(new Set())
-  }, [page, pageSize, debouncedSearch, status, paymentFilters])
+  }, [page, pageSize, debouncedSearch, status, paymentMethod, periodFilter])
 
   const resultsAnnouncement = React.useMemo(
     () =>
@@ -1754,6 +2077,18 @@ export function ContractsPage() {
         "min-h-screen"
       )}
     >
+      {/* Bulk Operation Overlay */}
+      <BulkOperationOverlay 
+        isOperating={isBulkOperating} 
+        message={
+          deleteContractMutation.isPending || discardJobMutation.isPending
+            ? "Menghapus item..."
+            : confirmExtractionMutation.isPending
+            ? "Mengkonfirmasi kontrak..."
+            : "Memproses..."
+        }
+      />
+      
       <header className="flex flex-col gap-6">
         <Breadcrumbs />
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1806,13 +2141,6 @@ export function ContractsPage() {
               setSearch(value)
               setPage(1)
             }}
-            status={status}
-            onStatusChange={(value) => {
-              setStatus(value)
-              setPage(1)
-            }}
-            paymentFilters={paymentFilters}
-            onPaymentToggle={handleTogglePayment}
             onClearFilters={handleClearFilters}
             activeFilters={activeFiltersCount}
             resultsCount={totalResults}
@@ -1820,19 +2148,12 @@ export function ContractsPage() {
 
           <ContractsToolbar
             selectedCount={selectedIds.size}
-            onExport={() => {
-              console.info("Export CSV untuk", selectedRecords)
-            }}
-            onConfirm={() => {
-              console.info("Konfirmasi kontrak", selectedRecords)
-            }}
-            onDelete={() => {
-              console.info("Hapus kontrak", selectedRecords)
-            }}
-            density={density}
-            onDensityChange={setDensity}
+            onExport={handleBulkExport}
+            onConfirm={handleBulkConfirm}
+            onDelete={handleBulkDelete}
             visibleColumns={visibleColumns}
             onToggleColumn={handleToggleColumn}
+            disabled={isBulkOperating}
           />
 
           {/* SR announcement so sort/pagination/filter feedback stays audible */}
@@ -1845,7 +2166,6 @@ export function ContractsPage() {
           ) : (
             <ContractsTable
               data={records}
-              density={density}
               sortState={sortState}
               onSortChange={(column, direction) =>
                 handleSortChange(column, direction)
@@ -1864,6 +2184,18 @@ export function ContractsPage() {
               onToggleAll={handleToggleAll}
               visibleColumns={visibleColumns}
               isFetching={isFetchingContracts}
+              status={status}
+              onStatusChange={(value) => {
+                setStatus(value)
+                setPage(1)
+              }}
+              paymentMethod={paymentMethod}
+              onPaymentMethodChange={handlePaymentMethodChange}
+              periodFilter={periodFilter}
+              onPeriodFilterChange={(value) => {
+                setPeriodFilter(value)
+                setPage(1)
+              }}
             />
           )}
         </>
