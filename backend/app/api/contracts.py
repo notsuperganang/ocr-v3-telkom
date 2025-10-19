@@ -101,6 +101,7 @@ class UnifiedContractItem(BaseModel):
     contract_start_date: Optional[str] = None
     contract_end_date: Optional[str] = None
     payment_method: Optional[str] = None
+    total_contract_value: Optional[str] = None  # String representation of Decimal
     confirmed_by: Optional[str] = None
     confirmed_at: Optional[datetime] = None
     created_at: datetime
@@ -126,6 +127,7 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
     contract_start_date = None
     contract_end_date = None
     payment_method = None
+    total_contract_value = None
 
     try:
         if 'informasi_pelanggan' in data:
@@ -137,6 +139,46 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
 
         if 'tata_cara_pembayaran' in data:
             payment_method = data['tata_cara_pembayaran'].get('method_type')
+
+        # Calculate total contract value from rincian_layanan
+        if 'rincian_layanan' in data and isinstance(data['rincian_layanan'], list):
+            total_installation = Decimal('0')
+            total_subscription = Decimal('0')
+
+            for item in data['rincian_layanan']:
+                if isinstance(item, dict):
+                    # Parse installation cost
+                    install_cost = item.get('biaya_instalasi', 0)
+                    if install_cost:
+                        try:
+                            if isinstance(install_cost, str):
+                                # Remove non-numeric characters except digits, comma, and period
+                                cleaned = install_cost.replace(',', '.')
+                                cleaned = ''.join(c for c in cleaned if c.isdigit() or c == '.')
+                                if cleaned:
+                                    total_installation += Decimal(cleaned)
+                            else:
+                                total_installation += Decimal(str(install_cost))
+                        except (ValueError, ArithmeticError):
+                            pass
+
+                    # Parse subscription cost
+                    subscription_cost = item.get('biaya_langganan_tahunan', 0)
+                    if subscription_cost:
+                        try:
+                            if isinstance(subscription_cost, str):
+                                cleaned = subscription_cost.replace(',', '.')
+                                cleaned = ''.join(c for c in cleaned if c.isdigit() or c == '.')
+                                if cleaned:
+                                    total_subscription += Decimal(cleaned)
+                            else:
+                                total_subscription += Decimal(str(subscription_cost))
+                        except (ValueError, ArithmeticError):
+                            pass
+
+            total_value = total_installation + total_subscription
+            if total_value > 0:
+                total_contract_value = str(total_value)
     except (AttributeError, TypeError, KeyError):
         # If data structure is unexpected, return None values
         pass
@@ -146,6 +188,7 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
         'contract_start_date': contract_start_date,
         'contract_end_date': contract_end_date,
         'payment_method': payment_method,
+        'total_contract_value': total_contract_value,
     }
 
 def _format_payment_method(payment_method: Optional[str]) -> str:
@@ -364,6 +407,7 @@ async def list_all_contract_items(
             contract_start_date=contract.period_start.isoformat() if contract.period_start else None,
             contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
             payment_method=_format_payment_method(contract.payment_method),
+            total_contract_value=str(contract.total_contract_value) if contract.total_contract_value else None,
             confirmed_by=contract.confirmed_by,
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
@@ -413,6 +457,7 @@ async def list_all_contract_items(
             contract_start_date=display_data.get('contract_start_date'),
             contract_end_date=display_data.get('contract_end_date'),
             payment_method=_format_payment_method(display_data.get('payment_method')),
+            total_contract_value=display_data.get('total_contract_value'),
             confirmed_by=None,
             confirmed_at=None,
             created_at=job.created_at,
