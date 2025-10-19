@@ -7,7 +7,7 @@ import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UploadPage } from './pages/UploadPage';
-import { ContractsPage } from './pages/ContractsPage';
+import { ContractsPage as ContractsPageMain } from './pages/ContractsPage';
 import { ContractDetailPage } from './pages/ContractDetailPage';
 import { ContractEditPage } from './pages/ContractEditPage';
 import { ProcessingPage } from './pages/ProcessingPage';
@@ -42,7 +42,7 @@ function App() {
                     <Routes>
                       <Route path="/" element={<DashboardPage />} />
                       <Route path="/upload" element={<UploadPage />} />
-                      <Route path="/contracts" element={<ContractsPage />} />
+                      <Route path="/contracts" element={<ContractsPageMain />} />
                       <Route path="/contracts/:contractId" element={<ContractDetailPage />} />
                       <Route path="/contracts/:contractId/edit" element={<ContractEditPage />} />
                       <Route path="/processing/:jobId" element={<ProcessingPage />} />
