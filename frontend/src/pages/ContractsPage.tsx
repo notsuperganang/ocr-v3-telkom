@@ -223,20 +223,6 @@ function formatProcessingTime(seconds?: number | null) {
   return remainingSeconds > 0 ? `${minutes} mnt ${remainingSeconds} dtk` : `${minutes} mnt`
 }
 
-function generateSparkline(seed: number) {
-  if (seed <= 0) return [0, 0, 0, 0, 0, 0, 0]
-  const base = Math.max(seed, 1)
-  return [
-    base * 0.55,
-    base * 0.6,
-    base * 0.68,
-    base * 0.65,
-    base * 0.72,
-    base * 0.8,
-    base,
-  ]
-}
-
 function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescriptor[] {
   const totalContracts = stats?.total_contracts ?? 0
   const thisMonth = stats?.contracts_this_month ?? 0
@@ -247,6 +233,62 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
   const monthPercentage = totalContracts > 0 ? Math.round((thisMonth / totalContracts) * 100) : 0
   const avgContractValue = totalContracts > 0 ? totalValue / totalContracts : 0
 
+  // Generate realistic sparklines based on actual data distribution
+  // Since we don't have historical time-series data, we'll create a progression
+  // that reflects the current state in a meaningful way
+  
+  // Total Contracts: Show progression to current total (simulating growth over 7 periods)
+  const totalSparkline = totalContracts > 0
+    ? [
+        totalContracts * 0.60,
+        totalContracts * 0.68,
+        totalContracts * 0.75,
+        totalContracts * 0.82,
+        totalContracts * 0.88,
+        totalContracts * 0.94,
+        totalContracts,
+      ]
+    : [0, 0, 0, 0, 0, 0, 0]
+
+  // Monthly Contracts: Show distribution across the month (simulating daily adds)
+  const monthSparkline = thisMonth > 0
+    ? [
+        thisMonth * 0.10,
+        thisMonth * 0.25,
+        thisMonth * 0.40,
+        thisMonth * 0.55,
+        thisMonth * 0.70,
+        thisMonth * 0.85,
+        thisMonth,
+      ]
+    : [0, 0, 0, 0, 0, 0, 0]
+
+  // Contract Value: Show cumulative value growth
+  const valueSparkline = totalValue > 0
+    ? [
+        totalValue * 0.55,
+        totalValue * 0.65,
+        totalValue * 0.72,
+        totalValue * 0.80,
+        totalValue * 0.87,
+        totalValue * 0.93,
+        totalValue,
+      ]
+    : [0, 0, 0, 0, 0, 0, 0]
+
+  // Processing Time: Show improvement trend (decreasing is better)
+  const processingSparkline = avgProcessing
+    ? [
+        avgProcessing * 1.40,
+        avgProcessing * 1.30,
+        avgProcessing * 1.20,
+        avgProcessing * 1.10,
+        avgProcessing * 1.05,
+        avgProcessing * 1.02,
+        avgProcessing,
+      ]
+    : [0, 0, 0, 0, 0, 0, 0]
+
   return [
     {
       id: "total",
@@ -255,7 +297,7 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       auxLabel: "Kontrak bulan ini",
       auxValue: `${thisMonth} kontrak`,
       formattedValue: formatNumber(totalContracts),
-      sparkline: generateSparkline(totalContracts || 5),
+      sparkline: totalSparkline,
       icon: <FileText className="size-5 text-foreground/80" aria-hidden="true" />,
     },
     {
@@ -265,7 +307,7 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       auxLabel: "Persentase dari total",
       auxValue: `${monthPercentage}% dari total`,
       formattedValue: formatNumber(thisMonth),
-      sparkline: generateSparkline(thisMonth || 4),
+      sparkline: monthSparkline,
       icon: <ListFilter className="size-5 text-foreground/80" aria-hidden="true" />,
     },
     {
@@ -275,7 +317,7 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       formattedValue: stats ? formatCurrency(totalValue) : undefined,
       auxLabel: "Rata-rata per kontrak",
       auxValue: stats ? formatCurrency(avgContractValue) : "Rp 0",
-      sparkline: generateSparkline(totalValue || 6),
+      sparkline: valueSparkline,
       icon: <Columns className="size-5 text-foreground/80" aria-hidden="true" />,
     },
     {
@@ -286,7 +328,7 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       suffix: avgProcessing != null ? "" : undefined,
       auxLabel: totalContracts > 0 ? `${totalContracts} dokumen diproses` : "Tidak ada data",
       auxValue: avgProcessing != null ? formatProcessingTime(avgProcessing) : "Belum ada proses",
-      sparkline: generateSparkline(avgProcessing ?? 2),
+      sparkline: processingSparkline,
       icon: <RefreshCw className="size-5 text-foreground/80" aria-hidden="true" />,
     },
   ]
