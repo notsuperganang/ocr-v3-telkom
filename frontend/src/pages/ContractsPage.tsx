@@ -307,7 +307,7 @@ function buildKpiDescriptors(stats?: ContractStatsResponse | null): KpiDescripto
       auxLabel: "Persentase dari total",
       auxValue: `${monthPercentage}% dari total`,
       formattedValue: formatNumber(thisMonth),
-      sparkline: monthSparkline,
+      sparkline: monthSparkline,  
       icon: <ListFilter className="size-5 text-foreground/80" aria-hidden="true" />,
     },
     {

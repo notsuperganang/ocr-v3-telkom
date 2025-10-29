@@ -112,3 +112,6 @@ project-brief.md
 data
 
 backend/storage
+.gemini/
+gha-creds-*.json
+.github/
