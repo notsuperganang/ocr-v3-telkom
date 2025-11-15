@@ -204,7 +204,7 @@ CREATE TABLE public.files (
     size_bytes bigint NOT NULL,
     mime_type character varying NOT NULL,
     uploaded_at timestamp with time zone DEFAULT now(),
-    pdf_path character varying NOT NULL
+    pdf_path character varying NOT NULL0
 );
 
 
