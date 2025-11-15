@@ -1,258 +1,499 @@
--- Telkom Contract Extractor - Database Schema
--- PostgreSQL 15+
--- Generated from SQLAlchemy models on 2025-10-06
+--
+-- PostgreSQL database dump
+--
 
--- Enable UUID extension (optional, for future use)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+\restrict 0OlIjrW308agoUidZVQArHRV5frEUXM8ssr7Kii5skAjMEj2XuPqK31iacQaSlI
 
--- ============================================================================
--- ENUMERATIONS
--- ============================================================================
+-- Dumped from database version 18.1
+-- Dumped by pg_dump version 18.1
 
--- Job status enumeration
-CREATE TYPE jobstatus AS ENUM (
-    'queued',
-    'processing',
-    'extracted',
-    'awaiting_review',
-    'confirmed',
-    'failed'
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: exporttarget; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.exporttarget AS ENUM (
+    'JSON',
+    'EXCEL'
 );
 
--- Export target enumeration
-CREATE TYPE exporttarget AS ENUM (
-    'json',
-    'excel'
+
+--
+-- Name: jobstatus; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.jobstatus AS ENUM (
+    'QUEUED',
+    'PROCESSING',
+    'EXTRACTED',
+    'AWAITING_REVIEW',
+    'CONFIRMED',
+    'FAILED'
 );
 
--- ============================================================================
--- CORE TABLES
--- ============================================================================
 
--- Files table: Uploaded PDF files metadata
-CREATE TABLE files (
-    id SERIAL PRIMARY KEY,
-    original_filename VARCHAR NOT NULL,
-    size_bytes BIGINT NOT NULL,
-    mime_type VARCHAR NOT NULL,
-    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    pdf_path VARCHAR NOT NULL
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: alembic_version; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.alembic_version (
+    version_num character varying(32) NOT NULL
 );
 
--- Create index on uploaded_at for sorting
-CREATE INDEX idx_files_uploaded_at ON files(uploaded_at DESC);
 
--- Processing Jobs table: OCR processing queue and staging results
-CREATE TABLE processing_jobs (
-    id SERIAL PRIMARY KEY,
-    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
-    status jobstatus NOT NULL DEFAULT 'queued',
+--
+-- Name: contracts; Type: TABLE; Schema: public; Owner: -
+--
 
-    -- Data fields (JSONB for flexibility)
-    extracted_data JSONB,  -- Raw extractor function output
-    edited_data JSONB,     -- Draft from UI right panel, auto-saved
-    ocr_artifacts JSONB,   -- OCR JSON file paths per page
-
-    -- Processing metadata
-    error_message TEXT,
-    processing_started_at TIMESTAMP WITH TIME ZONE,
-    processing_completed_at TIMESTAMP WITH TIME ZONE,
-    processing_time_seconds DOUBLE PRECISION,
-
-    -- Audit fields
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    reviewed_by VARCHAR,
-    reviewed_at TIMESTAMP WITH TIME ZONE
+CREATE TABLE public.contracts (
+    id integer NOT NULL,
+    source_job_id integer NOT NULL,
+    file_id integer NOT NULL,
+    final_data jsonb NOT NULL,
+    version integer,
+    confirmed_by character varying,
+    confirmed_at timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    customer_name character varying(500),
+    customer_npwp character varying(50),
+    period_start date,
+    period_end date,
+    service_connectivity integer DEFAULT 0 NOT NULL,
+    service_non_connectivity integer DEFAULT 0 NOT NULL,
+    service_bundling integer DEFAULT 0 NOT NULL,
+    payment_method character varying(20),
+    termin_count integer,
+    installation_cost numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    annual_subscription_cost numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    total_contract_value numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    customer_address text,
+    rep_name text,
+    rep_title text,
+    customer_contact_name text,
+    customer_contact_title text,
+    customer_contact_email text,
+    customer_contact_phone text,
+    period_start_raw text,
+    period_end_raw text,
+    telkom_contact_name text,
+    telkom_contact_title text,
+    telkom_contact_email text,
+    telkom_contact_phone text,
+    payment_description text,
+    termin_total_count integer,
+    termin_total_amount numeric(18,2),
+    payment_raw_text text,
+    termin_payments_json jsonb,
+    extraction_timestamp timestamp with time zone,
+    contract_processing_time_sec double precision
 );
 
--- Create indexes for processing_jobs
-CREATE INDEX idx_processing_jobs_file_id ON processing_jobs(file_id);
-CREATE INDEX idx_processing_jobs_status ON processing_jobs(status);
-CREATE INDEX idx_processing_jobs_created_at ON processing_jobs(created_at DESC);
 
--- Contracts table: Final 'committed' contract data
-CREATE TABLE contracts (
-    id SERIAL PRIMARY KEY,
-    source_job_id INTEGER NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
-    file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+--
+-- Name: contracts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
 
-    -- Final confirmed data
-    final_data JSONB NOT NULL,  -- Merged edited_data from job
-    version INTEGER DEFAULT 1,  -- For future versioning
+CREATE SEQUENCE public.contracts_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
-    -- Confirmation metadata
-    confirmed_by VARCHAR,
-    confirmed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-    -- Audit fields
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+--
+-- Name: contracts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.contracts_id_seq OWNED BY public.contracts.id;
+
+
+--
+-- Name: export_history; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.export_history (
+    id integer NOT NULL,
+    contract_id integer NOT NULL,
+    export_target public.exporttarget NOT NULL,
+    export_path character varying,
+    status character varying,
+    notes text,
+    exported_at timestamp with time zone DEFAULT now()
 );
 
--- Create indexes for contracts
-CREATE INDEX idx_contracts_source_job_id ON contracts(source_job_id);
-CREATE INDEX idx_contracts_file_id ON contracts(file_id);
-CREATE INDEX idx_contracts_confirmed_at ON contracts(confirmed_at DESC);
-CREATE INDEX idx_contracts_created_at ON contracts(created_at DESC);
 
--- GIN index for JSONB queries on final_data (for searching within contract data)
-CREATE INDEX idx_contracts_final_data_gin ON contracts USING GIN(final_data);
+--
+-- Name: export_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
 
--- Extraction Logs table: Processing logs and audit trail
-CREATE TABLE extraction_logs (
-    id SERIAL PRIMARY KEY,
-    job_id INTEGER NOT NULL REFERENCES processing_jobs(id) ON DELETE CASCADE,
+CREATE SEQUENCE public.export_history_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
-    level VARCHAR NOT NULL,  -- INFO, WARNING, ERROR, DEBUG
-    message TEXT NOT NULL,
-    details JSONB,  -- Additional structured data
 
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+--
+-- Name: export_history_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.export_history_id_seq OWNED BY public.export_history.id;
+
+
+--
+-- Name: extraction_logs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.extraction_logs (
+    id integer NOT NULL,
+    job_id integer NOT NULL,
+    level character varying NOT NULL,
+    message text NOT NULL,
+    details jsonb,
+    created_at timestamp with time zone DEFAULT now()
 );
 
--- Create indexes for extraction_logs
-CREATE INDEX idx_extraction_logs_job_id ON extraction_logs(job_id);
-CREATE INDEX idx_extraction_logs_level ON extraction_logs(level);
-CREATE INDEX idx_extraction_logs_created_at ON extraction_logs(created_at DESC);
 
--- Export History table: Export tracking and history
-CREATE TABLE export_history (
-    id SERIAL PRIMARY KEY,
-    contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+--
+-- Name: extraction_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
 
-    export_target exporttarget NOT NULL,
-    export_path VARCHAR,  -- Path to generated file (if applicable)
-    status VARCHAR DEFAULT 'success',  -- success, failed
-    notes TEXT,
+CREATE SEQUENCE public.extraction_logs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
-    exported_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+
+--
+-- Name: extraction_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.extraction_logs_id_seq OWNED BY public.extraction_logs.id;
+
+
+--
+-- Name: files; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.files (
+    id integer NOT NULL,
+    original_filename character varying NOT NULL,
+    size_bytes bigint NOT NULL,
+    mime_type character varying NOT NULL,
+    uploaded_at timestamp with time zone DEFAULT now(),
+    pdf_path character varying NOT NULL
 );
 
--- Create indexes for export_history
-CREATE INDEX idx_export_history_contract_id ON export_history(contract_id);
-CREATE INDEX idx_export_history_exported_at ON export_history(exported_at DESC);
 
--- ============================================================================
--- TRIGGERS
--- ============================================================================
+--
+-- Name: files_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
 
--- Trigger to automatically update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE SEQUENCE public.files_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
--- Apply trigger to processing_jobs table
-CREATE TRIGGER update_processing_jobs_updated_at
-    BEFORE UPDATE ON processing_jobs
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
 
--- Apply trigger to contracts table
-CREATE TRIGGER update_contracts_updated_at
-    BEFORE UPDATE ON contracts
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+--
+-- Name: files_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
 
--- ============================================================================
--- VIEWS (Optional: Useful for reporting)
--- ============================================================================
+ALTER SEQUENCE public.files_id_seq OWNED BY public.files.id;
 
--- View: Contract summary with file information
-CREATE OR REPLACE VIEW v_contract_summary AS
-SELECT
-    c.id AS contract_id,
-    c.confirmed_at,
-    c.confirmed_by,
-    f.id AS file_id,
-    f.original_filename,
-    f.size_bytes,
-    pj.id AS job_id,
-    pj.status AS job_status,
-    pj.processing_time_seconds,
-    c.final_data->>'informasi_pelanggan' AS customer_info,
-    c.final_data->>'jangka_waktu' AS contract_period,
-    c.final_data->>'tata_cara_pembayaran' AS payment_method
-FROM contracts c
-JOIN files f ON c.file_id = f.id
-JOIN processing_jobs pj ON c.source_job_id = pj.id
-ORDER BY c.confirmed_at DESC;
 
--- View: Processing job statistics
-CREATE OR REPLACE VIEW v_processing_stats AS
-SELECT
-    status,
-    COUNT(*) AS count,
-    AVG(processing_time_seconds) AS avg_processing_time,
-    MIN(processing_time_seconds) AS min_processing_time,
-    MAX(processing_time_seconds) AS max_processing_time
-FROM processing_jobs
-WHERE processing_time_seconds IS NOT NULL
-GROUP BY status;
+--
+-- Name: processing_jobs; Type: TABLE; Schema: public; Owner: -
+--
 
--- ============================================================================
--- SAMPLE QUERIES (Commented - for reference)
--- ============================================================================
+CREATE TABLE public.processing_jobs (
+    id integer NOT NULL,
+    file_id integer NOT NULL,
+    status public.jobstatus NOT NULL,
+    extracted_data jsonb,
+    edited_data jsonb,
+    ocr_artifacts jsonb,
+    error_message text,
+    processing_started_at timestamp with time zone,
+    processing_completed_at timestamp with time zone,
+    processing_time_seconds double precision,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    reviewed_by character varying,
+    reviewed_at timestamp with time zone
+);
 
--- Get all contracts with customer names
--- SELECT
---     c.id,
---     c.final_data->'informasi_pelanggan'->>'nama_pelanggan' AS customer_name,
---     c.confirmed_at
--- FROM contracts c
--- ORDER BY c.confirmed_at DESC;
 
--- Get processing jobs awaiting review
--- SELECT
---     pj.id,
---     f.original_filename,
---     pj.status,
---     pj.created_at
--- FROM processing_jobs pj
--- JOIN files f ON pj.file_id = f.id
--- WHERE pj.status = 'awaiting_review'
--- ORDER BY pj.created_at ASC;
+--
+-- Name: processing_jobs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
 
--- Get contract value totals (requires extracting from JSONB)
--- SELECT
---     c.id,
---     (c.final_data->'rincian_layanan'->0->>'biaya_instalasi')::FLOAT AS installation_cost,
---     (c.final_data->'rincian_layanan'->0->>'biaya_langganan_tahunan')::FLOAT AS annual_subscription,
---     (c.final_data->'rincian_layanan'->0->>'biaya_instalasi')::FLOAT +
---     (c.final_data->'rincian_layanan'->0->>'biaya_langganan_tahunan')::FLOAT AS total_value
--- FROM contracts c
--- WHERE c.final_data->'rincian_layanan'->0 IS NOT NULL;
+CREATE SEQUENCE public.processing_jobs_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
 
--- ============================================================================
--- NOTES
--- ============================================================================
 
--- 1. JSONB Storage Strategy:
---    - extracted_data: Raw OCR extraction output (TelkomContractData schema)
---    - edited_data: User-modified draft data (same schema, auto-saved)
---    - final_data: Confirmed contract data (immutable after confirmation)
---    - ocr_artifacts: File paths to OCR result JSON files per page
+--
+-- Name: processing_jobs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
 
--- 2. Processing Flow:
---    queued → processing → extracted → awaiting_review → confirmed
---                                                      → failed
+ALTER SEQUENCE public.processing_jobs_id_seq OWNED BY public.processing_jobs.id;
 
--- 3. Data Integrity:
---    - ON DELETE CASCADE ensures orphaned records are cleaned up
---    - Foreign keys maintain referential integrity
---    - JSONB allows schema flexibility while maintaining structure
 
--- 4. Future Enhancements:
---    - Add users table for proper authentication (currently string-based)
---    - Add total_contract_value column for faster aggregations
---    - Add contract_number column extracted from final_data
---    - Add full-text search indexes on customer names
+--
+-- Name: contracts id; Type: DEFAULT; Schema: public; Owner: -
+--
 
--- 5. Performance Considerations:
---    - GIN index on final_data enables fast JSONB queries
---    - Regular B-tree indexes on foreign keys and timestamps
---    - Consider partitioning contracts table by year for large datasets
+ALTER TABLE ONLY public.contracts ALTER COLUMN id SET DEFAULT nextval('public.contracts_id_seq'::regclass);
+
+
+--
+-- Name: export_history id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.export_history ALTER COLUMN id SET DEFAULT nextval('public.export_history_id_seq'::regclass);
+
+
+--
+-- Name: extraction_logs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.extraction_logs ALTER COLUMN id SET DEFAULT nextval('public.extraction_logs_id_seq'::regclass);
+
+
+--
+-- Name: files id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files ALTER COLUMN id SET DEFAULT nextval('public.files_id_seq'::regclass);
+
+
+--
+-- Name: processing_jobs id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.processing_jobs ALTER COLUMN id SET DEFAULT nextval('public.processing_jobs_id_seq'::regclass);
+
+
+--
+-- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.alembic_version
+    ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
+
+
+--
+-- Name: contracts contracts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contracts
+    ADD CONSTRAINT contracts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: export_history export_history_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.export_history
+    ADD CONSTRAINT export_history_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: extraction_logs extraction_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.extraction_logs
+    ADD CONSTRAINT extraction_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: files files_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: processing_jobs processing_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.processing_jobs
+    ADD CONSTRAINT processing_jobs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ix_contracts_confirmed_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_confirmed_at ON public.contracts USING btree (confirmed_at DESC);
+
+
+--
+-- Name: ix_contracts_confirmed_at_value; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_confirmed_at_value ON public.contracts USING btree (confirmed_at, total_contract_value);
+
+
+--
+-- Name: ix_contracts_customer_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_customer_name ON public.contracts USING btree (customer_name);
+
+
+--
+-- Name: ix_contracts_customer_npwp; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_customer_npwp ON public.contracts USING btree (customer_npwp);
+
+
+--
+-- Name: ix_contracts_extraction_timestamp; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_extraction_timestamp ON public.contracts USING btree (extraction_timestamp DESC);
+
+
+--
+-- Name: ix_contracts_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_id ON public.contracts USING btree (id);
+
+
+--
+-- Name: ix_contracts_payment_method; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_payment_method ON public.contracts USING btree (payment_method);
+
+
+--
+-- Name: ix_contracts_payment_termin; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_payment_termin ON public.contracts USING btree (payment_method, termin_total_count, termin_total_amount);
+
+
+--
+-- Name: ix_contracts_period_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_period_start ON public.contracts USING btree (period_start DESC);
+
+
+--
+-- Name: ix_contracts_total_value; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_contracts_total_value ON public.contracts USING btree (total_contract_value DESC);
+
+
+--
+-- Name: ix_export_history_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_export_history_id ON public.export_history USING btree (id);
+
+
+--
+-- Name: ix_extraction_logs_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_extraction_logs_id ON public.extraction_logs USING btree (id);
+
+
+--
+-- Name: ix_files_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_files_id ON public.files USING btree (id);
+
+
+--
+-- Name: ix_processing_jobs_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ix_processing_jobs_id ON public.processing_jobs USING btree (id);
+
+
+--
+-- Name: contracts contracts_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contracts
+    ADD CONSTRAINT contracts_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id);
+
+
+--
+-- Name: contracts contracts_source_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contracts
+    ADD CONSTRAINT contracts_source_job_id_fkey FOREIGN KEY (source_job_id) REFERENCES public.processing_jobs(id);
+
+
+--
+-- Name: export_history export_history_contract_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.export_history
+    ADD CONSTRAINT export_history_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(id);
+
+
+--
+-- Name: extraction_logs extraction_logs_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.extraction_logs
+    ADD CONSTRAINT extraction_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES public.processing_jobs(id);
+
+
+--
+-- Name: processing_jobs processing_jobs_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.processing_jobs
+    ADD CONSTRAINT processing_jobs_file_id_fkey FOREIGN KEY (file_id) REFERENCES public.files(id);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict 0OlIjrW308agoUidZVQArHRV5frEUXM8ssr7Kii5skAjMEj2XuPqK31iacQaSlI
+
