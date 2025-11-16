@@ -343,3 +343,14 @@ def sync_contract_terms_from_final_data(
         f"Termin sync completed for contract {contract.id}: "
         f"created={created_count}, updated={updated_count}, deleted={deleted_count}"
     )
+
+    # Auto-update statuses after sync completes
+    from app.services.termin_status import update_termin_statuses
+
+    status_result = update_termin_statuses(db=db, contract_id=contract.id, dry_run=False)
+
+    if status_result["updated"] > 0:
+        logger.info(
+            f"Auto-updated {status_result['updated']} termin statuses "
+            f"during sync for contract {contract.id}"
+        )
