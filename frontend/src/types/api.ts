@@ -139,3 +139,31 @@ export interface ApiError {
 }
 
 export type JobStatus = 'queued' | 'processing' | 'extracted' | 'awaiting_review' | 'confirmed' | 'failed';
+
+// Termin Payment Types
+export type TerminPaymentStatus = 'PENDING' | 'DUE' | 'OVERDUE' | 'PAID' | 'CANCELLED';
+
+export interface TerminPayment {
+  id: number;
+  contract_id: number;
+  termin_number: number;
+  period_label: string;
+  period_year: number;
+  period_month: number;
+  original_amount: string;
+  amount: string;
+  status: TerminPaymentStatus;
+  paid_at?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateTerminPaymentRequest {
+  status?: TerminPaymentStatus;
+  paid_at?: string | null;
+  notes?: string | null;
+  amount?: string | null;
+}
