@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, DollarSign, Receipt, Clock, CreditCard, Repeat, ListChecks, Layers, MoreVertical, StickyNote, CheckCircle2 } from 'lucide-react';
+import { Calendar, DollarSign, Receipt, Clock, CreditCard, Repeat, ListChecks, Layers, MoreVertical, StickyNote, CheckCircle2, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { computeServiceBreakdown, type ServiceItem } from '@/lib/calculations';
 import { formatIDR } from '@/lib/currency';
@@ -77,7 +78,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
   const { data: terminPaymentsData, isLoading: isLoadingTermins } = useTerminPayments(contractId);
 
   // State for modal management
-  const [selectedTermin, setSelectedTermin] = useState<{ terminNumber: number; mode: 'paid' | 'note' } | null>(null);
+  const [selectedTermin, setSelectedTermin] = useState<{ terminNumber: number; mode: 'paid' | 'note' | 'cancel' } | null>(null);
 
   const breakdown = computeServiceBreakdown(serviceItems, startDate, endDate);
 
@@ -449,6 +450,18 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                                 <StickyNote className="mr-2 h-4 w-4" />
                                 Ubah catatan
                               </DropdownMenuItem>
+                              {!isPaid && tp.status !== 'CANCELLED' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => setSelectedTermin({ terminNumber, mode: 'cancel' })}
+                                    className="text-red-600 focus:text-white focus:bg-red-600"
+                                  >
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    Batalkan termin
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -471,9 +484,9 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                               </div>
                             )}
                             {hasNotes && (
-                              <div className="flex items-center gap-1.5 text-slate-500">
-                                <StickyNote className="h-3 w-3" />
-                                <span className="truncate">Catatan tersedia</span>
+                              <div className="flex items-start gap-1.5 text-slate-500">
+                                <StickyNote className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                <span className="text-xs leading-relaxed break-words">{tp.notes}</span>
                               </div>
                             )}
                           </div>
