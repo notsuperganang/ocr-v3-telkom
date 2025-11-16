@@ -1,6 +1,6 @@
 /**
  * Termin Payment Management Modal
- * Two modes: Mark as Paid and Edit Note
+ * Three modes: Mark as Paid, Edit Note, and Cancel
  */
 import { useState } from 'react';
 import { format } from 'date-fns';
@@ -26,7 +26,7 @@ import type { TerminPayment } from '@/types/api';
 interface TerminPaymentModalProps {
   open: boolean;
   onClose: () => void;
-  mode: 'paid' | 'note';
+  mode: 'paid' | 'note' | 'cancel';
   contractId: number;
   terminNumber: number;
   terminData?: TerminPayment | null;
@@ -70,6 +70,17 @@ export function TerminPaymentModal({
           },
         });
         toast.success('Termin berhasil ditandai sebagai lunas');
+      } else if (mode === 'cancel') {
+        // Cancel mode: update status to CANCELLED and add cancellation reason in notes
+        await updateMutation.mutateAsync({
+          contractId,
+          terminNumber,
+          data: {
+            status: 'CANCELLED',
+            notes: notes.trim() || undefined,
+          },
+        });
+        toast.success('Termin berhasil dibatalkan');
       } else {
         // Edit Note mode: only update notes
         await updateMutation.mutateAsync({
@@ -104,7 +115,11 @@ export function TerminPaymentModal({
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {mode === 'paid' ? `Tandai Termin ${terminNumber} sebagai Lunas` : `Ubah Catatan Termin ${terminNumber}`}
+            {mode === 'paid' 
+              ? `Tandai Termin ${terminNumber} sebagai Lunas` 
+              : mode === 'cancel'
+              ? `Batalkan Termin ${terminNumber}`
+              : `Ubah Catatan Termin ${terminNumber}`}
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
             <div className="text-sm text-slate-600">
@@ -116,6 +131,11 @@ export function TerminPaymentModal({
                 </>
               )}
             </div>
+            {mode === 'cancel' && (
+              <p className="text-sm text-red-600 font-medium">
+                Termin yang dibatalkan tidak dapat dikembalikan. Pastikan tindakan ini sudah benar.
+              </p>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -137,13 +157,13 @@ export function TerminPaymentModal({
 
           <div className="space-y-2">
             <Label htmlFor="notes">
-              Catatan {mode === 'note' ? '' : '(Opsional)'}
+              {mode === 'cancel' ? 'Alasan Pembatalan (Opsional)' : `Catatan ${mode === 'note' ? '' : '(Opsional)'}`}
             </Label>
             <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Tambahkan catatan untuk termin ini..."
+              placeholder={mode === 'cancel' ? 'Jelaskan alasan pembatalan termin ini...' : 'Tambahkan catatan untuk termin ini...'}
               rows={4}
               className="resize-none"
             />
@@ -157,9 +177,15 @@ export function TerminPaymentModal({
           <AlertDialogAction
             onClick={handleSubmit}
             disabled={updateMutation.isPending}
-            className="bg-rose-600 hover:bg-rose-700"
+            className={mode === 'cancel' ? 'bg-red-600 hover:bg-red-700' : 'bg-rose-600 hover:bg-rose-700'}
           >
-            {updateMutation.isPending ? 'Menyimpan...' : mode === 'paid' ? 'Tandai Lunas' : 'Simpan'}
+            {updateMutation.isPending 
+              ? 'Menyimpan...' 
+              : mode === 'paid' 
+              ? 'Tandai Lunas' 
+              : mode === 'cancel'
+              ? 'Batalkan Termin'
+              : 'Simpan'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
