@@ -12,6 +12,7 @@ export const contractKeys = {
     [...contractKeys.unifiedLists(), params] as const,
   details: () => [...contractKeys.all, 'detail'] as const,
   detail: (id: number) => [...contractKeys.details(), id] as const,
+  terminPayments: (contractId: number) => [...contractKeys.detail(contractId), 'termin-payments'] as const,
 };
 
 // Hook for fetching contracts list with pagination and search
@@ -175,4 +176,43 @@ export function useInvalidateContracts() {
   return () => {
     queryClient.invalidateQueries({ queryKey: contractKeys.all });
   };
+}
+
+// Hook for fetching termin payments for a contract
+export function useTerminPayments(contractId: number) {
+  return useQuery({
+    queryKey: contractKeys.terminPayments(contractId),
+    queryFn: () => apiService.getTerminPayments(contractId),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false,
+    retry: 2,
+    enabled: !!contractId,
+  });
+}
+
+// Hook for updating a termin payment
+export function useUpdateTerminPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      contractId,
+      terminNumber,
+      data
+    }: {
+      contractId: number;
+      terminNumber: number;
+      data: any
+    }) =>
+      apiService.updateTerminPayment(contractId, terminNumber, data),
+    onSuccess: (updatedTermin) => {
+      // Invalidate termin payments query to refetch latest data
+      queryClient.invalidateQueries({ queryKey: contractKeys.terminPayments(updatedTermin.contract_id) });
+      // Also invalidate contract detail in case denormalized fields changed
+      queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedTermin.contract_id) });
+    },
+    onError: (error) => {
+      console.error('Failed to update termin payment:', error);
+    },
+  });
 }
