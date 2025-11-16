@@ -53,7 +53,7 @@ class DenormFields:
     termin_total_count: Optional[int] = None
     termin_total_amount: Optional[Decimal] = None
     payment_raw_text: Optional[str] = None
-    termin_payments_json: Optional[List[Dict[str, Any]]] = None
+    termin_payments_raw: Optional[List[Dict[str, Any]]] = None
 
     # Extended fields - Extraction Metadata
     extraction_timestamp: Optional[datetime] = None
@@ -348,8 +348,8 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
     termin_payments_list = _safe_get(final_data, 'tata_cara_pembayaran', 'termin_payments', default=[])
     termin_total_count, termin_total_amount = _compute_termin_summary(termin_payments_list)
 
-    # Store termin payments JSON for detail inspection (only if it's a list)
-    termin_payments_json = termin_payments_list if isinstance(termin_payments_list, list) else None
+    # Store termin payments raw snapshot for detail inspection (only if it's a list)
+    termin_payments_raw = termin_payments_list if isinstance(termin_payments_list, list) else None
 
     # E. Extraction Metadata
     extraction_timestamp_str = _safe_get(final_data, 'extraction_timestamp')
@@ -408,7 +408,7 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
         termin_total_count=termin_total_count,
         termin_total_amount=termin_total_amount,
         payment_raw_text=payment_raw_text,
-        termin_payments_json=termin_payments_json,
+        termin_payments_raw=termin_payments_raw,
         # Extended fields - Extraction Metadata
         extraction_timestamp=extraction_timestamp,
         contract_processing_time_sec=contract_processing_time_sec,
