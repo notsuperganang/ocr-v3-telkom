@@ -2,15 +2,27 @@
  * Service Details Section for Contract Detail Page
  * Unified single card: Rincian Detail Layanan (period + cost breakdown)
  */
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, DollarSign, Receipt, Clock, CreditCard, Repeat, ListChecks, Layers } from 'lucide-react';
+import { Calendar, DollarSign, Receipt, Clock, CreditCard, Repeat, ListChecks, Layers, MoreVertical, StickyNote, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { computeServiceBreakdown, type ServiceItem } from '@/lib/calculations';
 import { formatIDR } from '@/lib/currency';
+import { useTerminPayments } from '@/hooks/useContracts';
+import type { TerminPaymentStatus } from '@/types/api';
+import { TerminPaymentModal } from './TerminPaymentModal';
 
 interface ServiceDetailsSectionProps {
+  contractId: number;
   serviceItems: ServiceItem[];
   startDate?: string | null;
   endDate?: string | null;
@@ -28,6 +40,24 @@ interface ServiceDetailsSectionProps {
   } | null;
 }
 
+// Helper function to get status badge variant and label
+const getStatusBadgeConfig = (status: TerminPaymentStatus) => {
+  switch (status) {
+    case 'PENDING':
+      return { variant: 'outline' as const, label: 'Pending', className: 'bg-slate-50 text-slate-600 border-slate-200' };
+    case 'DUE':
+      return { variant: 'outline' as const, label: 'Jatuh Tempo', className: 'bg-amber-50 text-amber-700 border-amber-200' };
+    case 'OVERDUE':
+      return { variant: 'outline' as const, label: 'Terlambat', className: 'bg-red-50 text-red-700 border-red-200' };
+    case 'PAID':
+      return { variant: 'outline' as const, label: 'Lunas', className: 'bg-green-50 text-green-700 border-green-200' };
+    case 'CANCELLED':
+      return { variant: 'outline' as const, label: 'Dibatalkan', className: 'bg-gray-50 text-gray-500 border-gray-200' };
+    default:
+      return { variant: 'outline' as const, label: status, className: 'bg-slate-50 text-slate-600 border-slate-200' };
+  }
+};
+
 const sectionVariants = {
   initial: { opacity: 0, y: 24 },
   animate: { opacity: 1, y: 0 },
@@ -40,8 +70,14 @@ const subtlePulse = {
   },
 };
 
-export function ServiceDetailsSection({ serviceItems, startDate, endDate, paymentMethod }: ServiceDetailsSectionProps) {
+export function ServiceDetailsSection({ contractId, serviceItems, startDate, endDate, paymentMethod }: ServiceDetailsSectionProps) {
   if (!serviceItems || serviceItems.length === 0) return null;
+
+  // Fetch termin payment management data from backend
+  const { data: terminPaymentsData, isLoading: isLoadingTermins } = useTerminPayments(contractId);
+
+  // State for modal management
+  const [selectedTermin, setSelectedTermin] = useState<{ terminNumber: number; mode: 'paid' | 'note' } | null>(null);
 
   const breakdown = computeServiceBreakdown(serviceItems, startDate, endDate);
 
@@ -59,6 +95,18 @@ export function ServiceDetailsSection({ serviceItems, startDate, endDate, paymen
   const isTermin = methodType === 'termin';
   const isRecurring = methodType === 'recurring';
   const isOTC = methodType === 'one_time_charge';
+
+  // Merge display data from final_data with backend termin payment data
+  const mergedTerminData = terminPayments.map((tp, idx) => {
+    const backendData = terminPaymentsData?.find(t => t.termin_number === (tp.termin_number ?? idx + 1));
+    return {
+      ...tp,
+      status: backendData?.status || 'PENDING',
+      paid_at: backendData?.paid_at,
+      notes: backendData?.notes,
+      id: backendData?.id,
+    };
+  });
 
   const methodLabelMap: Record<string, string> = {
     one_time_charge: 'One Time Charge',
@@ -348,29 +396,86 @@ export function ServiceDetailsSection({ serviceItems, startDate, endDate, paymen
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-rose-400">
                   <ListChecks className="h-3.5 w-3.5 text-rose-500" />
                   Jadwal Termin
+                  {isLoadingTermins && <span className="text-[0.5rem] text-slate-400">(Memuat...)</span>}
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {terminPayments.map((tp, idx) => {
+                  {mergedTerminData.map((tp, idx) => {
                     const label = tp.period || tp.raw_text || (tp.termin_number ? `Termin ${tp.termin_number}` : `Termin ${idx + 1}`);
+                    const terminNumber = tp.termin_number ?? idx + 1;
+                    const statusConfig = getStatusBadgeConfig(tp.status as TerminPaymentStatus);
+                    const isPaid = tp.status === 'PAID';
+                    const hasNotes = !!tp.notes;
+
                     return (
                       <motion.div
-                        key={idx}
+                        key={tp.id || idx}
                         whileHover={{ y: -3 }}
                         className="group relative overflow-hidden rounded-xl border border-rose-100/70 bg-white/80 p-4 shadow-sm"
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <p className="text-[0.55rem] font-semibold uppercase tracking-[0.25em] text-rose-400">{tp.termin_number ? `Termin ${tp.termin_number}` : `Termin ${idx + 1}`}</p>
+                        {/* Header with termin number and kebab menu */}
+                        <div className="mb-2 flex items-start justify-between">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-[0.55rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
+                                Termin {terminNumber}
+                              </p>
+                              <Badge variant={statusConfig.variant} className={`h-5 text-[0.5rem] ${statusConfig.className}`}>
+                                {isPaid && <CheckCircle2 className="mr-1 h-2.5 w-2.5" />}
+                                {statusConfig.label}
+                              </Badge>
+                            </div>
                             <p className="text-sm font-medium text-slate-900 break-words">{label}</p>
                           </div>
-                          <span className="rounded-full bg-rose-50 p-2 text-rose-500 shadow-inner shadow-rose-100">
-                            <Clock className="h-4 w-4" />
-                          </span>
+
+                          {/* Kebab menu for actions */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="rounded-full p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors">
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {!isPaid && (
+                                <DropdownMenuItem
+                                  onClick={() => setSelectedTermin({ terminNumber, mode: 'paid' })}
+                                >
+                                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                                  Tandai sebagai lunas
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                onClick={() => setSelectedTermin({ terminNumber, mode: 'note' })}
+                              >
+                                <StickyNote className="mr-2 h-4 w-4" />
+                                Ubah catatan
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
+
+                        {/* Amount display */}
                         {tp.amount !== undefined && tp.amount !== null && tp.amount > 0 && (
                           <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed border-rose-200 bg-rose-50/60 px-3 py-2 text-xs">
                             <span className="text-slate-500">Jumlah</span>
                             <span className="font-semibold text-rose-700">{formatIDR(tp.amount)}</span>
+                          </div>
+                        )}
+
+                        {/* Payment info and notes indicator */}
+                        {(isPaid || hasNotes) && (
+                          <div className="mt-3 space-y-1.5 text-[0.65rem]">
+                            {isPaid && tp.paid_at && (
+                              <div className="flex items-center gap-1.5 text-green-600">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Lunas • {formatDate(tp.paid_at)}</span>
+                              </div>
+                            )}
+                            {hasNotes && (
+                              <div className="flex items-center gap-1.5 text-slate-500">
+                                <StickyNote className="h-3 w-3" />
+                                <span className="truncate">Catatan tersedia</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </motion.div>
@@ -382,6 +487,24 @@ export function ServiceDetailsSection({ serviceItems, startDate, endDate, paymen
           </motion.div>
         </CardContent>
       </Card>
+
+      {/* Termin Payment Management Modal */}
+      {selectedTermin && (
+        <TerminPaymentModal
+          open={!!selectedTermin}
+          onClose={() => setSelectedTermin(null)}
+          mode={selectedTermin.mode}
+          contractId={contractId}
+          terminNumber={selectedTermin.terminNumber}
+          terminData={terminPaymentsData?.find(t => t.termin_number === selectedTermin.terminNumber)}
+          periodLabel={
+            mergedTerminData.find(t => (t.termin_number ?? 0) === selectedTermin.terminNumber)?.period ||
+            mergedTerminData.find(t => (t.termin_number ?? 0) === selectedTermin.terminNumber)?.raw_text ||
+            `Termin ${selectedTermin.terminNumber}`
+          }
+          amount={mergedTerminData.find(t => (t.termin_number ?? 0) === selectedTermin.terminNumber)?.amount || 0}
+        />
+      )}
     </motion.div>
   );
 }

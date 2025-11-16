@@ -1058,6 +1058,7 @@ export function ContractDetailPage() {
 
       {/* Service Details with VAT Breakdown */}
       <ServiceDetailsSection
+        contractId={contract.id}
         serviceItems={serviceItems}
         startDate={timeInfo.mulai}
         endDate={timeInfo.akhir}
