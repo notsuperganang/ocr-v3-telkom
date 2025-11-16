@@ -5,6 +5,7 @@ Read-only endpoints for viewing and exporting confirmed contracts
 
 import os
 import json
+import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
@@ -13,6 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_, cast, String, func
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
@@ -23,6 +26,8 @@ from app.models.database import (
     ExportHistory,
     ExportTarget,
     JobStatus,
+    ContractTermPayment,
+    TerminPaymentStatus,
 )
 from app.config import settings
 
@@ -116,6 +121,35 @@ class UnifiedContractListResponse(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+# Termin Payment Models
+class TerminPaymentResponse(BaseModel):
+    """Response model for termin payment details"""
+    id: int
+    contract_id: int
+    termin_number: int
+    period_label: str
+    period_year: int
+    period_month: int
+    original_amount: str  # Decimal as string for JSON
+    amount: str  # Decimal as string for JSON
+    status: str  # PENDING, DUE, OVERDUE, PAID, CANCELLED
+    paid_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class UpdateTerminPaymentRequest(BaseModel):
+    """Request model for updating termin payment"""
+    status: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    amount: Optional[Decimal] = None
 
 def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
     """Extract display data from processing job's edited_data or extracted_data"""
@@ -838,4 +872,155 @@ async def delete_contract(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete contract: {str(e)}"
+        )
+
+@router.get("/{contract_id}/termin-payments", response_model=List[TerminPaymentResponse])
+async def get_termin_payments(
+    contract_id: int,
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """Get all termin payments for a contract"""
+    db, current_user = db_and_user
+
+    # Verify contract exists
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    # Auto-update termin statuses before returning
+    # This ensures dashboard queries get fresh status
+    from app.services.termin_status import update_termin_statuses
+
+    try:
+        update_result = update_termin_statuses(
+            db=db,
+            contract_id=contract_id,
+            dry_run=False
+        )
+        db.commit()  # Commit status updates
+
+        # Log if any updates occurred
+        if update_result["updated"] > 0:
+            logger.info(
+                f"Auto-updated {update_result['updated']} termin statuses "
+                f"for contract {contract_id}"
+            )
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Failed to auto-update termin statuses: {e}")
+        # Continue anyway - return current data
+
+    # Fetch termin payments ordered by termin number
+    termin_payments = db.query(ContractTermPayment).filter(
+        ContractTermPayment.contract_id == contract_id
+    ).order_by(ContractTermPayment.termin_number).all()
+
+    # Convert to response models (Decimal to string for JSON serialization)
+    return [
+        TerminPaymentResponse(
+            id=tp.id,
+            contract_id=tp.contract_id,
+            termin_number=tp.termin_number,
+            period_label=tp.period_label,
+            period_year=tp.period_year,
+            period_month=tp.period_month,
+            original_amount=str(tp.original_amount),
+            amount=str(tp.amount),
+            status=tp.status,
+            paid_at=tp.paid_at,
+            notes=tp.notes,
+            created_by=tp.created_by,
+            updated_by=tp.updated_by,
+            created_at=tp.created_at,
+            updated_at=tp.updated_at
+        )
+        for tp in termin_payments
+    ]
+
+@router.patch("/{contract_id}/termin-payments/{termin_number}", response_model=TerminPaymentResponse)
+async def update_termin_payment(
+    contract_id: int,
+    termin_number: int,
+    update_data: UpdateTerminPaymentRequest,
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """Update a specific termin payment (status, paid_at, notes, or amount)"""
+    db, current_user = db_and_user
+
+    # Verify contract exists
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    # Find the termin payment WITH ROW LOCK
+    # This prevents concurrent auto-updates during user edit
+    termin_payment = db.query(ContractTermPayment).filter(
+        ContractTermPayment.contract_id == contract_id,
+        ContractTermPayment.termin_number == termin_number
+    ).with_for_update().first()
+
+    if not termin_payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Termin payment {termin_number} not found for this contract"
+        )
+
+    # Validate status if provided
+    if update_data.status is not None:
+        valid_statuses = [s.value for s in TerminPaymentStatus]
+        if update_data.status not in valid_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            )
+        termin_payment.status = update_data.status
+
+    # Update fields if provided
+    if update_data.paid_at is not None:
+        termin_payment.paid_at = update_data.paid_at
+
+    if update_data.notes is not None:
+        termin_payment.notes = update_data.notes
+
+    if update_data.amount is not None:
+        termin_payment.amount = update_data.amount
+
+    # Update audit fields
+    termin_payment.updated_by = current_user
+    termin_payment.updated_at = datetime.now(timezone.utc)
+
+    try:
+        db.commit()
+        db.refresh(termin_payment)
+
+        # Return response with Decimal as string
+        return TerminPaymentResponse(
+            id=termin_payment.id,
+            contract_id=termin_payment.contract_id,
+            termin_number=termin_payment.termin_number,
+            period_label=termin_payment.period_label,
+            period_year=termin_payment.period_year,
+            period_month=termin_payment.period_month,
+            original_amount=str(termin_payment.original_amount),
+            amount=str(termin_payment.amount),
+            status=termin_payment.status,
+            paid_at=termin_payment.paid_at,
+            notes=termin_payment.notes,
+            created_by=termin_payment.created_by,
+            updated_by=termin_payment.updated_by,
+            created_at=termin_payment.created_at,
+            updated_at=termin_payment.updated_at
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update termin payment: {str(e)}"
         )
