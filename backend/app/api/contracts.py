@@ -636,6 +636,7 @@ async def update_contract(
 
     # Import denormalization service
     from app.services.denorm import compute_denorm_fields
+    from app.services.termin_sync import sync_contract_terms_from_final_data
 
     # Get contract
     contract = db.query(Contract).filter(Contract.id == contract_id).first()
@@ -690,7 +691,7 @@ async def update_contract(
         contract.termin_total_count = denorm_fields.termin_total_count
         contract.termin_total_amount = denorm_fields.termin_total_amount
         contract.payment_raw_text = denorm_fields.payment_raw_text
-        contract.termin_payments_json = denorm_fields.termin_payments_json
+        contract.termin_payments_raw = denorm_fields.termin_payments_raw
 
         # Extended fields - Extraction Metadata
         contract.extraction_timestamp = denorm_fields.extraction_timestamp
@@ -700,6 +701,9 @@ async def update_contract(
         if increment_version:
             contract.version += 1
         contract.updated_at = datetime.now(timezone.utc)
+
+        # Sync termin payments from final_data to ContractTermPayment rows
+        sync_contract_terms_from_final_data(db, contract, acting_user=current_user)
 
         db.commit()
         db.refresh(contract)
