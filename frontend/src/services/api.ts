@@ -11,7 +11,9 @@ import type {
   UnifiedContractListResponse,
   ContractDetail,
   ContractStatsResponse,
-  ApiError
+  ApiError,
+  TerminPayment,
+  UpdateTerminPaymentRequest
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -306,6 +308,25 @@ class ApiClient {
 
   async getContractStats(): Promise<ContractStatsResponse> {
     return this.request<ContractStatsResponse>('/api/contracts/stats/summary');
+  }
+
+  // Termin Payment Management
+  async getTerminPayments(contractId: number): Promise<TerminPayment[]> {
+    return this.request<TerminPayment[]>(`/api/contracts/${contractId}/termin-payments`);
+  }
+
+  async updateTerminPayment(
+    contractId: number,
+    terminNumber: number,
+    updateData: UpdateTerminPaymentRequest
+  ): Promise<TerminPayment> {
+    return this.request<TerminPayment>(
+      `/api/contracts/${contractId}/termin-payments/${terminNumber}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      }
+    );
   }
 }
 
