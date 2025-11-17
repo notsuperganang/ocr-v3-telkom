@@ -20,13 +20,13 @@ import {
   type TelkomContractFormData,
   type TelkomContractData
 } from '@/lib/validation';
-import { useAutoSave, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
+import { useUpdateExtraction, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
 
 interface ExtractionFormProps {
   jobId: number;
   initialData: TelkomContractData; // Backend data format
   onSave?: (data: TelkomContractData) => void; // Save as backend format
-  onConfirm?: () => void;
+  onConfirm?: (data?: TelkomContractData) => void; // Optional data parameter for contract mode
   onDiscard?: () => void;
   disabled?: boolean;
   mode?: 'job' | 'contract'; // 'job' for processing jobs, 'contract' for editing contracts
@@ -41,7 +41,6 @@ export function ExtractionForm({
   disabled = false,
   mode = 'job',
 }: ExtractionFormProps) {
-  const [lastSaveTime, setLastSaveTime] = React.useState<Date | null>(null);
 
   // Transform backend data to clean form data
   const formData = React.useMemo(() => backendToForm(initialData), [initialData]);
@@ -62,54 +61,56 @@ export function ExtractionForm({
     reset,
   } = form;
 
-  // Auto-save functionality
-  const { autoSave, flush, isSaving } = useAutoSave(jobId, 2000); // 2 second delay
-
   // Mutations
   const confirmMutation = useConfirmExtraction();
   const discardMutation = useDiscardExtraction();
+  const updateMutation = useUpdateExtraction(jobId);
 
-  // Watch all form data for auto-save
+  // Watch all form data
   const currentFormData = watch();
-
-  // Stabilize form data to prevent infinite loops
-  const stableFormData = React.useMemo(() => {
-    return JSON.stringify(currentFormData);
-  }, [currentFormData]);
-
-  // Auto-save when form data changes (transform to backend format)
-  React.useEffect(() => {
-    if (isDirty && isValid) {
-      const backendData = formToBackend(currentFormData);
-      if (mode === 'job') {
-        autoSave(backendData);
-      } else if (mode === 'contract' && onSave) {
-        // For contract mode, use the onSave callback instead
-        onSave(backendData);
-      }
-    }
-  }, [stableFormData, isDirty, isValid, autoSave, mode, onSave]);
-
-  // Update last save time when saving completes
-  const prevIsSaving = React.useRef(isSaving);
-  React.useEffect(() => {
-    if (prevIsSaving.current && !isSaving) {
-      setLastSaveTime(new Date());
-    }
-    prevIsSaving.current = isSaving;
-  }, [isSaving]);
 
   // Reset form when initial data changes (transform to form format)
   React.useEffect(() => {
     const newFormData = backendToForm(initialData);
     reset(newFormData);
-  }, [initialData, reset]);
+    // Trigger validation to sync isValid state
+    form.trigger();
+  }, [initialData, reset, form.trigger]);
+
+  // Trigger initial validation on mount
+  React.useEffect(() => {
+    form.trigger();
+  }, []);
+
+  // Manual save handler for job mode
+  const handleManualSave = async () => {
+    try {
+      const isFormValid = await form.trigger();
+      if (!isFormValid) {
+        alert('Silakan perbaiki kesalahan validasi sebelum menyimpan');
+        return;
+      }
+
+      const currentFormData = form.getValues();
+      const backendData = formToBackend(currentFormData);
+
+      if (mode === 'job') {
+        await updateMutation.mutateAsync(backendData);
+      } else if (mode === 'contract' && onSave) {
+        onSave(backendData);
+      }
+    } catch (error) {
+      console.error('Save failed:', error);
+      alert('Gagal menyimpan data');
+    }
+  };
 
   // Confirm handler
   const handleConfirm = async () => {
     try {
       const isFormValid = await form.trigger();
       if (!isFormValid) {
+        alert('Silakan perbaiki kesalahan validasi sebelum konfirmasi');
         return;
       }
 
@@ -121,15 +122,21 @@ export function ExtractionForm({
         return;
       }
 
-      // Flush any pending auto-save before confirming (only for job mode)
       if (mode === 'job') {
-        await flush();
+        // IMPORTANT: Save the edited data first before confirming
+        // The confirm endpoint reads edited_data from the database
+        await updateMutation.mutateAsync(backendData);
+        // Then confirm (backend will create contract from saved edited_data)
         confirmMutation.mutate(jobId);
+        onConfirm?.();
+      } else if (mode === 'contract') {
+        // IMPORTANT: For contract mode, pass data directly to onConfirm
+        // to avoid async state update issues
+        onConfirm?.(backendData);
       }
-
-      onConfirm?.();
     } catch (error) {
       console.error('Confirm failed:', error);
+      alert('Gagal mengkonfirmasi data');
     }
   };
 
@@ -217,19 +224,6 @@ export function ExtractionForm({
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Save Status */}
-                {isSaving ? (
-                  <div className="flex items-center gap-2 text-sm text-blue-600">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Menyimpan...
-                  </div>
-                ) : lastSaveTime ? (
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <CheckCircle className="w-4 h-4" />
-                    Tersimpan {lastSaveTime.toLocaleTimeString()}
-                  </div>
-                ) : null}
-
                 {/* Validation Status */}
                 <Badge
                   variant={canConfirmData.canConfirm ? "default" : "secondary"}
@@ -304,28 +298,52 @@ export function ExtractionForm({
                 Batalkan
               </Button>
 
-              <Button
-                onClick={handleConfirm}
-                disabled={
-                  disabled ||
-                  !canConfirmData.canConfirm ||
-                  confirmMutation.isPending ||
-                  isSaving
-                }
-                className="flex items-center gap-2"
-              >
-                {confirmMutation.isPending ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Mengkonfirmasi...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Konfirmasi Data
-                  </>
+              <div className="flex gap-3">
+                {/* Manual Save Button - only show for job mode */}
+                {mode === 'job' && (
+                  <Button
+                    variant="outline"
+                    onClick={handleManualSave}
+                    disabled={disabled || !isValid || !isDirty || updateMutation.isPending}
+                    className="flex items-center gap-2"
+                  >
+                    {updateMutation.isPending ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        Simpan Draft
+                      </>
+                    )}
+                  </Button>
                 )}
-              </Button>
+
+                <Button
+                  onClick={handleConfirm}
+                  disabled={
+                    disabled ||
+                    !isValid ||
+                    !canConfirmData.canConfirm ||
+                    confirmMutation.isPending
+                  }
+                  className="flex items-center gap-2"
+                >
+                  {confirmMutation.isPending ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Mengkonfirmasi...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Konfirmasi Data
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Validation Errors */}
@@ -350,8 +368,8 @@ export function ExtractionForm({
             {/* Form Instructions */}
             <div className="mt-4 text-xs text-muted-foreground">
               <p>
-                💡 <strong>Tips:</strong> Form akan tersimpan otomatis saat Anda mengetik.
-                Pastikan semua field wajib terisi sebelum konfirmasi.
+                💡 <strong>Tips:</strong> Klik "Simpan Draft" untuk menyimpan perubahan.
+                Pastikan semua field wajib terisi dan valid sebelum konfirmasi.
               </p>
             </div>
           </CardContent>
