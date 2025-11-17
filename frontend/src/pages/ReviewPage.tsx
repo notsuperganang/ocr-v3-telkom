@@ -247,7 +247,7 @@ export function ReviewPage() {
       <Card>
         <CardContent className="p-2">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>💡 Data akan tersimpan otomatis saat Anda mengedit</span>
+            <span>💡 Klik "Simpan Draft" untuk menyimpan perubahan Anda</span>
             <Button
               variant="ghost"
               size="sm"
