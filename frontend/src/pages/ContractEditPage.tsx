@@ -91,32 +91,22 @@ export function ContractEditPage() {
     }
   };
 
-  // Handle form data changes (auto-save without version increment)
-  const handleFormChange = async (data: any) => {
+  // Handle form data changes (no auto-save, only update local state)
+  const handleFormChange = (data: any) => {
     setFormData(data);
     setHasUnsavedChanges(true);
-
-    // Auto-save without incrementing version
-    try {
-      await updateMutation.mutateAsync({
-        contractId: numericContractId,
-        data: data,
-        incrementVersion: false
-      });
-      setHasUnsavedChanges(false);
-    } catch (error) {
-      console.error('Auto-save failed:', error);
-    }
   };
 
   // Handle confirmation (save with version increment)
-  const handleSave = async () => {
-    if (!formData) return;
+  const handleSave = async (dataToSave?: any) => {
+    // Use passed data if available (from ExtractionForm), fallback to state
+    const dataForSave = dataToSave || formData;
+    if (!dataForSave) return;
 
     try {
       await updateMutation.mutateAsync({
         contractId: numericContractId,
-        data: formData,
+        data: dataForSave,
         incrementVersion: true
       });
       setHasUnsavedChanges(false);
@@ -291,7 +281,7 @@ export function ContractEditPage() {
       <Card>
         <CardContent className="p-2">
           <div className="flex items-center justify-center text-xs text-muted-foreground">
-            <span>💾 Data tersimpan otomatis saat Anda mengedit. Klik "Konfirmasi & Simpan" untuk finalisasi perubahan.</span>
+            <span>💾 Klik "Konfirmasi & Simpan" untuk menyimpan perubahan Anda</span>
           </div>
         </CardContent>
       </Card>
