@@ -411,13 +411,19 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                       <motion.div
                         key={tp.id || idx}
                         whileHover={{ y: -3 }}
-                        className="group relative overflow-hidden rounded-xl border border-rose-100/70 bg-white/80 p-4 shadow-sm"
+                        className={`group relative overflow-hidden rounded-xl p-4 shadow-sm ${
+                          isPaid
+                            ? 'border-green-200 bg-green-50/50'
+                            : 'border-rose-100/70 bg-white/80'
+                        }`}
                       >
                         {/* Header with termin number and kebab menu */}
                         <div className="mb-2 flex items-start justify-between">
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2">
-                              <p className="text-[0.55rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
+                              <p className={`text-[0.55rem] font-semibold uppercase tracking-[0.25em] ${
+                                isPaid ? 'text-green-500' : 'text-rose-400'
+                              }`}>
                                 Termin {terminNumber}
                               </p>
                               <Badge variant={statusConfig.variant} className={`h-5 text-[0.5rem] ${statusConfig.className}`}>
@@ -468,9 +474,13 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
 
                         {/* Amount display */}
                         {tp.amount !== undefined && tp.amount !== null && tp.amount > 0 && (
-                          <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed border-rose-200 bg-rose-50/60 px-3 py-2 text-xs">
+                          <div className={`mt-3 flex items-center justify-between rounded-lg border border-dashed px-3 py-2 text-xs ${
+                            isPaid
+                              ? 'border-green-200 bg-green-50/60'
+                              : 'border-rose-200 bg-rose-50/60'
+                          }`}>
                             <span className="text-slate-500">Jumlah</span>
-                            <span className="font-semibold text-rose-700">{formatIDR(tp.amount)}</span>
+                            <span className={`font-semibold ${isPaid ? 'text-green-700' : 'text-rose-700'}`}>{formatIDR(tp.amount)}</span>
                           </div>
                         )}
 
