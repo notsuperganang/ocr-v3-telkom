@@ -361,7 +361,12 @@ const formLayananUtamaSchema = z.object({
 
 const formTerminPaymentSchema = z.object({
   termin_number: z.number().int().min(1),
-  period: z.string().min(1),
+  period: z.string()
+    .min(1, 'Periode pembayaran wajib diisi')
+    .regex(
+      /^[A-Za-z]+\s+\d{4}$/,
+      'Format periode harus "Bulan YYYY" (contoh: Januari 2025, Februari 2025)'
+    ),
   amount: z.number().min(0),
   raw_text: z.string().optional(),
 });
