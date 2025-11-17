@@ -1,9 +1,15 @@
 import React from 'react';
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch, Control } from 'react-hook-form';
-import { Receipt } from 'lucide-react';
+import { Receipt, Info } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { TelkomContractFormData } from '@/lib/validation';
 
 interface ServiceDetailsSectionProps {
@@ -44,6 +50,7 @@ export function ServiceDetailsSection({
   // Calculate totals for the single service
   const instalationCost = serviceDetail.biaya_instalasi || 0;
   const subscriptionCost = serviceDetail.biaya_langganan_tahunan || 0;
+  const monthlyCost = subscriptionCost / 12;
   const totalCost = instalationCost + subscriptionCost;
 
   return (
@@ -108,6 +115,7 @@ export function ServiceDetailsSection({
             <h4 className="font-medium mb-3">Ringkasan Biaya</h4>
 
             <div className="space-y-2">
+              {/* Installation Cost */}
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Biaya Instalasi:</span>
                 <span className="font-medium">
@@ -119,8 +127,36 @@ export function ServiceDetailsSection({
                 </span>
               </div>
 
+              {/* Annual Subscription with Monthly Tooltip */}
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Biaya Langganan Tahunan:</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1.5 cursor-help">
+                        <span className="text-sm text-muted-foreground">Biaya Langganan Tahunan:</span>
+                        <Info className="w-3.5 h-3.5 text-blue-500" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="max-w-xs bg-white border border-gray-200 shadow-lg"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-gray-700">Biaya Langganan Bulanan:</p>
+                        <p className="text-sm font-bold text-blue-600">
+                          {new Intl.NumberFormat('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR',
+                            minimumFractionDigits: 0,
+                          }).format(monthlyCost)}
+                        </p>
+                        <p className="text-[10px] text-gray-500">
+                          (Tahunan ÷ 12 bulan)
+                        </p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <span className="font-medium">
                   {new Intl.NumberFormat('id-ID', {
                     style: 'currency',
@@ -130,6 +166,7 @@ export function ServiceDetailsSection({
                 </span>
               </div>
 
+              {/* Total */}
               <div className="border-t pt-2">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Total Keseluruhan:</span>
@@ -151,7 +188,7 @@ export function ServiceDetailsSection({
           <h5 className="font-medium text-sm mb-2">Panduan Rincian Layanan:</h5>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>• <strong>Biaya Instalasi:</strong> Biaya sekali bayar untuk pemasangan dan konfigurasi awal.</li>
-            <li>• <strong>Biaya Langganan Tahunan:</strong> Biaya berlangganan per tahun untuk penggunaan layanan.</li>
+            <li>• <strong>Biaya Langganan Tahunan:</strong> Biaya berlangganan per tahun untuk penggunaan layanan. Hover pada ikon info untuk melihat biaya bulanan.</li>
             <li>• Masukkan total biaya untuk semua layanan yang ada dalam kontrak.</li>
             <li>• Pastikan nilai yang dimasukkan sesuai dengan yang tertera dalam kontrak.</li>
           </ul>
