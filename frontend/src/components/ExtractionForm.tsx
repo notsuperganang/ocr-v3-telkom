@@ -1,6 +1,7 @@
 import React from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,49 @@ import {
   type TelkomContractData
 } from '@/lib/validation';
 import { useUpdateExtraction, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
+
+// Field path to user-friendly label mapping for error messages
+const fieldLabels: Record<string, string> = {
+  // Customer Information
+  'informasi_pelanggan.nama_pelanggan': 'Nama Pelanggan',
+  'informasi_pelanggan.alamat': 'Alamat Pelanggan',
+  'informasi_pelanggan.npwp': 'NPWP',
+  'informasi_pelanggan.perwakilan.nama': 'Nama Perwakilan',
+  'informasi_pelanggan.perwakilan.jabatan': 'Jabatan Perwakilan',
+  'informasi_pelanggan.kontak_person.nama': 'Nama Kontak Person Pelanggan',
+  'informasi_pelanggan.kontak_person.jabatan': 'Jabatan Kontak Person Pelanggan',
+  'informasi_pelanggan.kontak_person.email': 'Email Kontak Person Pelanggan',
+  'informasi_pelanggan.kontak_person.telepon': 'Telepon Kontak Person Pelanggan',
+
+  // Main Services
+  'layanan_utama': 'Layanan Utama',
+  'layanan_utama.connectivity_telkom': 'Jumlah Layanan Connectivity',
+  'layanan_utama.non_connectivity_telkom': 'Jumlah Layanan Non-Connectivity',
+  'layanan_utama.bundling': 'Jumlah Layanan Bundling',
+
+  // Service Details
+  'rincian_layanan': 'Rincian Layanan',
+  'rincian_layanan.biaya_instalasi': 'Biaya Instalasi',
+  'rincian_layanan.biaya_langganan_tahunan': 'Biaya Langganan Tahunan',
+
+  // Payment Method
+  'tata_cara_pembayaran': 'Tata Cara Pembayaran',
+  'tata_cara_pembayaran.method_type': 'Metode Pembayaran',
+  'tata_cara_pembayaran.termin_payments': 'Pembayaran Termin',
+
+  // Telkom Contact
+  'kontak_person_telkom.nama': 'Nama Kontak Person Telkom',
+  'kontak_person_telkom.jabatan': 'Jabatan Kontak Person Telkom',
+  'kontak_person_telkom.email': 'Email Kontak Person Telkom',
+  'kontak_person_telkom.telepon': 'Telepon Kontak Person Telkom',
+
+  // Contract Period
+  'jangka_waktu': 'Jangka Waktu Kontrak',
+  'jangka_waktu.mulai': 'Tanggal Mulai Kontrak',
+  'jangka_waktu.akhir': 'Tanggal Akhir Kontrak',
+  'jangka_waktu.mulai.format': 'Format Tanggal Mulai',
+  'jangka_waktu.akhir.format': 'Format Tanggal Akhir',
+};
 
 interface ExtractionFormProps {
   jobId: number;
@@ -164,14 +208,14 @@ export function ExtractionForm({
     return [
       {
         name: 'Informasi Pelanggan',
-        completed: hasCustomerInfo ? 1 : 0,
+        completed: hasCustomerInfo && !errors.informasi_pelanggan ? 1 : 0,
         total: 1,
         errors: errors.informasi_pelanggan ? 1 : 0,
         required: true,
       },
       {
         name: 'Layanan Utama',
-        completed: hasServices ? 1 : 0,
+        completed: hasServices && !errors.layanan_utama ? 1 : 0,
         total: 1,
         errors: errors.layanan_utama ? 1 : 0,
         required: true,
@@ -185,21 +229,21 @@ export function ExtractionForm({
       },
       {
         name: 'Tata Cara Pembayaran',
-        completed: hasPayment ? 1 : 0,
+        completed: hasPayment && !errors.tata_cara_pembayaran ? 1 : 0,
         total: 1,
         errors: errors.tata_cara_pembayaran ? 1 : 0,
         required: false,
       },
       {
         name: 'Kontak Telkom',
-        completed: hasContact ? 1 : 0,
+        completed: hasContact && !errors.kontak_person_telkom ? 1 : 0,
         total: 1,
         errors: errors.kontak_person_telkom ? 1 : 0,
         required: false,
       },
       {
         name: 'Jangka Waktu',
-        completed: hasPeriod ? 1 : 0,
+        completed: hasPeriod && !errors.jangka_waktu ? 1 : 0,
         total: 1,
         errors: errors.jangka_waktu ? 1 : 0,
         required: false,
@@ -207,7 +251,28 @@ export function ExtractionForm({
     ];
   }, [currentFormData, errors]);
 
-  const canConfirmData = canConfirmContract(formToBackend(currentFormData));
+  // Calculate if form can be confirmed, with error handling to prevent crashes
+  // when user is editing incomplete data (e.g., partial email or phone)
+  const canConfirmData = React.useMemo(() => {
+    try {
+      return canConfirmContract(formToBackend(currentFormData));
+    } catch (error) {
+      // Extract detailed validation errors from ZodError
+      if (error instanceof z.ZodError) {
+        const detailedErrors = error.issues.map((issue) => {
+          const fieldPath = issue.path.join('.');
+          const fieldLabel = fieldLabels[fieldPath] || fieldPath;
+          return `${fieldLabel}: ${issue.message}`;
+        });
+        return {
+          canConfirm: false,
+          errors: detailedErrors.length > 0 ? detailedErrors : ['Data masih perlu dilengkapi']
+        };
+      }
+      // Fallback for non-Zod errors
+      return { canConfirm: false, errors: ['Data masih perlu dilengkapi'] };
+    }
+  }, [currentFormData]);
 
   return (
     <FormProvider {...form}>

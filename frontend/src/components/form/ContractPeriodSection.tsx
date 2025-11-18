@@ -104,6 +104,7 @@ export function ContractPeriodSection({
           onEndDateChange={handleEndDateChange}
           startLabel="Tanggal Mulai Kontrak"
           endLabel="Tanggal Berakhir Kontrak"
+          required={true}
           errors={{
             start: errors.jangka_waktu?.mulai?.message,
             end: errors.jangka_waktu?.akhir?.message,
