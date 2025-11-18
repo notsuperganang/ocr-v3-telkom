@@ -1,3 +1,4 @@
+import React from 'react';
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { User, Building, Phone, Mail, IdCard, AlertCircle } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
@@ -58,6 +59,17 @@ export function CustomerInfoSection({
 
   // Format phone for display
   const displayPhone = customerPhoneValue ? formatPhone(customerPhoneValue) : '';
+
+  // Debug: Track NPWP field state
+  React.useEffect(() => {
+    console.log('🔍 NPWP Field State:', {
+      rawValue: npwpValue,
+      displayValue: displayNPWP,
+      hasError: !!errors.informasi_pelanggan?.npwp,
+      errorMessage: errors.informasi_pelanggan?.npwp?.message,
+      isNumeric: /^\d*$/.test(npwpValue || ''),
+    });
+  }, [npwpValue, displayNPWP, errors]);
 
   return (
     <FormSection

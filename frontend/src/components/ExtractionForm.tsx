@@ -121,6 +121,27 @@ export function ExtractionForm({
     form.trigger();
   }, [initialData, reset, form.trigger]);
 
+  // Debug: Track form initialization
+  React.useEffect(() => {
+    const formData = backendToForm(initialData);
+    console.log('🔍 Form Initialized with OCR Data:', {
+      npwp: formData.informasi_pelanggan?.npwp,
+      npwpLength: (formData.informasi_pelanggan?.npwp || '').length,
+      npwpIsNumeric: /^\d+$/.test(formData.informasi_pelanggan?.npwp || ''),
+    });
+  }, [initialData]);
+
+  // Debug: Track form validation state
+  React.useEffect(() => {
+    console.log('🔍 Form Validation State:', {
+      isValid: isValid,
+      isDirty: isDirty,
+      errorKeys: Object.keys(errors),
+      npwpValue: currentFormData.informasi_pelanggan?.npwp,
+      npwpError: errors.informasi_pelanggan?.npwp?.message,
+    });
+  }, [currentFormData, isValid, isDirty, errors]);
+
   // Trigger initial validation on mount
   React.useEffect(() => {
     form.trigger();
@@ -225,14 +246,14 @@ export function ExtractionForm({
         completed: currentFormData.rincian_layanan?.length || 0,
         total: Math.max(1, currentFormData.rincian_layanan?.length || 0),
         errors: errors.rincian_layanan ? 1 : 0,
-        required: false,
+        required: true,
       },
       {
         name: 'Tata Cara Pembayaran',
         completed: hasPayment && !errors.tata_cara_pembayaran ? 1 : 0,
         total: 1,
         errors: errors.tata_cara_pembayaran ? 1 : 0,
-        required: false,
+        required: true,
       },
       {
         name: 'Kontak Telkom',
@@ -246,10 +267,20 @@ export function ExtractionForm({
         completed: hasPeriod && !errors.jangka_waktu ? 1 : 0,
         total: 1,
         errors: errors.jangka_waktu ? 1 : 0,
-        required: false,
+        required: true,
       },
     ];
   }, [currentFormData, errors]);
+
+  // Debug: Track formSections calculation
+  React.useEffect(() => {
+    console.log('🔍 Form Sections Summary:', {
+      sections: formSections,
+      totalCompleted: formSections.reduce((sum, s) => sum + s.completed, 0),
+      totalErrors: formSections.reduce((sum, s) => sum + s.errors, 0),
+      npwpError: errors.informasi_pelanggan?.npwp,
+    });
+  }, [formSections, errors]);
 
   // Calculate if form can be confirmed, with error handling to prevent crashes
   // when user is editing incomplete data (e.g., partial email or phone)
@@ -273,6 +304,15 @@ export function ExtractionForm({
       return { canConfirm: false, errors: ['Data masih perlu dilengkapi'] };
     }
   }, [currentFormData]);
+
+  // Debug: Track canConfirmData calculation
+  React.useEffect(() => {
+    console.log('🔍 Can Confirm Data:', {
+      canConfirm: canConfirmData.canConfirm,
+      validationErrors: canConfirmData.errors,
+      confirmButtonDisabled: !isValid || !canConfirmData.canConfirm,
+    });
+  }, [canConfirmData, isValid]);
 
   return (
     <FormProvider {...form}>
