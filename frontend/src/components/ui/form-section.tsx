@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, AlertCircle, CheckCircle, Edit3 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface FormSectionProps {
   title: string;
@@ -285,78 +286,100 @@ interface FormSummaryProps {
 }
 
 export function FormSummary({ sections, className = '' }: FormSummaryProps) {
-  const totalStats = React.useMemo(() => {
-    return sections.reduce(
-      (acc, section) => ({
-        completed: acc.completed + section.completed,
-        total: acc.total + section.total,
-        errors: acc.errors + section.errors,
-        requiredSections: acc.requiredSections + (section.required ? 1 : 0),
-        completedRequiredSections: acc.completedRequiredSections +
-          (section.required && section.completed === section.total ? 1 : 0),
-      }),
-      { completed: 0, total: 0, errors: 0, requiredSections: 0, completedRequiredSections: 0 }
-    );
+  // Calculate required vs optional statistics
+  const stats = React.useMemo(() => {
+    const requiredSections = sections.filter(s => s.required);
+    const optionalSections = sections.filter(s => !s.required);
+
+    const requiredCompleted = requiredSections.reduce((sum, s) => sum + s.completed, 0);
+    const requiredTotal = requiredSections.reduce((sum, s) => sum + s.total, 0);
+
+    const optionalCompleted = optionalSections.reduce((sum, s) => sum + s.completed, 0);
+    const optionalTotal = optionalSections.reduce((sum, s) => sum + s.total, 0);
+
+    const totalErrors = sections.reduce((sum, s) => sum + s.errors, 0);
+
+    const isReady = requiredCompleted === requiredTotal && totalErrors === 0;
+
+    return {
+      requiredCompleted,
+      requiredTotal,
+      optionalCompleted,
+      optionalTotal,
+      totalErrors,
+      isReady,
+    };
   }, [sections]);
 
-  const overallPercentage = totalStats.total > 0
-    ? Math.round((totalStats.completed / totalStats.total) * 100)
-    : 0;
-
-  const canSubmit = totalStats.errors === 0 &&
-    totalStats.completedRequiredSections === totalStats.requiredSections;
-
   return (
-    <Card className={`${className} border-primary/20 bg-primary/5`}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Form Summary</span>
-          <Badge
-            variant={canSubmit ? "default" : "secondary"}
-            className={canSubmit ? "bg-green-600" : ""}
-          >
-            {overallPercentage}% Complete
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div className="text-center">
-              <div className="font-medium text-lg">{totalStats.completed}</div>
-              <div className="text-muted-foreground">Selesai</div>
-            </div>
-            <div className="text-center">
-              <div className="font-medium text-lg">{totalStats.total}</div>
-              <div className="text-muted-foreground">Total Field</div>
-            </div>
-            <div className="text-center">
-              <div className={`font-medium text-lg ${totalStats.errors > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                {totalStats.errors}
-              </div>
-              <div className="text-muted-foreground">Kesalahan</div>
-            </div>
-          </div>
+    <Card className={cn(
+      'border border-border/70 rounded-[1.25rem] shadow-[0_10px_30px_-18px_rgba(15,23,42,0.45)] overflow-hidden',
+      className
+    )}>
+      {/* Status Banner */}
+      <div className={cn(
+        'px-4 py-3 font-semibold text-sm flex items-center gap-2',
+        stats.isReady
+          ? 'bg-emerald-100 text-emerald-700 border-b border-emerald-200'
+          : stats.totalErrors > 0
+          ? 'bg-rose-100 text-rose-700 border-b border-rose-200'
+          : 'bg-amber-100 text-amber-700 border-b border-amber-200'
+      )}>
+        {stats.isReady ? (
+          <CheckCircle className="w-4 h-4" />
+        ) : (
+          <AlertCircle className="w-4 h-4" />
+        )}
+        <span>
+          Status: {stats.isReady ? 'Siap untuk Konfirmasi' : stats.totalErrors > 0 ? 'Perlu Perbaikan' : 'Perlu Dilengkapi'}
+        </span>
+      </div>
 
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div
-              className={`h-3 rounded-full transition-all duration-500 ${
-                canSubmit
-                  ? 'bg-green-500'
-                  : totalStats.errors > 0
-                  ? 'bg-red-500'
-                  : 'bg-blue-500'
-              }`}
-              style={{ width: `${overallPercentage}%` }}
-            />
+      {/* Field Summary */}
+      <CardContent className="p-4 space-y-3">
+        {/* Required Fields Row */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-muted-foreground">Field Wajib:</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">
+              {stats.requiredCompleted} / {stats.requiredTotal} Selesai
+            </span>
+            <Badge
+              variant="outline"
+              className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 border-emerald-200"
+            >
+              <span className="size-2.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              Selesai
+            </Badge>
           </div>
+        </div>
 
-          <div className="text-xs text-muted-foreground text-center">
-            {canSubmit
-              ? 'Siap untuk konfirmasi'
-              : `${totalStats.requiredSections - totalStats.completedRequiredSections} bagian wajib tersisa`
-            }
+        {/* Optional Fields Row */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-muted-foreground">Field Opsional:</span>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-foreground">
+              {stats.optionalCompleted} / {stats.optionalTotal} Terisi
+            </span>
+            <Badge
+              variant="outline"
+              className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 border-slate-200"
+            >
+              <span className="size-2.5 rounded-full bg-slate-400" aria-hidden="true" />
+              Opsional
+            </Badge>
           </div>
+        </div>
+
+        {/* Errors Row */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-muted-foreground">Kesalahan:</span>
+          <span className={cn(
+            'font-semibold',
+            stats.totalErrors === 0 ? 'text-emerald-600' : 'text-rose-600'
+          )}>
+            {stats.totalErrors === 0 ? 'Tidak ada' : `${stats.totalErrors} error`}
+          </span>
         </div>
       </CardContent>
     </Card>

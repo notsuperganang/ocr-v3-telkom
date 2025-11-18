@@ -62,6 +62,31 @@ function cleanNPWP(value: string): { cleaned: string; isValid: boolean; error?: 
   }
 }
 
+// Clean and validate NPWP from OCR data - reject invalid/non-numeric values
+export function validateOCRNPWP(npwp: string | undefined): string {
+  if (!npwp || npwp.trim() === '') return '';
+
+  // Remove all non-digit characters
+  const digits = npwp.replace(/\D/g, '');
+
+  console.log('🔍 OCR NPWP Validation:', {
+    originalValue: npwp,
+    extractedDigits: digits,
+    digitCount: digits.length,
+    isValid: digits.length === 15 || digits.length === 16 || digits.length === 19,
+    action: (digits.length === 15 || digits.length === 16 || digits.length === 19) ? 'ACCEPT' : 'REJECT'
+  });
+
+  // Only accept if we have exactly 15, 16, or 19 digits
+  if (digits.length === 15 || digits.length === 16 || digits.length === 19) {
+    return digits;
+  }
+
+  // Reject invalid NPWP (including pure text like "meaulaboh")
+  console.warn('⚠️ Rejecting invalid OCR NPWP:', npwp);
+  return '';
+}
+
 // Normalize Indonesian phone numbers to a consistent format
 function normalizePhoneNumber(value: string): string {
   // Remove all non-digit characters except +
@@ -503,7 +528,7 @@ export function backendToForm(backendData: TelkomContractData): TelkomContractFo
     informasi_pelanggan: backendData.informasi_pelanggan ? {
       nama_pelanggan: backendData.informasi_pelanggan.nama_pelanggan || '',
       alamat: backendData.informasi_pelanggan.alamat || '',
-      npwp: backendData.informasi_pelanggan.npwp || '',
+      npwp: validateOCRNPWP(backendData.informasi_pelanggan.npwp),
       perwakilan: backendData.informasi_pelanggan.perwakilan ? {
         nama: backendData.informasi_pelanggan.perwakilan.nama || '',
         jabatan: backendData.informasi_pelanggan.perwakilan.jabatan || '',
