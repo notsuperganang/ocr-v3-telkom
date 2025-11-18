@@ -342,9 +342,15 @@ const formInformasiPelangganSchema = z.object({
   nama_pelanggan: z.string().optional(),
   alamat: z.string().optional(),
   npwp: z.string().optional().refine((val) => {
-    // NPWP is optional, but if provided, must be 15, 16, or 19 digits
-    if (!val || val.trim() === '') return true;
+    // Explicitly handle empty/undefined/null - all are valid (optional field)
+    if (val === undefined || val === null || val === '') return true;
+    if (typeof val !== 'string') return false;
+
     const digits = val.replace(/\D/g, '');
+    // Empty after cleaning is also valid (e.g., field had only non-digit chars)
+    if (digits === '') return true;
+
+    // If has digits, must be exactly 15, 16, or 19 digits
     return digits.length === 15 || digits.length === 16 || digits.length === 19;
   }, {
     message: 'NPWP harus 15, 16, atau 19 digit (atau kosongkan jika tidak ada)'
