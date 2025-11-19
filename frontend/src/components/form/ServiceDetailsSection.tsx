@@ -185,14 +185,23 @@ export function ServiceDetailsSection({
         )}
 
         {/* Guidelines */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
-          <h5 className="font-medium text-sm mb-2">Panduan Rincian Layanan:</h5>
-          <ul className="text-xs text-muted-foreground space-y-1">
-            <li>• <strong>Biaya Instalasi:</strong> Biaya sekali bayar untuk pemasangan dan konfigurasi awal.</li>
-            <li>• <strong>Biaya Langganan Tahunan:</strong> Biaya berlangganan per tahun untuk penggunaan layanan. Hover pada ikon info untuk melihat biaya bulanan.</li>
-            <li>• Masukkan total biaya untuk semua layanan yang ada dalam kontrak.</li>
-            <li>• Pastikan nilai yang dimasukkan sesuai dengan yang tertera dalam kontrak.</li>
-          </ul>
+        <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+          <div>
+            <h5 className="font-medium text-sm mb-2">Panduan Rincian Layanan:</h5>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• <strong>Biaya Instalasi:</strong> Biaya sekali bayar untuk pemasangan dan konfigurasi awal.</li>
+              <li>• <strong>Biaya Langganan Tahunan:</strong> Biaya berlangganan per tahun untuk penggunaan layanan.</li>
+              <li>• Pastikan nilai yang dimasukkan sesuai dengan yang tertera dalam kontrak.</li>
+            </ul>
+          </div>
+
+          {/* Info tip with blue accent */}
+          <div className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
+            <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-blue-700">
+              Hover pada ikon info di ringkasan biaya untuk melihat biaya langganan bulanan.
+            </p>
+          </div>
         </div>
       </div>
     </FormSection>

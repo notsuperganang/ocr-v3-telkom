@@ -217,16 +217,6 @@ export function MainServicesSection({
             </p>
           </div>
         )}
-
-        {/* Service Guidelines */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
-          <h5 className="font-medium text-sm mb-2">Panduan Layanan:</h5>
-          <ul className="text-xs text-muted-foreground space-y-1">
-            <li>• <strong>Connectivity Telkom:</strong> Internet, dedicated line, VPN, dll.</li>
-            <li>• <strong>Non-Connectivity Telkom:</strong> Cloud services, maintenance, training, dll.</li>
-            <li>• <strong>Bundling:</strong> Paket kombinasi layanan dengan harga khusus.</li>
-          </ul>
-        </div>
       </div>
     </FormSection>
   );
