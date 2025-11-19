@@ -112,8 +112,8 @@ export function ServiceDetailsSection({
 
         {/* Summary Totals */}
         {totalCost > 0 && (
-          <div className="bg-primary/5 p-4 rounded-lg">
-            <h4 className="font-medium mb-3">Ringkasan Biaya</h4>
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+            <h4 className="font-medium mb-3 text-blue-900">Ringkasan Biaya</h4>
 
             <div className="space-y-2">
               {/* Installation Cost */}
@@ -171,7 +171,7 @@ export function ServiceDetailsSection({
               <div className="border-t pt-2">
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Total Keseluruhan:</span>
-                  <span className="font-bold text-lg text-primary">
+                  <span className="font-bold text-lg text-blue-700">
                     {new Intl.NumberFormat('id-ID', {
                       style: 'currency',
                       currency: 'IDR',

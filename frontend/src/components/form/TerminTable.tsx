@@ -200,10 +200,10 @@ export function TerminTable({
       {/* Summary */}
       {payments.length > 0 && (
         <div className="border-t pt-4">
-          <Card className="bg-primary/5">
+          <Card className="bg-blue-50 border border-blue-200">
             <CardContent className="p-4">
               <div className="space-y-3">
-                <h4 className="font-medium text-sm">Ringkasan Pembayaran Termin</h4>
+                <h4 className="font-medium text-sm text-blue-900">Ringkasan Pembayaran Termin</h4>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>

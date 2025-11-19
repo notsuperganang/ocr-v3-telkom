@@ -123,8 +123,8 @@ export function ContractPeriodSection({
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-primary/5 rounded-lg">
-                <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="font-medium text-sm mb-3 flex items-center gap-2 text-blue-900">
                   <Clock className="w-4 h-4" />
                   Durasi Kontrak
                 </h4>
@@ -141,7 +141,7 @@ export function ContractPeriodSection({
 
                   <div className="space-y-2">
                     <div className="text-xs text-muted-foreground">Durasi:</div>
-                    <div className="text-lg font-semibold text-primary">
+                    <div className="text-lg font-semibold text-blue-700">
                       {!duration.error && 'days' in duration && duration.days !== undefined && formatDuration(duration as { days: number; months: number; years: number })}
                     </div>
                     <div className="text-xs text-muted-foreground">
