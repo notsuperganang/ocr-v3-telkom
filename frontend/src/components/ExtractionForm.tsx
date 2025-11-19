@@ -4,8 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import { CustomerInfoSection } from '@/components/form/CustomerInfoSection';
 import { MainServicesSection } from '@/components/form/MainServicesSection';
 import { ServiceDetailsSection } from '@/components/form/ServiceDetailsSection';
@@ -317,30 +318,6 @@ export function ExtractionForm({
   return (
     <FormProvider {...form}>
       <div className="space-y-6">
-        {/* Form Header */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Form Review Data Ekstraksi</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Review dan edit data hasil ekstraksi sebelum konfirmasi
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Validation Status */}
-                <Badge
-                  variant={canConfirmData.canConfirm ? "default" : "secondary"}
-                  className={canConfirmData.canConfirm ? "bg-green-600" : ""}
-                >
-                  {canConfirmData.canConfirm ? "Siap Konfirmasi" : "Perlu Review"}
-                </Badge>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
         {/* Form Summary */}
         <FormSummary sections={formSections} />
 
@@ -391,9 +368,19 @@ export function ExtractionForm({
         </div>
 
         {/* Action Buttons */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row gap-3 justify-between">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="group"
+        >
+          <Card className={cn(
+            'rounded-[1.25rem] border border-border/70 shadow-sm',
+            'transition-all duration-200',
+            'group-hover:shadow-[0_18px_48px_-32px_rgba(215,25,32,0.55)]',
+            'group-hover:border-[#d71920]/40'
+          )}>
+            <CardContent className="p-6">
+              <div className="flex flex-col sm:flex-row gap-3 justify-between">
               <Button
                 variant="outline"
                 onClick={handleDiscard}
@@ -478,7 +465,8 @@ export function ExtractionForm({
               </p>
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </motion.div>
       </div>
     </FormProvider>
   );

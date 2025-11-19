@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, AlertCircle, CheckCircle, Edit3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 interface FormSectionProps {
   title: string;
@@ -94,11 +95,23 @@ export function FormSection({
   }, [hasErrors, errorCount, completionPercentage, isRequired]);
 
   return (
-    <Card className={`${className} ${hasErrors ? 'border-red-200' : ''}`}>
-      <CardHeader
-        className={`${isCollapsible ? 'cursor-pointer' : ''} ${isCollapsed ? 'pb-6' : ''}`}
-        onClick={toggleCollapsed}
-      >
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="group"
+    >
+      <Card className={cn(
+        'rounded-[1.25rem] border border-border/70 shadow-sm',
+        'transition-all duration-200',
+        'group-hover:shadow-[0_18px_48px_-32px_rgba(215,25,32,0.55)]',
+        'group-hover:border-[#d71920]/40',
+        hasErrors && 'border-rose-300',
+        className
+      )}>
+        <CardHeader
+          className={`${isCollapsible ? 'cursor-pointer' : ''} ${isCollapsed ? 'pb-6' : ''}`}
+          onClick={toggleCollapsed}
+        >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isCollapsible && (
@@ -169,7 +182,8 @@ export function FormSection({
       </CardHeader>
 
       {!isCollapsed && <CardContent>{children}</CardContent>}
-    </Card>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -300,6 +314,8 @@ export function FormSummary({ sections, className = '' }: FormSummaryProps) {
     const totalErrors = sections.reduce((sum, s) => sum + s.errors, 0);
 
     const isReady = requiredCompleted === requiredTotal && totalErrors === 0;
+    const requiredDone = requiredCompleted === requiredTotal;
+    const optionalFilled = optionalCompleted > 0;
 
     return {
       requiredCompleted,
@@ -308,80 +324,131 @@ export function FormSummary({ sections, className = '' }: FormSummaryProps) {
       optionalTotal,
       totalErrors,
       isReady,
+      requiredDone,
+      optionalFilled,
     };
   }, [sections]);
 
   return (
-    <Card className={cn(
-      'border border-border/70 rounded-[1.25rem] shadow-[0_10px_30px_-18px_rgba(15,23,42,0.45)] overflow-hidden',
-      className
-    )}>
-      {/* Status Banner */}
-      <div className={cn(
-        'px-4 py-3 font-semibold text-sm flex items-center gap-2',
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="group"
+    >
+      <Card className={cn(
+        'border rounded-[1.25rem] shadow-sm overflow-hidden',
+        'transition-all duration-200',
         stats.isReady
-          ? 'bg-emerald-100 text-emerald-700 border-b border-emerald-200'
-          : stats.totalErrors > 0
-          ? 'bg-rose-100 text-rose-700 border-b border-rose-200'
-          : 'bg-amber-100 text-amber-700 border-b border-amber-200'
+          ? 'border-border/70 group-hover:border-emerald-400 group-hover:shadow-[0_18px_48px_-32px_rgba(16,185,129,0.55)]'
+          : 'border-border/70 group-hover:border-rose-400 group-hover:shadow-[0_18px_48px_-32px_rgba(244,63,94,0.55)]',
+        className
       )}>
-        {stats.isReady ? (
-          <CheckCircle className="w-4 h-4" />
-        ) : (
-          <AlertCircle className="w-4 h-4" />
-        )}
-        <span>
-          Status: {stats.isReady ? 'Siap untuk Konfirmasi' : stats.totalErrors > 0 ? 'Perlu Perbaikan' : 'Perlu Dilengkapi'}
-        </span>
-      </div>
-
-      {/* Field Summary */}
-      <CardContent className="p-4 space-y-3">
-        {/* Required Fields Row */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">Field Wajib:</span>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground">
-              {stats.requiredCompleted} / {stats.requiredTotal} Selesai
-            </span>
-            <Badge
-              variant="outline"
-              className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 border-emerald-200"
-            >
-              <span className="size-2.5 rounded-full bg-emerald-500" aria-hidden="true" />
-              Selesai
-            </Badge>
-          </div>
-        </div>
-
-        {/* Optional Fields Row */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">Field Opsional:</span>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground">
-              {stats.optionalCompleted} / {stats.optionalTotal} Terisi
-            </span>
-            <Badge
-              variant="outline"
-              className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 border-slate-200"
-            >
-              <span className="size-2.5 rounded-full bg-slate-400" aria-hidden="true" />
-              Opsional
-            </Badge>
-          </div>
-        </div>
-
-        {/* Errors Row */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-muted-foreground">Kesalahan:</span>
-          <span className={cn(
-            'font-semibold',
-            stats.totalErrors === 0 ? 'text-emerald-600' : 'text-rose-600'
-          )}>
-            {stats.totalErrors === 0 ? 'Tidak ada' : `${stats.totalErrors} error`}
+        {/* Status Banner - Full Width */}
+        <div className={cn(
+          'px-6 py-4 font-bold text-base flex items-center gap-3',
+          stats.isReady
+            ? 'bg-emerald-100 text-emerald-800'
+            : 'bg-rose-100 text-rose-800'
+        )}>
+          {stats.isReady ? (
+            <CheckCircle className="w-5 h-5" />
+          ) : (
+            <AlertCircle className="w-5 h-5" />
+          )}
+          <span>
+            {stats.isReady ? 'Siap untuk Konfirmasi' : 'Perlu Dilengkapi'}
           </span>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Horizontal KPI Cards */}
+        <CardContent className="p-4">
+          <div className="grid grid-cols-3 gap-4">
+            {/* Required Fields KPI */}
+            <div className="text-center p-4 bg-slate-50 rounded-lg">
+              <div className={cn(
+                "text-4xl font-bold tabular-nums",
+                stats.requiredDone ? "text-emerald-600" : "text-rose-600"
+              )}>
+                {stats.requiredCompleted}/{stats.requiredTotal}
+              </div>
+              <div className="text-sm text-muted-foreground mt-1 mb-2">
+                Field Wajib
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "inline-flex items-center gap-1.5",
+                  stats.requiredDone
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                    : "bg-rose-100 text-rose-700 border-rose-200"
+                )}
+              >
+                <span className={cn(
+                  "size-2 rounded-full",
+                  stats.requiredDone ? "bg-emerald-500" : "bg-rose-500"
+                )} aria-hidden="true" />
+                {stats.requiredDone ? "Selesai" : "Belum Lengkap"}
+              </Badge>
+            </div>
+
+            {/* Optional Fields KPI */}
+            <div className="text-center p-4 bg-slate-50 rounded-lg">
+              <div className={cn(
+                "text-4xl font-bold tabular-nums",
+                stats.optionalFilled ? "text-emerald-600" : "text-slate-600"
+              )}>
+                {stats.optionalCompleted}/{stats.optionalTotal}
+              </div>
+              <div className="text-sm text-muted-foreground mt-1 mb-2">
+                Field Opsional
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "inline-flex items-center gap-1.5",
+                  stats.optionalFilled
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                    : "bg-slate-100 text-slate-600 border-slate-200"
+                )}
+              >
+                <span className={cn(
+                  "size-2 rounded-full",
+                  stats.optionalFilled ? "bg-emerald-500" : "bg-slate-400"
+                )} aria-hidden="true" />
+                {stats.optionalFilled ? "Selesai" : "Opsional"}
+              </Badge>
+            </div>
+
+            {/* Errors KPI */}
+            <div className="text-center p-4 bg-slate-50 rounded-lg">
+              <div className={cn(
+                'text-4xl font-bold tabular-nums',
+                stats.totalErrors === 0 ? 'text-emerald-600' : 'text-rose-600'
+              )}>
+                {stats.totalErrors}
+              </div>
+              <div className="text-sm text-muted-foreground mt-1 mb-2">
+                Kesalahan
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "inline-flex items-center gap-1.5",
+                  stats.totalErrors === 0
+                    ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                    : "bg-rose-100 text-rose-700 border-rose-200"
+                )}
+              >
+                <span className={cn(
+                  "size-2 rounded-full",
+                  stats.totalErrors === 0 ? "bg-emerald-500" : "bg-rose-500"
+                )} aria-hidden="true" />
+                {stats.totalErrors === 0 ? "Tidak Ada" : "Ada Error"}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
