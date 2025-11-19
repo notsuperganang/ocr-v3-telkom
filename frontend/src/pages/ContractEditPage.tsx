@@ -110,14 +110,14 @@ export function ContractEditPage() {
         incrementVersion: true
       });
       setHasUnsavedChanges(false);
-      toast.success('Contract updated successfully!');
+      toast.success('Kontrak berhasil diperbarui');
 
       // Navigate back to detail page after successful save
       setTimeout(() => {
         navigate(`/contracts/${numericContractId}`);
       }, 1000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update contract';
+      const errorMessage = error instanceof Error ? error.message : 'Gagal memperbarui kontrak';
       toast.error(errorMessage);
       console.error('Failed to save:', error);
     }
