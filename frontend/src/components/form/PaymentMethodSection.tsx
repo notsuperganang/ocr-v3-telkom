@@ -43,7 +43,7 @@ export function PaymentMethodSection({
 
   // Handle termin payments change
   const handleTerminPaymentsChange = (payments: TerminPayment[]) => {
-    setValue('tata_cara_pembayaran.termin_payments', payments, { shouldDirty: true });
+    setValue('tata_cara_pembayaran.termin_payments', payments, { shouldDirty: true, shouldValidate: true });
     setValue('tata_cara_pembayaran.total_termin_count', payments.length, { shouldDirty: true });
     setValue('tata_cara_pembayaran.total_amount',
       payments.reduce((sum: number, payment) => sum + (payment.amount || 0), 0),
