@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CheckCircle, AlertCircle, RefreshCw, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { ErrorSummaryOverlay, type ErrorItem } from '@/components/ui/error-summary-overlay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { motion } from 'framer-motion';
@@ -66,6 +67,16 @@ const fieldLabels: Record<string, string> = {
   'jangka_waktu.akhir': 'Tanggal Akhir Kontrak',
   'jangka_waktu.mulai.format': 'Format Tanggal Mulai',
   'jangka_waktu.akhir.format': 'Format Tanggal Akhir',
+};
+
+// Field path prefix to section ID mapping for scroll-to-error
+const fieldToSectionId: Record<string, string> = {
+  'informasi_pelanggan': 'section-informasi-pelanggan',
+  'layanan_utama': 'section-layanan-utama',
+  'rincian_layanan': 'section-rincian-layanan',
+  'tata_cara_pembayaran': 'section-tata-cara-pembayaran',
+  'kontak_person_telkom': 'section-kontak-person-telkom',
+  'jangka_waktu': 'section-jangka-waktu',
 };
 
 interface ExtractionFormProps {
@@ -308,6 +319,46 @@ export function ExtractionForm({
     }
   }, [currentFormData]);
 
+  // Create error items with field paths for the overlay
+  const errorItems: ErrorItem[] = React.useMemo(() => {
+    try {
+      const result = canConfirmContract(formToBackend(currentFormData));
+      if (result.canConfirm) return [];
+
+      // If there are string errors from canConfirmContract, convert them
+      return result.errors.map((error) => ({
+        fieldPath: 'informasi_pelanggan', // Default section
+        message: error,
+      }));
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return error.issues.map((issue) => {
+          const fieldPath = issue.path.join('.');
+          const fieldLabel = fieldLabels[fieldPath] || fieldPath;
+          return {
+            fieldPath,
+            message: `${fieldLabel}: ${issue.message}`,
+          };
+        });
+      }
+      return [];
+    }
+  }, [currentFormData]);
+
+  // Scroll to section when clicking an error
+  const scrollToSection = (fieldPath: string) => {
+    const sectionKey = fieldPath.split('.')[0];
+    const sectionId = fieldToSectionId[sectionKey];
+    const element = document.getElementById(sectionId);
+
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
+
   // Debug: Track canConfirmData calculation
   React.useEffect(() => {
     console.log('🔍 Can Confirm Data:', {
@@ -325,48 +376,60 @@ export function ExtractionForm({
 
         {/* Form Sections */}
         <div className="space-y-6">
-          <CustomerInfoSection
-            register={register}
-            errors={errors}
-            setValue={setValue}
-            watch={watch}
-          />
+          <div id="section-informasi-pelanggan">
+            <CustomerInfoSection
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+            />
+          </div>
 
-          <MainServicesSection
-            register={register}
-            errors={errors}
-            setValue={setValue}
-            watch={watch}
-          />
+          <div id="section-layanan-utama">
+            <MainServicesSection
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+            />
+          </div>
 
-          <ServiceDetailsSection
-            register={register}
-            errors={errors}
-            setValue={setValue}
-            watch={watch}
-            control={control}
-          />
+          <div id="section-rincian-layanan">
+            <ServiceDetailsSection
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+              control={control}
+            />
+          </div>
 
-          <PaymentMethodSection
-            register={register}
-            errors={errors}
-            setValue={setValue}
-            watch={watch}
-          />
+          <div id="section-tata-cara-pembayaran">
+            <PaymentMethodSection
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+            />
+          </div>
 
-          <ContractPeriodSection
-            register={register}
-            errors={errors}
-            setValue={setValue}
-            watch={watch}
-          />
+          <div id="section-jangka-waktu">
+            <ContractPeriodSection
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+            />
+          </div>
 
-          <TelkomContactSection
-            register={register}
-            errors={errors}
-            setValue={setValue}
-            watch={watch}
-          />
+          <div id="section-kontak-person-telkom">
+            <TelkomContactSection
+              register={register}
+              errors={errors}
+              setValue={setValue}
+              watch={watch}
+            />
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -465,6 +528,12 @@ export function ExtractionForm({
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Error Summary Overlay */}
+        <ErrorSummaryOverlay
+          errors={errorItems}
+          onErrorClick={scrollToSection}
+        />
       </div>
     </FormProvider>
   );
