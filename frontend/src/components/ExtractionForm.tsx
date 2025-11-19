@@ -2,7 +2,8 @@ import React from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, AlertCircle, RefreshCw, Save, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { motion } from 'framer-motion';
@@ -153,7 +154,7 @@ export function ExtractionForm({
     try {
       const isFormValid = await form.trigger();
       if (!isFormValid) {
-        alert('Silakan perbaiki kesalahan validasi sebelum menyimpan');
+        toast.error('Silakan perbaiki kesalahan validasi sebelum menyimpan');
         return;
       }
 
@@ -162,12 +163,13 @@ export function ExtractionForm({
 
       if (mode === 'job') {
         await updateMutation.mutateAsync(backendData);
+        toast.success('Draft berhasil disimpan');
       } else if (mode === 'contract' && onSave) {
         onSave(backendData);
       }
     } catch (error) {
       console.error('Save failed:', error);
-      alert('Gagal menyimpan data');
+      toast.error('Gagal menyimpan draft');
     }
   };
 
@@ -379,25 +381,46 @@ export function ExtractionForm({
             'group-hover:shadow-[0_18px_48px_-32px_rgba(215,25,32,0.55)]',
             'group-hover:border-[#d71920]/40'
           )}>
-            <CardContent className="p-6">
-              <div className="flex flex-col sm:flex-row gap-3 justify-between">
-              <Button
-                variant="outline"
-                onClick={handleDiscard}
-                disabled={disabled || discardMutation.isPending}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                Batalkan
-              </Button>
+            <CardContent className="p-5">
+              {/* Validation Errors */}
+              {!canConfirmData.canConfirm && canConfirmData.errors.length > 0 && (
+                <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-orange-800">
+                        Diperlukan perbaikan sebelum konfirmasi:
+                      </p>
+                      <ul className="mt-1 text-sm text-orange-700 list-disc list-inside">
+                        {canConfirmData.errors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              <div className="flex gap-3">
-                {/* Manual Save Button - only show for job mode */}
-                {mode === 'job' && (
+              {/* Button Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Cancel Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleDiscard}
+                  disabled={disabled || discardMutation.isPending}
+                  className="h-12 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Batalkan
+                </Button>
+
+                {/* Save Draft Button - only show for job mode */}
+                {mode === 'job' ? (
                   <Button
                     variant="outline"
                     onClick={handleManualSave}
                     disabled={disabled || !isValid || !isDirty || updateMutation.isPending}
-                    className="flex items-center gap-2"
+                    className="h-12 flex items-center justify-center gap-2 border-blue-300 text-blue-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
                   >
                     {updateMutation.isPending ? (
                       <>
@@ -406,13 +429,16 @@ export function ExtractionForm({
                       </>
                     ) : (
                       <>
-                        <CheckCircle className="w-4 h-4" />
+                        <Save className="w-4 h-4" />
                         Simpan Draft
                       </>
                     )}
                   </Button>
+                ) : (
+                  <div className="hidden sm:block" /> // Empty space for grid alignment in contract mode
                 )}
 
+                {/* Confirm Button */}
                 <Button
                   onClick={handleConfirm}
                   disabled={
@@ -421,7 +447,7 @@ export function ExtractionForm({
                     !canConfirmData.canConfirm ||
                     confirmMutation.isPending
                   }
-                  className="flex items-center gap-2"
+                  className="h-12 flex items-center justify-center gap-2 bg-primary hover:bg-primary/90"
                 >
                   {confirmMutation.isPending ? (
                     <>
@@ -436,35 +462,7 @@ export function ExtractionForm({
                   )}
                 </Button>
               </div>
-            </div>
-
-            {/* Validation Errors */}
-            {!canConfirmData.canConfirm && canConfirmData.errors.length > 0 && (
-              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-orange-800">
-                      Diperlukan perbaikan sebelum konfirmasi:
-                    </p>
-                    <ul className="mt-1 text-sm text-orange-700 list-disc list-inside">
-                      {canConfirmData.errors.map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Form Instructions */}
-            <div className="mt-4 text-xs text-muted-foreground">
-              <p>
-                💡 <strong>Tips:</strong> Klik "Simpan Draft" untuk menyimpan perubahan.
-                Pastikan semua field wajib terisi dan valid sebelum konfirmasi.
-              </p>
-            </div>
-          </CardContent>
+            </CardContent>
           </Card>
         </motion.div>
       </div>

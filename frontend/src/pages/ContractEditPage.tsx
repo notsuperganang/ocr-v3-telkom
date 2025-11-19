@@ -189,7 +189,7 @@ export function ContractEditPage() {
           variant="ghost"
           onClick={handleBack}
           size="sm"
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground h-8"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-gray-100 h-8"
         >
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Kembali</span>
