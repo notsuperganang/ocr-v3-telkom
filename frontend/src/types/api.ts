@@ -167,3 +167,33 @@ export interface UpdateTerminPaymentRequest {
   notes?: string | null;
   amount?: string | null;
 }
+
+// Dashboard Types
+export interface DashboardOverview {
+  total_contracts: number;
+  contracts_this_month: number;
+  contracts_last_month: number;
+  total_contract_value: string;
+  avg_contract_value: string;
+  avg_processing_time_sec: number | null;
+  median_processing_time_sec: number | null;
+}
+
+export interface TerminUpcomingItem {
+  contract_id: number;
+  customer_name: string;
+  period_start: string | null;
+  period_end: string | null;
+  termin_number: number;
+  termin_period_label: string;
+  termin_period_year: number;
+  termin_period_month: number;
+  amount: string;
+  status: string;
+}
+
+export interface TerminUpcomingResponse {
+  total_contracts: number;
+  total_amount: string;
+  items: TerminUpcomingItem[];
+}

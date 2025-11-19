@@ -216,3 +216,22 @@ export function useUpdateTerminPayment() {
     },
   });
 }
+
+// Dashboard hooks
+export function useDashboardOverview() {
+  return useQuery({
+    queryKey: [...contractKeys.all, 'dashboard', 'overview'],
+    queryFn: () => apiService.getDashboardOverview(),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useTerminUpcoming(days: number = 30) {
+  return useQuery({
+    queryKey: [...contractKeys.all, 'dashboard', 'termin-upcoming', days],
+    queryFn: () => apiService.getTerminUpcoming(days),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+  });
+}

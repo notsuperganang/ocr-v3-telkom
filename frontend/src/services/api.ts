@@ -13,7 +13,9 @@ import type {
   ContractStatsResponse,
   ApiError,
   TerminPayment,
-  UpdateTerminPaymentRequest
+  UpdateTerminPaymentRequest,
+  DashboardOverview,
+  TerminUpcomingResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -327,6 +329,15 @@ class ApiClient {
         body: JSON.stringify(updateData),
       }
     );
+  }
+
+  // Dashboard
+  async getDashboardOverview(): Promise<DashboardOverview> {
+    return this.request<DashboardOverview>('/api/dashboard/overview');
+  }
+
+  async getTerminUpcoming(days: number = 30): Promise<TerminUpcomingResponse> {
+    return this.request<TerminUpcomingResponse>(`/api/dashboard/termin-upcoming?days=${days}`);
   }
 }
 
