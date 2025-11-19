@@ -50,6 +50,7 @@ export function TelkomContactSection({
       title="Kontak Person Telkom"
       description="Informasi kontak person dari pihak Telkom yang menangani kontrak ini"
       icon={<Building2 className="w-5 h-5" />}
+      isRequired={false}
     >
       <div className="space-y-6">
         {/* Contact Name */}

@@ -81,6 +81,7 @@ export function PaymentMethodSection({
       title="Tata Cara Pembayaran"
       description="Metode dan jadwal pembayaran untuk kontrak ini"
       icon={<Receipt className="w-5 h-5" />}
+      isRequired={true}
     >
       <div className="space-y-6">
         {/* Payment Method Selection */}

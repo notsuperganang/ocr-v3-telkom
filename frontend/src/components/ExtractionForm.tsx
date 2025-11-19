@@ -352,14 +352,14 @@ export function ExtractionForm({
             watch={watch}
           />
 
-          <TelkomContactSection
+          <ContractPeriodSection
             register={register}
             errors={errors}
             setValue={setValue}
             watch={watch}
           />
 
-          <ContractPeriodSection
+          <TelkomContactSection
             register={register}
             errors={errors}
             setValue={setValue}

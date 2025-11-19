@@ -58,6 +58,7 @@ export function ServiceDetailsSection({
       title="Rincian Layanan"
       description="Detail biaya instalasi dan langganan untuk setiap paket layanan"
       icon={<Receipt className="w-5 h-5" />}
+      isRequired={true}
     >
       <div className="space-y-6">
         {/* Single Service Detail */}
