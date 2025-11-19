@@ -413,13 +413,13 @@ const formTataCaraPembayaranSchema = z.object({
 
 const formRincianLayananSchema = z.object({
   biaya_instalasi: z.number().min(0),
-  biaya_langganan_tahunan: z.number().min(0),
+  biaya_langganan_tahunan: z.number().min(1, 'Biaya langganan tahunan harus lebih dari 0'),
   tata_cara_pembayaran: formTataCaraPembayaranSchema.optional(),
 });
 
 const formJangkaWaktuSchema = z.object({
-  mulai: z.string().optional(),
-  akhir: z.string().optional(),
+  mulai: z.string().min(1, 'Tanggal mulai kontrak wajib diisi'),
+  akhir: z.string().min(1, 'Tanggal akhir kontrak wajib diisi'),
 });
 
 const formKontakPersonTelkomSchema = z.object({
@@ -495,8 +495,8 @@ export interface FormRincianLayanan {
 }
 
 export interface FormJangkaWaktu {
-  mulai?: string;
-  akhir?: string;
+  mulai: string;
+  akhir: string;
 }
 
 export interface FormKontakPersonTelkom {

@@ -240,6 +240,10 @@ export function ExtractionForm({
     const hasContact = currentFormData.kontak_person_telkom?.nama;
     const hasPeriod = currentFormData.jangka_waktu?.mulai && currentFormData.jangka_waktu?.akhir;
 
+    // Check if rincian_layanan has valid data (biaya_langganan_tahunan > 0)
+    const hasValidServiceDetails = currentFormData.rincian_layanan?.length > 0 &&
+                                   (currentFormData.rincian_layanan[0]?.biaya_langganan_tahunan || 0) > 0;
+
     return [
       {
         name: 'Informasi Pelanggan',
@@ -257,8 +261,8 @@ export function ExtractionForm({
       },
       {
         name: 'Rincian Layanan',
-        completed: currentFormData.rincian_layanan?.length || 0,
-        total: Math.max(1, currentFormData.rincian_layanan?.length || 0),
+        completed: hasValidServiceDetails && !errors.rincian_layanan ? 1 : 0,
+        total: 1,
         errors: errors.rincian_layanan ? 1 : 0,
         required: true,
       },
