@@ -23,11 +23,11 @@ export function ContractPeriodSection({
 
   // Handle date changes
   const handleStartDateChange = (value: string) => {
-    setValue('jangka_waktu.mulai', value, { shouldDirty: true });
+    setValue('jangka_waktu.mulai', value, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleEndDateChange = (value: string) => {
-    setValue('jangka_waktu.akhir', value, { shouldDirty: true });
+    setValue('jangka_waktu.akhir', value, { shouldDirty: true, shouldValidate: true });
   };
 
   // Calculate contract duration with smart rounding
