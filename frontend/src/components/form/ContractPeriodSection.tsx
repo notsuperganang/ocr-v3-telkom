@@ -96,7 +96,7 @@ export function ContractPeriodSection({
       icon={<Calendar className="w-5 h-5" />}
       isRequired={true}
     >
-      <div className="space-y-6">
+      <div className="space-y-2">
         {/* Date Range Picker */}
         <DateRangePicker
           startDate={startDate}
@@ -178,7 +178,7 @@ export function ContractPeriodSection({
             <div className="space-y-3">
               <h5 className="font-medium text-sm">Timeline Kontrak:</h5>
 
-              <div className="relative pb-16">
+              <div className="relative pb-8">
                 {/* Timeline container with proper spacing */}
                 <div className="mx-8">
                   {/* Timeline bar */}
@@ -249,14 +249,11 @@ export function ContractPeriodSection({
         )}
 
         {/* Guidelines */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
+        <div className="bg-gray-50 p-4 rounded-lg">
           <h5 className="font-medium text-sm mb-2">Panduan Jangka Waktu Kontrak:</h5>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>• <strong>Tanggal mulai:</strong> Tanggal efektif berlakunya kontrak (biasanya setelah penandatanganan).</li>
             <li>• <strong>Tanggal berakhir:</strong> Tanggal berakhirnya masa kontrak sebelum perpanjangan.</li>
-            <li>• Kontrak jangka panjang (≥3 tahun) biasanya mendapat harga yang lebih kompetitif.</li>
-            <li>• Perhatikan klausul perpanjangan otomatis jika ada dalam kontrak.</li>
-            <li>• Pastikan periode kontrak sesuai dengan kebutuhan bisnis dan budget planning.</li>
           </ul>
         </div>
       </div>

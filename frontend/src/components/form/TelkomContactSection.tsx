@@ -225,16 +225,6 @@ export function TelkomContactSection({
           </div>
         )}
 
-        {/* Information Note */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
-          <h5 className="font-medium text-sm mb-2">Informasi Kontak Person Telkom:</h5>
-          <ul className="text-xs text-muted-foreground space-y-1">
-            <li>• Kontak person adalah perwakilan resmi Telkom yang bertanggung jawab atas kontrak ini.</li>
-            <li>• Informasi kontak digunakan untuk koordinasi teknis dan administratif.</li>
-            <li>• Pastikan informasi kontak valid dan aktif selama masa kontrak.</li>
-            <li>• Kontak person biasanya dari divisi Enterprise, Government, atau Regional sesuai segmen pelanggan.</li>
-          </ul>
-        </div>
       </div>
     </FormSection>
   );

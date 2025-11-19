@@ -206,12 +206,9 @@ export function PaymentMethodSection({
         )}
 
         {/* Guidelines */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
+        <div className="bg-gray-50 p-4 rounded-lg">
           <h5 className="font-medium text-sm mb-2">Panduan Tata Cara Pembayaran:</h5>
           <ul className="text-xs text-muted-foreground space-y-1">
-            <li>• <strong>Sekali Bayar:</strong> Cocok untuk kontrak dengan nilai tidak terlalu besar atau ada diskon khusus.</li>
-            <li>• <strong>Berulang:</strong> Ideal untuk layanan berlangganan atau kontrak jangka panjang.</li>
-            <li>• <strong>Termin:</strong> Membantu cash flow pelanggan dengan pembayaran bertahap sesuai milestone.</li>
             <li>• Pastikan metode pembayaran sesuai dengan ketentuan yang disepakati dalam kontrak.</li>
           </ul>
         </div>
