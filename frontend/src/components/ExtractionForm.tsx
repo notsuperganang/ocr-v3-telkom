@@ -1,5 +1,5 @@
 import React from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, FormProvider, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { CheckCircle, AlertCircle, RefreshCw, Save, X } from 'lucide-react';
@@ -26,49 +26,6 @@ import {
 } from '@/lib/validation';
 import { useUpdateExtraction, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
 
-// Field path to user-friendly label mapping for error messages
-const fieldLabels: Record<string, string> = {
-  // Customer Information
-  'informasi_pelanggan.nama_pelanggan': 'Nama Pelanggan',
-  'informasi_pelanggan.alamat': 'Alamat Pelanggan',
-  'informasi_pelanggan.npwp': 'NPWP',
-  'informasi_pelanggan.perwakilan.nama': 'Nama Perwakilan',
-  'informasi_pelanggan.perwakilan.jabatan': 'Jabatan Perwakilan',
-  'informasi_pelanggan.kontak_person.nama': 'Nama Kontak Person Pelanggan',
-  'informasi_pelanggan.kontak_person.jabatan': 'Jabatan Kontak Person Pelanggan',
-  'informasi_pelanggan.kontak_person.email': 'Email Kontak Person Pelanggan',
-  'informasi_pelanggan.kontak_person.telepon': 'Telepon Kontak Person Pelanggan',
-
-  // Main Services
-  'layanan_utama': 'Layanan Utama',
-  'layanan_utama.connectivity_telkom': 'Jumlah Layanan Connectivity',
-  'layanan_utama.non_connectivity_telkom': 'Jumlah Layanan Non-Connectivity',
-  'layanan_utama.bundling': 'Jumlah Layanan Bundling',
-
-  // Service Details
-  'rincian_layanan': 'Rincian Layanan',
-  'rincian_layanan.biaya_instalasi': 'Biaya Instalasi',
-  'rincian_layanan.biaya_langganan_tahunan': 'Biaya Langganan Tahunan',
-
-  // Payment Method
-  'tata_cara_pembayaran': 'Tata Cara Pembayaran',
-  'tata_cara_pembayaran.method_type': 'Metode Pembayaran',
-  'tata_cara_pembayaran.termin_payments': 'Pembayaran Termin',
-
-  // Telkom Contact
-  'kontak_person_telkom.nama': 'Nama Kontak Person Telkom',
-  'kontak_person_telkom.jabatan': 'Jabatan Kontak Person Telkom',
-  'kontak_person_telkom.email': 'Email Kontak Person Telkom',
-  'kontak_person_telkom.telepon': 'Telepon Kontak Person Telkom',
-
-  // Contract Period
-  'jangka_waktu': 'Jangka Waktu Kontrak',
-  'jangka_waktu.mulai': 'Tanggal Mulai Kontrak',
-  'jangka_waktu.akhir': 'Tanggal Akhir Kontrak',
-  'jangka_waktu.mulai.format': 'Format Tanggal Mulai',
-  'jangka_waktu.akhir.format': 'Format Tanggal Akhir',
-};
-
 // Field path prefix to section ID mapping for scroll-to-error
 const fieldToSectionId: Record<string, string> = {
   'informasi_pelanggan': 'section-informasi-pelanggan',
@@ -78,6 +35,95 @@ const fieldToSectionId: Record<string, string> = {
   'kontak_person_telkom': 'section-kontak-person-telkom',
   'jangka_waktu': 'section-jangka-waktu',
 };
+
+// Helper function to flatten nested React Hook Form errors into ErrorItem array
+function flattenFormErrors(
+  errors: FieldErrors<TelkomContractFormData>,
+  parentPath: string = ''
+): ErrorItem[] {
+  const result: ErrorItem[] = [];
+
+  for (const key in errors) {
+    const error = errors[key as keyof typeof errors];
+    const currentPath = parentPath ? `${parentPath}.${key}` : key;
+
+    if (error) {
+      // Check if this is a leaf error (has message property)
+      if ('message' in error && typeof error.message === 'string' && error.message) {
+        // For termin payments, add context to the message
+        let message = error.message;
+        if (currentPath.includes('termin_payments')) {
+          const match = currentPath.match(/\.(\d+)\./);
+          const index = match ? parseInt(match[1]) + 1 : 1;
+          if (currentPath.includes('period')) {
+            message = `Periode termin ${index} ${message.toLowerCase()}`;
+          } else if (currentPath.includes('amount')) {
+            message = `Jumlah termin ${index} ${message.toLowerCase()}`;
+          }
+        }
+
+        result.push({
+          fieldPath: currentPath,
+          message,
+        });
+      }
+      // Check if this is an array of errors (like rincian_layanan or termin_payments)
+      // React Hook Form stores array errors as objects with numeric keys, not actual arrays
+      else if (Array.isArray(error)) {
+        error.forEach((item, index) => {
+          if (item && typeof item === 'object') {
+            const nestedErrors = flattenFormErrors(
+              item as FieldErrors<TelkomContractFormData>,
+              `${currentPath}.${index}`
+            );
+            result.push(...nestedErrors);
+          }
+        });
+      }
+      // Recursively handle nested objects (including array-like objects with numeric keys)
+      else if (typeof error === 'object') {
+        // Check if this is an array-like object with numeric keys (React Hook Form's array error format)
+        const keys = Object.keys(error);
+        const isArrayLike = keys.length > 0 && keys.every(k => /^\d+$/.test(k));
+
+        if (isArrayLike) {
+          // Handle as array-like object
+          keys.forEach(indexKey => {
+            const item = (error as Record<string, unknown>)[indexKey];
+            if (item && typeof item === 'object') {
+              const nestedErrors = flattenFormErrors(
+                item as FieldErrors<TelkomContractFormData>,
+                `${currentPath}.${indexKey}`
+              );
+              result.push(...nestedErrors);
+            }
+          });
+        } else {
+          // Regular nested object
+          const nestedErrors = flattenFormErrors(
+            error as FieldErrors<TelkomContractFormData>,
+            currentPath
+          );
+          result.push(...nestedErrors);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+// Helper function to deduplicate errors by message
+function deduplicateErrors(errors: ErrorItem[]): ErrorItem[] {
+  const seen = new Set<string>();
+  return errors.filter(error => {
+    if (seen.has(error.message)) {
+      return false;
+    }
+    seen.add(error.message);
+    return true;
+  });
+}
 
 interface ExtractionFormProps {
   jobId: number;
@@ -304,14 +350,39 @@ export function ExtractionForm({
   // when user is editing incomplete data (e.g., partial email or phone)
   const canConfirmData = React.useMemo(() => {
     try {
-      return canConfirmContract(formToBackend(currentFormData));
+      const result = canConfirmContract(formToBackend(currentFormData));
+      if (!result.canConfirm) {
+        // Clean up error messages from canConfirmContract
+        const cleanedErrors = result.errors.map((error) => {
+          // Parse "path → subpath: message" format and extract just the message
+          const pathMatch = error.match(/^(.+?):\s*(.+)$/);
+          if (pathMatch) {
+            return pathMatch[2].trim();
+          }
+          return error;
+        });
+        return { canConfirm: false, errors: cleanedErrors };
+      }
+      return result;
     } catch (error) {
       // Extract detailed validation errors from ZodError
       if (error instanceof z.ZodError) {
         const detailedErrors = error.issues.map((issue) => {
           const fieldPath = issue.path.join('.');
-          const fieldLabel = fieldLabels[fieldPath] || fieldPath;
-          return `${fieldLabel}: ${issue.message}`;
+
+          // For termin payments, add context to the message
+          let message = issue.message;
+          if (fieldPath.includes('termin_payments')) {
+            const match = fieldPath.match(/\.(\d+)\./);
+            const index = match ? parseInt(match[1]) + 1 : 1;
+            if (fieldPath.includes('period')) {
+              message = `Periode termin ${index} ${message.toLowerCase()}`;
+            } else if (fieldPath.includes('amount')) {
+              message = `Jumlah termin ${index} ${message.toLowerCase()}`;
+            }
+          }
+
+          return message;
         });
         return {
           canConfirm: false,
@@ -324,30 +395,84 @@ export function ExtractionForm({
   }, [currentFormData]);
 
   // Create error items with field paths for the overlay
+  // Merges both React Hook Form errors and canConfirmContract business logic errors
   const errorItems: ErrorItem[] = React.useMemo(() => {
+    const allErrors: ErrorItem[] = [];
+
+    // 1. Get React Hook Form errors (format validation: NPWP, email, phone, termin format)
+    const formErrors = flattenFormErrors(errors);
+    allErrors.push(...formErrors);
+
+    // 2. Get canConfirmContract business logic errors
     try {
       const result = canConfirmContract(formToBackend(currentFormData));
-      if (result.canConfirm) return [];
+      if (!result.canConfirm) {
+        // Parse canConfirmContract errors and extract field paths
+        result.errors.forEach((error) => {
+          // canConfirmContract errors have format "path → subpath: message"
+          let fieldPath = 'informasi_pelanggan'; // Default section
+          let message = error;
 
-      // If there are string errors from canConfirmContract, convert them
-      return result.errors.map((error) => ({
-        fieldPath: 'informasi_pelanggan', // Default section
-        message: error,
-      }));
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return error.issues.map((issue) => {
-          const fieldPath = issue.path.join('.');
-          const fieldLabel = fieldLabels[fieldPath] || fieldPath;
-          return {
+          // Check if error has path format "path → subpath: message"
+          const pathMatch = error.match(/^(.+?):\s*(.+)$/);
+          if (pathMatch) {
+            const rawPath = pathMatch[1].trim();
+            message = pathMatch[2].trim(); // Just use the message part
+
+            // Convert "informasi_pelanggan → nama_pelanggan" to "informasi_pelanggan.nama_pelanggan"
+            const normalizedPath = rawPath.replace(/\s*→\s*/g, '.');
+
+            // Determine section for scroll-to
+            if (normalizedPath.includes('informasi_pelanggan')) {
+              fieldPath = 'informasi_pelanggan';
+            } else if (normalizedPath.includes('layanan_utama')) {
+              fieldPath = 'layanan_utama';
+            } else if (normalizedPath.includes('rincian_layanan')) {
+              fieldPath = 'rincian_layanan';
+            } else if (normalizedPath.includes('tata_cara_pembayaran')) {
+              fieldPath = 'tata_cara_pembayaran';
+            } else if (normalizedPath.includes('jangka_waktu')) {
+              fieldPath = 'jangka_waktu';
+            } else if (normalizedPath.includes('kontak_person_telkom')) {
+              fieldPath = 'kontak_person_telkom';
+            }
+          }
+
+          allErrors.push({
             fieldPath,
-            message: `${fieldLabel}: ${issue.message}`,
-          };
+            message,
+          });
         });
       }
-      return [];
+    } catch (zodError) {
+      // If formToBackend fails with ZodError, add those errors too
+      if (zodError instanceof z.ZodError) {
+        zodError.issues.forEach((issue) => {
+          const fieldPath = issue.path.join('.');
+
+          // For termin payments, add context to the message
+          let message = issue.message;
+          if (fieldPath.includes('termin_payments')) {
+            const match = fieldPath.match(/\.(\d+)\./);
+            const index = match ? parseInt(match[1]) + 1 : 1;
+            if (fieldPath.includes('period')) {
+              message = `Periode termin ${index} ${message.toLowerCase()}`;
+            } else if (fieldPath.includes('amount')) {
+              message = `Jumlah termin ${index} ${message.toLowerCase()}`;
+            }
+          }
+
+          allErrors.push({
+            fieldPath,
+            message,
+          });
+        });
+      }
     }
-  }, [currentFormData]);
+
+    // 3. Deduplicate errors by message
+    return deduplicateErrors(allErrors);
+  }, [currentFormData, errors]);
 
   // Scroll to section when clicking an error
   const scrollToSection = (fieldPath: string) => {
