@@ -94,6 +94,7 @@ export function ContractPeriodSection({
       title="Jangka Waktu Kontrak"
       description="Periode berlakunya kontrak dari tanggal mulai hingga tanggal berakhir"
       icon={<Calendar className="w-5 h-5" />}
+      isRequired={true}
     >
       <div className="space-y-6">
         {/* Date Range Picker */}

@@ -85,13 +85,18 @@ export function FormSection({
 
     if (isRequired) {
       return (
-        <Badge variant="outline" className="text-orange-600 border-orange-600">
-          Required
+        <Badge variant="outline" className="text-rose-600 border-rose-300 bg-rose-50">
+          Wajib
         </Badge>
       );
     }
 
-    return null;
+    // Show optional badge for non-required sections
+    return (
+      <Badge variant="outline" className="text-slate-600 border-slate-300 bg-slate-50">
+        Opsional
+      </Badge>
+    );
   }, [hasErrors, errorCount, completionPercentage, isRequired]);
 
   return (
