@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { computeServiceBreakdown, type ServiceItem } from '@/lib/calculations';
 import { formatIDR } from '@/lib/currency';
+import { getStatusBadgeConfig } from '@/lib/termin-utils';
 import { useTerminPayments } from '@/hooks/useContracts';
 import type { TerminPaymentStatus } from '@/types/api';
 import { TerminPaymentModal } from './TerminPaymentModal';
@@ -40,24 +41,6 @@ interface ServiceDetailsSectionProps {
     total_amount?: number | null;
   } | null;
 }
-
-// Helper function to get status badge variant and label
-const getStatusBadgeConfig = (status: TerminPaymentStatus) => {
-  switch (status) {
-    case 'PENDING':
-      return { variant: 'outline' as const, label: 'Pending', className: 'bg-slate-50 text-slate-600 border-slate-200' };
-    case 'DUE':
-      return { variant: 'outline' as const, label: 'Jatuh Tempo', className: 'bg-amber-50 text-amber-700 border-amber-200' };
-    case 'OVERDUE':
-      return { variant: 'outline' as const, label: 'Terlambat', className: 'bg-red-50 text-red-700 border-red-200' };
-    case 'PAID':
-      return { variant: 'outline' as const, label: 'Lunas', className: 'bg-green-50 text-green-700 border-green-200' };
-    case 'CANCELLED':
-      return { variant: 'outline' as const, label: 'Dibatalkan', className: 'bg-gray-50 text-gray-500 border-gray-200' };
-    default:
-      return { variant: 'outline' as const, label: status, className: 'bg-slate-50 text-slate-600 border-slate-200' };
-  }
-};
 
 const sectionVariants = {
   initial: { opacity: 0, y: 24 },
@@ -393,7 +376,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
             )}
 
             {isTermin && (
-              <div className="mt-2 space-y-4">
+              <div id="termin-section" className="mt-2 space-y-4 scroll-mt-6">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-rose-400">
                   <ListChecks className="h-3.5 w-3.5 text-rose-500" />
                   Jadwal Termin
