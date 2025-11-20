@@ -1,4 +1,5 @@
 // Contract Detail Page with Telkom branding and smooth animations
+import * as React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -248,6 +249,19 @@ export function ContractDetailPage() {
   
   const { data: contract, isLoading, error } = useContract(Number(contractId));
   const downloadJsonMutation = useDownloadContractJson();
+
+  // Scroll to termin section when navigating from Dashboard
+  React.useEffect(() => {
+    if (!isLoading && contract && window.location.hash === '#termin-section') {
+      // Small delay to ensure DOM is fully rendered
+      setTimeout(() => {
+        const element = document.getElementById('termin-section');
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [isLoading, contract]);
 
   const handleDownloadJson = () => {
     if (contract) {
