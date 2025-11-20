@@ -204,18 +204,44 @@ async def get_termin_upcoming(
     )
 
     # Filter by date range
-    # Create conditions for month/year range
+    # Include:
+    # 1. All OVERDUE termins (past months, not paid)
+    # 2. DUE termins (current month)
+    # 3. PENDING termins (future months within the window)
+
+    # Create conditions for:
+    # - Past periods (OVERDUE) - any period before current month
+    # - Current and future periods up to target date
     if start_year == end_year:
         # Same year
         query = query.filter(
-            ContractTermPayment.period_year == start_year,
-            ContractTermPayment.period_month >= start_month,
-            ContractTermPayment.period_month <= end_month
+            or_(
+                # Past months in current year (OVERDUE)
+                and_(
+                    ContractTermPayment.period_year == start_year,
+                    ContractTermPayment.period_month < start_month
+                ),
+                # Past years (OVERDUE)
+                ContractTermPayment.period_year < start_year,
+                # Current month up to target (DUE and PENDING)
+                and_(
+                    ContractTermPayment.period_year == start_year,
+                    ContractTermPayment.period_month >= start_month,
+                    ContractTermPayment.period_month <= end_month
+                )
+            )
         )
     else:
         # Spans multiple years
         query = query.filter(
             or_(
+                # Past years (OVERDUE)
+                ContractTermPayment.period_year < start_year,
+                # Past months in current year (OVERDUE)
+                and_(
+                    ContractTermPayment.period_year == start_year,
+                    ContractTermPayment.period_month < start_month
+                ),
                 # Current year from start_month onwards
                 and_(
                     ContractTermPayment.period_year == start_year,
