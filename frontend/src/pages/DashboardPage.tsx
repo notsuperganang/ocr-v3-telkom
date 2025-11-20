@@ -514,10 +514,10 @@ export function DashboardPage() {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-lg font-semibold">
-                  Termin Jatuh Tempo
+                  Status Pembayaran Termin
                 </CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Termin belum lunas dalam 30 hari ke depan
+                  Monitoring termin terlambat, jatuh tempo, dan akan datang
                 </p>
               </div>
               <Button
