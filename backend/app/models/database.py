@@ -143,6 +143,11 @@ class Contract(Base):
     payment_raw_text = Column(Text)  # From final_data->tata_cara_pembayaran->raw_text
     termin_payments_raw = Column(JSONB)  # Raw snapshot: final_data->tata_cara_pembayaran->termin_payments (OCR extraction only)
 
+    # D2. Recurring Payment Details (computed for payment_method="recurring")
+    recurring_monthly_amount = Column(Numeric(18, 2), default=0, nullable=False)  # Monthly subscription charge (annual_subscription_cost / 12)
+    recurring_month_count = Column(Integer, nullable=True)  # Number of monthly billing cycles (period_start to period_end inclusive)
+    recurring_total_amount = Column(Numeric(18, 2), default=0, nullable=False)  # Total recurring billing amount (recurring_monthly_amount * recurring_month_count)
+
     # E. Extraction Metadata
     extraction_timestamp = Column(DateTime(timezone=True))  # From final_data->extraction_timestamp (parsed)
     contract_processing_time_sec = Column(Float)  # From final_data->processing_time_seconds or processing_job
@@ -160,6 +165,7 @@ class Contract(Base):
     file = relationship("File", back_populates="contracts")
     export_history = relationship("ExportHistory", back_populates="contract")
     term_payments = relationship("ContractTermPayment", back_populates="contract", cascade="all, delete-orphan")
+    recurring_payments = relationship("ContractRecurringPayment", back_populates="contract", cascade="all, delete-orphan")
 
 class ContractTermPayment(Base):
     """Normalized termin payment tracking for operational reminders and status management"""
@@ -191,6 +197,37 @@ class ContractTermPayment(Base):
 
     # Relationships
     contract = relationship("Contract", back_populates="term_payments")
+
+class ContractRecurringPayment(Base):
+    """Normalized recurring payment tracking for operational monthly billing management"""
+    __tablename__ = "contract_recurring_payments"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    contract_id = Column(Integer, ForeignKey("contracts.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Recurring payment details
+    cycle_number = Column(Integer, nullable=False)  # Billing cycle sequence number (1, 2, 3, ...)
+    period_label = Column(Text, nullable=False)  # Period string (e.g., "Januari 2025")
+    period_year = Column(Integer, nullable=False)  # Billing year (e.g., 2025)
+    period_month = Column(Integer, nullable=False)  # Billing month 1-12 (Januari-Desember)
+
+    # Amount tracking
+    original_amount = Column(Numeric(18, 2), nullable=False)  # Original monthly amount from extraction
+    amount = Column(Numeric(18, 2), nullable=False)  # Current editable monthly amount
+
+    # Status tracking (reuses TerminPaymentStatus enum)
+    status = Column(String(20), nullable=False, default="PENDING")  # PENDING/DUE/OVERDUE/PAID/CANCELLED
+    paid_at = Column(DateTime(timezone=True), nullable=True)  # Timestamp when marked as paid
+    notes = Column(Text, nullable=True)  # Additional notes or comments
+
+    # Audit fields
+    created_by = Column(Text, nullable=True)  # User who created this record
+    updated_by = Column(Text, nullable=True)  # User who last updated this record
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    contract = relationship("Contract", back_populates="recurring_payments")
 
 class ExtractionLog(Base):
     """Processing logs and audit trail"""
