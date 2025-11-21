@@ -1,10 +1,16 @@
 import React from 'react';
 import { format, parse, isValid } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Calendar, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Calendar as CalendarIcon, X, AlertCircle, ChevronDownIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface DatePickerProps {
   id?: string;
@@ -22,94 +28,58 @@ interface DatePickerProps {
 
 export function DatePicker({
   id,
-  name,
   label,
   value = '',
   onChange,
-  onBlur,
-  placeholder = 'YYYY-MM-DD',
   disabled = false,
   required = false,
   error,
   className = '',
 }: DatePickerProps) {
-  const [inputValue, setInputValue] = React.useState(value);
+  const [open, setOpen] = React.useState(false);
 
-  // Update input value when prop value changes
-  React.useEffect(() => {
-    setInputValue(value);
+  // Parse string value to Date object for Calendar component
+  const selectedDate = React.useMemo(() => {
+    if (!value) return undefined;
+    try {
+      const date = parse(value, 'yyyy-MM-dd', new Date());
+      return isValid(date) ? date : undefined;
+    } catch {
+      return undefined;
+    }
   }, [value]);
 
-  // Handle input change
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setInputValue(newValue);
-
-    // Validate and emit change if valid date
-    if (newValue.length === 10) {
-      const date = parse(newValue, 'yyyy-MM-dd', new Date());
-      if (isValid(date)) {
-        onChange?.(newValue);
-      }
-    } else if (newValue === '') {
-      onChange?.('');
-    }
-  };
-
-  // Handle input blur
-  const handleBlur = () => {
-    onBlur?.();
-
-    // Validate and correct format if needed
-    if (inputValue && inputValue.length >= 8) {
-      // Try to parse various date formats
-      const formats = ['yyyy-MM-dd', 'dd/MM/yyyy', 'dd-MM-yyyy', 'yyyy/MM/dd'];
-      let parsedDate: Date | null = null;
-
-      for (const fmt of formats) {
-        try {
-          const date = parse(inputValue, fmt, new Date());
-          if (isValid(date)) {
-            parsedDate = date;
-            break;
-          }
-        } catch {
-          // Continue to next format
-        }
-      }
-
-      if (parsedDate) {
-        const formattedValue = format(parsedDate, 'yyyy-MM-dd');
-        setInputValue(formattedValue);
-        onChange?.(formattedValue);
-      }
-    }
-  };
-
-  // Clear date
-  const clearDate = () => {
-    setInputValue('');
-    onChange?.('');
-  };
-
-  // Format display value
+  // Format date for display in button (Indonesian format)
   const displayValue = React.useMemo(() => {
-    if (!inputValue) return '';
-
+    if (!value) return '';
     try {
-      const date = parse(inputValue, 'yyyy-MM-dd', new Date());
+      const date = parse(value, 'yyyy-MM-dd', new Date());
       if (isValid(date)) {
         return format(date, 'dd MMMM yyyy', { locale: idLocale });
       }
     } catch {
-      // Return raw value if can't parse
+      // Return empty if can't parse
     }
+    return '';
+  }, [value]);
 
-    return inputValue;
-  }, [inputValue]);
+  // Handle date selection from calendar
+  const handleSelect = (date: Date | undefined) => {
+    if (date) {
+      const formattedValue = format(date, 'yyyy-MM-dd');
+      onChange?.(formattedValue);
+      setOpen(false);
+    }
+  };
+
+  // Clear date
+  const clearDate = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent opening popover when clearing
+    onChange?.('');
+  };
 
   return (
-    <div className={`space-y-1 ${className}`}>
+    <div className={cn('space-y-1', className)}>
       {label && (
         <Label htmlFor={id} className="text-sm font-medium">
           {label}
@@ -118,46 +88,64 @@ export function DatePicker({
       )}
 
       <div className="relative">
-        <Input
-          id={id}
-          name={name}
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          onBlur={handleBlur}
-          placeholder={placeholder}
-          disabled={disabled}
-          className={`pr-20 ${error ? 'border-red-500' : ''}`}
-        />
-
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
-          {inputValue && !disabled && (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
             <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={clearDate}
-              className="h-6 w-6 p-0 hover:bg-gray-100"
+              id={id}
+              variant="outline"
+              disabled={disabled}
+              className={cn(
+                'w-full justify-between font-normal',
+                !value && 'text-muted-foreground',
+                error && 'border-red-500'
+              )}
             >
-              <X className="h-3 w-3" />
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                <span>{value ? displayValue : 'Pilih tanggal'}</span>
+              </div>
+              <ChevronDownIcon className="h-4 w-4 opacity-50" />
             </Button>
-          )}
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleSelect}
+              captionLayout="dropdown"
+              locale={idLocale}
+              defaultMonth={selectedDate}
+            />
+          </PopoverContent>
+        </Popover>
 
-          <div className="flex items-center justify-center h-6 w-6 text-gray-400">
-            <Calendar className="h-3 w-3" />
-          </div>
-        </div>
+        {/* Clear button overlay */}
+        {value && !disabled && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearDate}
+            className="absolute right-10 top-1/2 -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        )}
       </div>
 
-      {/* Display formatted date below input for clarity */}
-      {inputValue && displayValue !== inputValue && (
-        <p className="text-xs text-muted-foreground">
-          {displayValue}
-        </p>
+      {/* Error message */}
+      {error && (
+        <div className="flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 text-red-500 mt-0.5" />
+          <p className="text-xs text-red-500">{error}</p>
+        </div>
       )}
 
-      {error && (
-        <p className="text-xs text-red-500">{error}</p>
+      {/* Format guide when empty */}
+      {!value && !error && (
+        <p className="text-xs text-muted-foreground">
+          Klik untuk memilih tanggal dari kalender
+        </p>
       )}
     </div>
   );
@@ -189,25 +177,53 @@ export function DateRangePicker({
   errors = {},
   className = '',
 }: DateRangePickerProps) {
-  return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${className}`}>
-      <DatePicker
-        label={startLabel}
-        value={startDate}
-        onChange={onStartDateChange}
-        disabled={disabled}
-        required={required}
-        error={errors.start}
-      />
+  // Validate that end date is after start date
+  const isEndDateAfterStart = React.useMemo(() => {
+    if (!startDate || !endDate) return true; // If either is empty, skip validation
 
-      <DatePicker
-        label={endLabel}
-        value={endDate}
-        onChange={onEndDateChange}
-        disabled={disabled}
-        required={required}
-        error={errors.end}
-      />
+    try {
+      const start = parse(startDate, 'yyyy-MM-dd', new Date());
+      const end = parse(endDate, 'yyyy-MM-dd', new Date());
+
+      if (!isValid(start) || !isValid(end)) return true; // Skip if invalid format
+
+      return end > start;
+    } catch {
+      return true; // Skip validation on error
+    }
+  }, [startDate, endDate]);
+
+  return (
+    <div className="space-y-4">
+      <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-4', className)}>
+        <DatePicker
+          label={startLabel}
+          value={startDate}
+          onChange={onStartDateChange}
+          disabled={disabled}
+          required={required}
+          error={errors.start}
+        />
+
+        <DatePicker
+          label={endLabel}
+          value={endDate}
+          onChange={onEndDateChange}
+          disabled={disabled}
+          required={required}
+          error={errors.end}
+        />
+      </div>
+
+      {/* Range validation error */}
+      {startDate && endDate && !isEndDateAfterStart && (
+        <div className="flex items-start gap-1.5 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-orange-700">
+            Tanggal akhir kontrak harus setelah tanggal mulai
+          </p>
+        </div>
+      )}
     </div>
   );
 }

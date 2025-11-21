@@ -62,6 +62,31 @@ function cleanNPWP(value: string): { cleaned: string; isValid: boolean; error?: 
   }
 }
 
+// Clean and validate NPWP from OCR data - reject invalid/non-numeric values
+export function validateOCRNPWP(npwp: string | undefined): string {
+  if (!npwp || npwp.trim() === '') return '';
+
+  // Remove all non-digit characters
+  const digits = npwp.replace(/\D/g, '');
+
+  console.log('🔍 OCR NPWP Validation:', {
+    originalValue: npwp,
+    extractedDigits: digits,
+    digitCount: digits.length,
+    isValid: digits.length === 15 || digits.length === 16 || digits.length === 19,
+    action: (digits.length === 15 || digits.length === 16 || digits.length === 19) ? 'ACCEPT' : 'REJECT'
+  });
+
+  // Only accept if we have exactly 15, 16, or 19 digits
+  if (digits.length === 15 || digits.length === 16 || digits.length === 19) {
+    return digits;
+  }
+
+  // Reject invalid NPWP (including pure text like "meaulaboh")
+  console.warn('⚠️ Rejecting invalid OCR NPWP:', npwp);
+  return '';
+}
+
 // Normalize Indonesian phone numbers to a consistent format
 function normalizePhoneNumber(value: string): string {
   // Remove all non-digit characters except +
@@ -342,9 +367,15 @@ const formInformasiPelangganSchema = z.object({
   nama_pelanggan: z.string().optional(),
   alamat: z.string().optional(),
   npwp: z.string().optional().refine((val) => {
-    // NPWP is optional, but if provided, must be 15, 16, or 19 digits
-    if (!val || val.trim() === '') return true;
+    // Explicitly handle empty/undefined/null - all are valid (optional field)
+    if (val === undefined || val === null || val === '') return true;
+    if (typeof val !== 'string') return false;
+
     const digits = val.replace(/\D/g, '');
+    // Empty after cleaning is also valid (e.g., field had only non-digit chars)
+    if (digits === '') return true;
+
+    // If has digits, must be exactly 15, 16, or 19 digits
     return digits.length === 15 || digits.length === 16 || digits.length === 19;
   }, {
     message: 'NPWP harus 15, 16, atau 19 digit (atau kosongkan jika tidak ada)'
@@ -361,7 +392,12 @@ const formLayananUtamaSchema = z.object({
 
 const formTerminPaymentSchema = z.object({
   termin_number: z.number().int().min(1),
-  period: z.string().min(1),
+  period: z.string()
+    .min(1, 'Periode pembayaran wajib diisi')
+    .regex(
+      /^[A-Za-z]+\s+\d{4}$/,
+      'Format periode harus "Bulan YYYY" (contoh: Januari 2025, Februari 2025)'
+    ),
   amount: z.number().min(0),
   raw_text: z.string().optional(),
 });
@@ -377,13 +413,13 @@ const formTataCaraPembayaranSchema = z.object({
 
 const formRincianLayananSchema = z.object({
   biaya_instalasi: z.number().min(0),
-  biaya_langganan_tahunan: z.number().min(0),
+  biaya_langganan_tahunan: z.number().min(1, 'Biaya langganan tahunan harus lebih dari 0'),
   tata_cara_pembayaran: formTataCaraPembayaranSchema.optional(),
 });
 
 const formJangkaWaktuSchema = z.object({
-  mulai: z.string().optional(),
-  akhir: z.string().optional(),
+  mulai: z.string().min(1, 'Tanggal mulai kontrak wajib diisi'),
+  akhir: z.string().min(1, 'Tanggal akhir kontrak wajib diisi'),
 });
 
 const formKontakPersonTelkomSchema = z.object({
@@ -459,8 +495,8 @@ export interface FormRincianLayanan {
 }
 
 export interface FormJangkaWaktu {
-  mulai?: string;
-  akhir?: string;
+  mulai: string;
+  akhir: string;
 }
 
 export interface FormKontakPersonTelkom {
@@ -492,7 +528,7 @@ export function backendToForm(backendData: TelkomContractData): TelkomContractFo
     informasi_pelanggan: backendData.informasi_pelanggan ? {
       nama_pelanggan: backendData.informasi_pelanggan.nama_pelanggan || '',
       alamat: backendData.informasi_pelanggan.alamat || '',
-      npwp: backendData.informasi_pelanggan.npwp || '',
+      npwp: validateOCRNPWP(backendData.informasi_pelanggan.npwp),
       perwakilan: backendData.informasi_pelanggan.perwakilan ? {
         nama: backendData.informasi_pelanggan.perwakilan.nama || '',
         jabatan: backendData.informasi_pelanggan.perwakilan.jabatan || '',

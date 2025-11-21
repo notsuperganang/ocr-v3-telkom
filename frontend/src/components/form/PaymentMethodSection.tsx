@@ -43,7 +43,7 @@ export function PaymentMethodSection({
 
   // Handle termin payments change
   const handleTerminPaymentsChange = (payments: TerminPayment[]) => {
-    setValue('tata_cara_pembayaran.termin_payments', payments, { shouldDirty: true });
+    setValue('tata_cara_pembayaran.termin_payments', payments, { shouldDirty: true, shouldValidate: true });
     setValue('tata_cara_pembayaran.total_termin_count', payments.length, { shouldDirty: true });
     setValue('tata_cara_pembayaran.total_amount',
       payments.reduce((sum: number, payment) => sum + (payment.amount || 0), 0),
@@ -81,6 +81,7 @@ export function PaymentMethodSection({
       title="Tata Cara Pembayaran"
       description="Metode dan jadwal pembayaran untuk kontrak ini"
       icon={<Receipt className="w-5 h-5" />}
+      isRequired={true}
     >
       <div className="space-y-6">
         {/* Payment Method Selection */}
@@ -205,12 +206,9 @@ export function PaymentMethodSection({
         )}
 
         {/* Guidelines */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
+        <div className="bg-gray-50 p-4 rounded-lg">
           <h5 className="font-medium text-sm mb-2">Panduan Tata Cara Pembayaran:</h5>
           <ul className="text-xs text-muted-foreground space-y-1">
-            <li>• <strong>Sekali Bayar:</strong> Cocok untuk kontrak dengan nilai tidak terlalu besar atau ada diskon khusus.</li>
-            <li>• <strong>Berulang:</strong> Ideal untuk layanan berlangganan atau kontrak jangka panjang.</li>
-            <li>• <strong>Termin:</strong> Membantu cash flow pelanggan dengan pembayaran bertahap sesuai milestone.</li>
             <li>• Pastikan metode pembayaran sesuai dengan ketentuan yang disepakati dalam kontrak.</li>
           </ul>
         </div>

@@ -23,11 +23,11 @@ export function ContractPeriodSection({
 
   // Handle date changes
   const handleStartDateChange = (value: string) => {
-    setValue('jangka_waktu.mulai', value, { shouldDirty: true });
+    setValue('jangka_waktu.mulai', value, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleEndDateChange = (value: string) => {
-    setValue('jangka_waktu.akhir', value, { shouldDirty: true });
+    setValue('jangka_waktu.akhir', value, { shouldDirty: true, shouldValidate: true });
   };
 
   // Calculate contract duration with smart rounding
@@ -94,8 +94,9 @@ export function ContractPeriodSection({
       title="Jangka Waktu Kontrak"
       description="Periode berlakunya kontrak dari tanggal mulai hingga tanggal berakhir"
       icon={<Calendar className="w-5 h-5" />}
+      isRequired={true}
     >
-      <div className="space-y-6">
+      <div className="space-y-2">
         {/* Date Range Picker */}
         <DateRangePicker
           startDate={startDate}
@@ -104,6 +105,7 @@ export function ContractPeriodSection({
           onEndDateChange={handleEndDateChange}
           startLabel="Tanggal Mulai Kontrak"
           endLabel="Tanggal Berakhir Kontrak"
+          required={true}
           errors={{
             start: errors.jangka_waktu?.mulai?.message,
             end: errors.jangka_waktu?.akhir?.message,
@@ -121,8 +123,8 @@ export function ContractPeriodSection({
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-primary/5 rounded-lg">
-                <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="font-medium text-sm mb-3 flex items-center gap-2 text-blue-900">
                   <Clock className="w-4 h-4" />
                   Durasi Kontrak
                 </h4>
@@ -139,7 +141,7 @@ export function ContractPeriodSection({
 
                   <div className="space-y-2">
                     <div className="text-xs text-muted-foreground">Durasi:</div>
-                    <div className="text-lg font-semibold text-primary">
+                    <div className="text-lg font-semibold text-blue-700">
                       {!duration.error && 'days' in duration && duration.days !== undefined && formatDuration(duration as { days: number; months: number; years: number })}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -176,7 +178,7 @@ export function ContractPeriodSection({
             <div className="space-y-3">
               <h5 className="font-medium text-sm">Timeline Kontrak:</h5>
 
-              <div className="relative pb-16">
+              <div className="relative pb-8">
                 {/* Timeline container with proper spacing */}
                 <div className="mx-8">
                   {/* Timeline bar */}
@@ -247,14 +249,11 @@ export function ContractPeriodSection({
         )}
 
         {/* Guidelines */}
-        <div className="bg-blue-50/50 p-4 rounded-lg">
+        <div className="bg-gray-50 p-4 rounded-lg">
           <h5 className="font-medium text-sm mb-2">Panduan Jangka Waktu Kontrak:</h5>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>• <strong>Tanggal mulai:</strong> Tanggal efektif berlakunya kontrak (biasanya setelah penandatanganan).</li>
             <li>• <strong>Tanggal berakhir:</strong> Tanggal berakhirnya masa kontrak sebelum perpanjangan.</li>
-            <li>• Kontrak jangka panjang (≥3 tahun) biasanya mendapat harga yang lebih kompetitif.</li>
-            <li>• Perhatikan klausul perpanjangan otomatis jika ada dalam kontrak.</li>
-            <li>• Pastikan periode kontrak sesuai dengan kebutuhan bisnis dan budget planning.</li>
           </ul>
         </div>
       </div>

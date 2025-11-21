@@ -152,12 +152,20 @@ export function TerminTable({
                       id={`period_${index}`}
                       value={payment.period}
                       onChange={(e) => updateTermin(index, 'period', e.target.value)}
-                      placeholder="Contoh: Maret 2025"
+                      placeholder="Januari 2025"
                       disabled={disabled}
-                      className={errors[`termin_${index}_period`] ? 'border-red-500' : ''}
+                      className={errors[`termin_${index}_period`] || (payment.period && !/^[A-Za-z]+\s+\d{4}$/.test(payment.period)) ? 'border-red-500' : ''}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Format: Bulan YYYY (contoh: Januari 2025, Februari 2025)
+                    </p>
                     {errors[`termin_${index}_period`] && (
                       <p className="text-xs text-red-500">{errors[`termin_${index}_period`]}</p>
+                    )}
+                    {!errors[`termin_${index}_period`] && payment.period && !/^[A-Za-z]+\s+\d{4}$/.test(payment.period) && (
+                      <p className="text-xs text-red-500">
+                        Format periode harus "Bulan YYYY" (contoh: Januari 2025, Februari 2025)
+                      </p>
                     )}
                   </div>
 
@@ -192,10 +200,10 @@ export function TerminTable({
       {/* Summary */}
       {payments.length > 0 && (
         <div className="border-t pt-4">
-          <Card className="bg-primary/5">
+          <Card className="bg-blue-50 border border-blue-200">
             <CardContent className="p-4">
               <div className="space-y-3">
-                <h4 className="font-medium text-sm">Ringkasan Pembayaran Termin</h4>
+                <h4 className="font-medium text-sm text-blue-900">Ringkasan Pembayaran Termin</h4>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>

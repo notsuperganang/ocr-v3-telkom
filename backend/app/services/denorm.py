@@ -53,7 +53,12 @@ class DenormFields:
     termin_total_count: Optional[int] = None
     termin_total_amount: Optional[Decimal] = None
     payment_raw_text: Optional[str] = None
-    termin_payments_json: Optional[List[Dict[str, Any]]] = None
+    termin_payments_raw: Optional[List[Dict[str, Any]]] = None
+
+    # Extended fields - Recurring Payment Details
+    recurring_monthly_amount: Decimal = Decimal('0.00')
+    recurring_month_count: Optional[int] = None
+    recurring_total_amount: Decimal = Decimal('0.00')
 
     # Extended fields - Extraction Metadata
     extraction_timestamp: Optional[datetime] = None
@@ -230,6 +235,73 @@ def _compute_termin_summary(termin_payments: List[Dict[str, Any]]) -> tuple[int,
     return (count, total_amount)
 
 
+def _diff_months_inclusive(start_date: date, end_date: date) -> int:
+    """
+    Calculate the number of months between two dates (inclusive)
+
+    Args:
+        start_date: Start date
+        end_date: End date
+
+    Returns:
+        Number of months between the dates (inclusive)
+
+    Example:
+        _diff_months_inclusive(date(2025, 1, 15), date(2025, 3, 20)) -> 3
+        (January, February, March = 3 months)
+    """
+    year_diff = end_date.year - start_date.year
+    month_diff = end_date.month - start_date.month
+
+    # Total months = (year difference * 12) + month difference + 1 (for inclusive count)
+    total_months = (year_diff * 12) + month_diff + 1
+
+    return total_months
+
+
+def _compute_recurring_fields(
+    payment_method: Optional[str],
+    annual_subscription_cost: Decimal,
+    period_start: Optional[date],
+    period_end: Optional[date]
+) -> tuple[Decimal, Optional[int], Decimal]:
+    """
+    Compute recurring payment fields
+
+    Args:
+        payment_method: Payment method type
+        annual_subscription_cost: Annual subscription cost
+        period_start: Contract start date
+        period_end: Contract end date
+
+    Returns:
+        Tuple of (recurring_monthly_amount, recurring_month_count, recurring_total_amount)
+    """
+    # Guard clause: only compute for recurring payment method
+    if payment_method != 'recurring':
+        return (Decimal('0.00'), None, Decimal('0.00'))
+
+    # Guard clause: annual_subscription_cost must be > 0
+    if annual_subscription_cost <= 0:
+        return (Decimal('0.00'), None, Decimal('0.00'))
+
+    # Guard clause: both period dates must be present
+    if not period_start or not period_end:
+        return (Decimal('0.00'), None, Decimal('0.00'))
+
+    # Calculate monthly amount: annual / 12
+    # Use Decimal arithmetic to avoid float rounding issues
+    recurring_monthly_amount = annual_subscription_cost / Decimal('12')
+
+    # Calculate number of billing months (inclusive)
+    recurring_month_count = _diff_months_inclusive(period_start, period_end)
+
+    # Calculate total recurring amount
+    recurring_total_amount = recurring_monthly_amount * Decimal(str(recurring_month_count))
+
+    return (recurring_monthly_amount, recurring_month_count, recurring_total_amount)
+
+
 def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
     """
     Extract denormalized fields from final_data JSONB
@@ -348,8 +420,8 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
     termin_payments_list = _safe_get(final_data, 'tata_cara_pembayaran', 'termin_payments', default=[])
     termin_total_count, termin_total_amount = _compute_termin_summary(termin_payments_list)
 
-    # Store termin payments JSON for detail inspection (only if it's a list)
-    termin_payments_json = termin_payments_list if isinstance(termin_payments_list, list) else None
+    # Store termin payments raw snapshot for detail inspection (only if it's a list)
+    termin_payments_raw = termin_payments_list if isinstance(termin_payments_list, list) else None
 
     # E. Extraction Metadata
     extraction_timestamp_str = _safe_get(final_data, 'extraction_timestamp')
@@ -364,12 +436,21 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
         except (ValueError, TypeError):
             logger.warning(f"Invalid processing_time_seconds value: {processing_time_raw}")
 
+    # F. Recurring Payment Fields (computed for payment_method="recurring")
+    recurring_monthly_amount, recurring_month_count, recurring_total_amount = _compute_recurring_fields(
+        payment_method=payment_method,
+        annual_subscription_cost=annual_subscription_cost,
+        period_start=period_start,
+        period_end=period_end
+    )
+
     # Log summary for debugging (only if values are present)
     if customer_name or payment_method:
         logger.info(
             f"Denormalized contract: customer={customer_name}, "
             f"services=(conn:{service_connectivity}, non-conn:{service_non_connectivity}, bundle:{service_bundling}), "
             f"payment_method={payment_method}, termin_count={termin_count}, termin_total_count={termin_total_count}, "
+            f"recurring_month_count={recurring_month_count}, recurring_total={recurring_total_amount}, "
             f"total_value={total_contract_value}, extraction_ts={extraction_timestamp}"
         )
 
@@ -408,7 +489,11 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
         termin_total_count=termin_total_count,
         termin_total_amount=termin_total_amount,
         payment_raw_text=payment_raw_text,
-        termin_payments_json=termin_payments_json,
+        termin_payments_raw=termin_payments_raw,
+        # Extended fields - Recurring Payment Details
+        recurring_monthly_amount=recurring_monthly_amount,
+        recurring_month_count=recurring_month_count,
+        recurring_total_amount=recurring_total_amount,
         # Extended fields - Extraction Metadata
         extraction_timestamp=extraction_timestamp,
         contract_processing_time_sec=contract_processing_time_sec,
