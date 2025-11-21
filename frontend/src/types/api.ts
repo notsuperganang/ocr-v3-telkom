@@ -168,6 +168,31 @@ export interface UpdateTerminPaymentRequest {
   amount?: string | null;
 }
 
+// Recurring Payment Types
+export interface RecurringPayment {
+  id: number;
+  contract_id: number;
+  cycle_number: number;
+  period_label: string;
+  period_year: number;
+  period_month: number;
+  original_amount: string;
+  amount: string;
+  status: TerminPaymentStatus; // Reuse same status enum
+  paid_at: string | null;
+  notes: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpdateRecurringPaymentRequest {
+  status?: TerminPaymentStatus;
+  paid_at?: string | null;
+  notes?: string | null;
+}
+
 // Dashboard Types
 export interface DashboardOverview {
   total_contracts: number;
