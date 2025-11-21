@@ -276,18 +276,20 @@ def sync_contract_recurring_payments(
 
     # === AUTO-UPDATE STATUSES ===
 
-    # Reuse termin status update logic (same status enum)
-    from app.services.termin_status import update_termin_statuses
+    # Auto-update recurring payment statuses after sync
+    from app.services.termin_status import update_recurring_statuses
 
-    # Note: update_termin_statuses works on any table with period_year/period_month/status
-    # However, it's specifically designed for ContractTermPayment
-    # We need to manually update recurring payment statuses here
+    try:
+        status_result = update_recurring_statuses(
+            db=db,
+            contract_id=contract.id,
+            dry_run=False
+        )
 
-    # For now, we'll let the status be updated on the next GET request
-    # The termin_status.py service can be extended to support both tables
-    # But that's outside the scope of this backend-only implementation
-
-    logger.debug(
-        f"Status auto-update for recurring payments deferred "
-        f"(will be computed on next GET request)"
-    )
+        if status_result["updated"] > 0:
+            logger.info(
+                f"Auto-updated {status_result['updated']} recurring payment statuses "
+                f"during sync for contract {contract.id}"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to auto-update recurring statuses during sync: {e}")
