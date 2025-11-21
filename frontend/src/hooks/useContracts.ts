@@ -13,6 +13,7 @@ export const contractKeys = {
   details: () => [...contractKeys.all, 'detail'] as const,
   detail: (id: number) => [...contractKeys.details(), id] as const,
   terminPayments: (contractId: number) => [...contractKeys.detail(contractId), 'termin-payments'] as const,
+  recurringPayments: (contractId: number) => [...contractKeys.detail(contractId), 'recurring-payments'] as const,
 };
 
 // Hook for fetching contracts list with pagination and search
@@ -213,6 +214,45 @@ export function useUpdateTerminPayment() {
     },
     onError: (error) => {
       console.error('Failed to update termin payment:', error);
+    },
+  });
+}
+
+// Hook for fetching recurring payments for a contract
+export function useRecurringPayments(contractId: number) {
+  return useQuery({
+    queryKey: contractKeys.recurringPayments(contractId),
+    queryFn: () => apiService.getRecurringPayments(contractId),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false,
+    retry: 2,
+    enabled: !!contractId,
+  });
+}
+
+// Hook for updating a recurring payment
+export function useUpdateRecurringPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      contractId,
+      cycleNumber,
+      data
+    }: {
+      contractId: number;
+      cycleNumber: number;
+      data: any
+    }) =>
+      apiService.updateRecurringPayment(contractId, cycleNumber, data),
+    onSuccess: (updatedPayment) => {
+      // Invalidate recurring payments query to refetch latest data
+      queryClient.invalidateQueries({ queryKey: contractKeys.recurringPayments(updatedPayment.contract_id) });
+      // Also invalidate contract detail in case denormalized fields changed
+      queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedPayment.contract_id) });
+    },
+    onError: (error) => {
+      console.error('Failed to update recurring payment:', error);
     },
   });
 }
