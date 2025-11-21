@@ -1,3 +1,4 @@
+import React from 'react';
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { User, Building, Phone, Mail, IdCard, AlertCircle } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
@@ -21,12 +22,29 @@ export function CustomerInfoSection({
 }: CustomerInfoSectionProps) {
   const npwpValue = watch('informasi_pelanggan.npwp');
   const customerPhoneValue = watch('informasi_pelanggan.kontak_person.telepon');
+  const customerEmailValue = watch('informasi_pelanggan.kontak_person.email');
+
+  // Email validation helper
+  const isValidEmail = (email: string): boolean => {
+    if (!email || email.trim() === '') return true; // Empty is valid (optional)
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
+  };
+
+  // Phone validation helper (accepts various Indonesian formats)
+  const isValidPhone = (phone: string): boolean => {
+    if (!phone || phone.trim() === '') return true; // Empty is valid (optional)
+    const cleaned = phone.replace(/[^\d+]/g, '');
+    return /^(0|62|\+62)[0-9]{8,13}$/.test(cleaned);
+  };
 
   // Handle NPWP formatting
   const handleNPWPChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
     if (value.length <= 19) {
-      setValue('informasi_pelanggan.npwp', value, { shouldDirty: true });
+      setValue('informasi_pelanggan.npwp', value, {
+        shouldDirty: true,
+        shouldValidate: true  // Re-validate immediately to clear errors when empty
+      });
     }
   };
 
@@ -41,6 +59,17 @@ export function CustomerInfoSection({
 
   // Format phone for display
   const displayPhone = customerPhoneValue ? formatPhone(customerPhoneValue) : '';
+
+  // Debug: Track NPWP field state
+  React.useEffect(() => {
+    console.log('🔍 NPWP Field State:', {
+      rawValue: npwpValue,
+      displayValue: displayNPWP,
+      hasError: !!errors.informasi_pelanggan?.npwp,
+      errorMessage: errors.informasi_pelanggan?.npwp?.message,
+      isNumeric: /^\d*$/.test(npwpValue || ''),
+    });
+  }, [npwpValue, displayNPWP, errors]);
 
   return (
     <FormSection
@@ -203,11 +232,32 @@ export function CustomerInfoSection({
                   },
                 })}
                 placeholder="email@domain.com"
-                className={errors.informasi_pelanggan?.kontak_person?.email ? 'border-red-500' : ''}
+                className={
+                  errors.informasi_pelanggan?.kontak_person?.email
+                    ? 'border-red-500'
+                    : customerEmailValue && !isValidEmail(customerEmailValue)
+                    ? 'border-orange-300'
+                    : ''
+                }
               />
+              {/* Validation indicator - shown when typing invalid email */}
+              {customerEmailValue && !isValidEmail(customerEmailValue) && !errors.informasi_pelanggan?.kontak_person?.email && (
+                <div className="flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-orange-500 mt-0.5" />
+                  <p className="text-xs text-orange-600">
+                    Format email harus valid (contoh: nama@domain.com)
+                  </p>
+                </div>
+              )}
               {errors.informasi_pelanggan?.kontak_person?.email && (
                 <p className="text-xs text-red-500">
                   {errors.informasi_pelanggan.kontak_person.email.message}
+                </p>
+              )}
+              {/* Format guide */}
+              {!customerEmailValue && (
+                <p className="text-xs text-muted-foreground">
+                  Format: nama@domain.com
                 </p>
               )}
             </div>
@@ -222,16 +272,37 @@ export function CustomerInfoSection({
                 value={customerPhoneValue || ''}
                 onChange={handlePhoneChange}
                 placeholder="08xxxxxxxxxx"
-                className={errors.informasi_pelanggan?.kontak_person?.telepon ? 'border-red-500' : ''}
+                className={
+                  errors.informasi_pelanggan?.kontak_person?.telepon
+                    ? 'border-red-500'
+                    : customerPhoneValue && !isValidPhone(customerPhoneValue)
+                    ? 'border-orange-300'
+                    : ''
+                }
               />
+              {/* Validation indicator - shown when typing invalid phone */}
+              {customerPhoneValue && !isValidPhone(customerPhoneValue) && !errors.informasi_pelanggan?.kontak_person?.telepon && (
+                <div className="flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-orange-500 mt-0.5" />
+                  <p className="text-xs text-orange-600">
+                    Format: 08xxxxxxxxxx atau 021xxxxxxxx (minimal 10 digit)
+                  </p>
+                </div>
+              )}
               {displayPhone && displayPhone !== customerPhoneValue && (
                 <p className="text-xs text-muted-foreground">
-                  Format: {displayPhone}
+                  Preview: {displayPhone}
                 </p>
               )}
               {errors.informasi_pelanggan?.kontak_person?.telepon && (
                 <p className="text-xs text-red-500">
                   {errors.informasi_pelanggan.kontak_person.telepon.message}
+                </p>
+              )}
+              {/* Format guide */}
+              {!customerPhoneValue && (
+                <p className="text-xs text-muted-foreground">
+                  Format: 08xxxxxxxxxx, 021xxxxxxxx, atau +628xxxxxxxxxx
                 </p>
               )}
             </div>

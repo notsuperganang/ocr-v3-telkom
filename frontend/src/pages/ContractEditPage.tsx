@@ -8,7 +8,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ExtractionForm } from '@/components/ExtractionForm';
@@ -91,43 +91,33 @@ export function ContractEditPage() {
     }
   };
 
-  // Handle form data changes (auto-save without version increment)
-  const handleFormChange = async (data: any) => {
+  // Handle form data changes (no auto-save, only update local state)
+  const handleFormChange = (data: any) => {
     setFormData(data);
     setHasUnsavedChanges(true);
-
-    // Auto-save without incrementing version
-    try {
-      await updateMutation.mutateAsync({
-        contractId: numericContractId,
-        data: data,
-        incrementVersion: false
-      });
-      setHasUnsavedChanges(false);
-    } catch (error) {
-      console.error('Auto-save failed:', error);
-    }
   };
 
   // Handle confirmation (save with version increment)
-  const handleSave = async () => {
-    if (!formData) return;
+  const handleSave = async (dataToSave?: any) => {
+    // Use passed data if available (from ExtractionForm), fallback to state
+    const dataForSave = dataToSave || formData;
+    if (!dataForSave) return;
 
     try {
       await updateMutation.mutateAsync({
         contractId: numericContractId,
-        data: formData,
+        data: dataForSave,
         incrementVersion: true
       });
       setHasUnsavedChanges(false);
-      toast.success('Contract updated successfully!');
+      toast.success('Kontrak berhasil diperbarui');
 
       // Navigate back to detail page after successful save
       setTimeout(() => {
         navigate(`/contracts/${numericContractId}`);
       }, 1000);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update contract';
+      const errorMessage = error instanceof Error ? error.message : 'Gagal memperbarui kontrak';
       toast.error(errorMessage);
       console.error('Failed to save:', error);
     }
@@ -191,66 +181,62 @@ export function ContractEditPage() {
   }
 
   return (
-    <div className="p-4 space-y-3">
-      {/* Status Header with Back Button */}
-      <Card>
-        <CardHeader className="py-2">
-          <div className="flex items-center justify-between mb-1">
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              size="sm"
-              className="flex items-center gap-1 text-muted-foreground hover:text-white focus-visible:text-white -ml-2 h-7"
-            >
-              <ArrowLeft className="w-3 h-3" />
-              <span className="text-xs">Kembali ke Detail</span>
-            </Button>
+    <div className="-m-2 md:-m-10 h-[calc(100%+1rem)] md:h-[calc(100%+5rem)] w-[calc(100%+1rem)] md:w-[calc(100%+5rem)] flex flex-col overflow-hidden">
+      {/* Compact Header Bar */}
+      <div className="flex items-center justify-between py-2 px-3 border-b shrink-0">
+        {/* Left - Back button */}
+        <Button
+          variant="ghost"
+          onClick={handleBack}
+          size="sm"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-gray-100 h-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-sm">Kembali</span>
+        </Button>
 
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="text-amber-600 border-amber-600 text-xs py-0 px-1.5 h-5"
-              >
-                <FileText className="w-2.5 h-2.5 mr-1" />
-                Edit Mode
-              </Badge>
+        {/* Center - Filename */}
+        <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+          <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="text-sm font-medium">
+            {contract.filename}
+          </span>
+        </div>
 
-              <Badge variant="secondary" className="text-xs py-0 px-1.5 h-5">
-                v{contract.version}
-              </Badge>
+        {/* Right - Badges */}
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="text-amber-600 border-amber-300 bg-amber-50 text-xs py-0.5 px-2"
+          >
+            <FileText className="w-3 h-3 mr-1" />
+            Edit Mode
+          </Badge>
 
-              {hasUnsavedChanges && (
-                <Badge variant="outline" className="text-orange-600 border-orange-600 text-xs py-0 px-1.5 h-5">
-                  <Clock className="w-2.5 h-2.5 mr-1" />
-                  Unsaved
-                </Badge>
-              )}
+          <Badge variant="secondary" className="text-xs py-0.5 px-2">
+            v{contract.version}
+          </Badge>
 
-              {updateMutation.isPending && (
-                <Badge variant="outline" className="text-blue-600 border-blue-600 text-xs py-0 px-1.5 h-5">
-                  <RefreshCw className="w-2.5 h-2.5 mr-1 animate-spin" />
-                  Saving...
-                </Badge>
-              )}
-            </div>
-          </div>
+          {hasUnsavedChanges && (
+            <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs py-0.5 px-2">
+              <Clock className="w-3 h-3 mr-1" />
+              Unsaved
+            </Badge>
+          )}
 
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" />
-            <div>
-              <CardTitle className="text-base leading-tight">Edit Kontrak</CardTitle>
-              <p className="text-xs text-muted-foreground leading-tight">
-                {contract.filename}
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+          {updateMutation.isPending && (
+            <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50 text-xs py-0.5 px-2">
+              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+              Saving...
+            </Badge>
+          )}
+        </div>
+      </div>
 
       {/* Main Content - 2 Pane Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-140px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0 p-3">
         {/* Left Pane - PDF Preview */}
-        <div className="h-full">
+        <div className="h-full min-h-0">
           <div className="border border-gray-200 rounded-lg overflow-hidden bg-white h-full">
             {pdfLoading ? (
               <div className="flex items-center justify-center h-full">
@@ -275,7 +261,7 @@ export function ContractEditPage() {
         </div>
 
         {/* Right Pane - Extraction Form */}
-        <div className="h-full overflow-y-auto">
+        <div className="h-full min-h-0 overflow-y-auto">
           <ExtractionForm
             jobId={0} // Not used for contract edit
             initialData={formData}
@@ -286,15 +272,6 @@ export function ContractEditPage() {
           />
         </div>
       </div>
-
-      {/* Footer Info */}
-      <Card>
-        <CardContent className="p-2">
-          <div className="flex items-center justify-center text-xs text-muted-foreground">
-            <span>💾 Data tersimpan otomatis saat Anda mengedit. Klik "Konfirmasi & Simpan" untuk finalisasi perubahan.</span>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

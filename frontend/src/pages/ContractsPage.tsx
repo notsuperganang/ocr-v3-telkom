@@ -1,6 +1,6 @@
 import * as React from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -1667,9 +1667,23 @@ function applySorting(
 }
 
 export function ContractsPage() {
+  const [searchParams] = useSearchParams()
+
+  // Get initial payment method from URL params
+  const getInitialPaymentMethod = (): FilterPaymentMethod => {
+    const urlPaymentMethod = searchParams.get('payment_method')
+    if (urlPaymentMethod) {
+      const normalized = urlPaymentMethod.charAt(0).toUpperCase() + urlPaymentMethod.slice(1).toLowerCase()
+      if (normalized === 'Otc' || normalized === 'OTC') return 'OTC'
+      if (normalized === 'Termin') return 'Termin'
+      if (normalized === 'Recurring') return 'Recurring'
+    }
+    return 'all'
+  }
+
   const [search, setSearch] = React.useState("")
   const [status, setStatus] = React.useState<FilterStatus>("all")
-  const [paymentMethod, setPaymentMethod] = React.useState<FilterPaymentMethod>("all")
+  const [paymentMethod, setPaymentMethod] = React.useState<FilterPaymentMethod>(getInitialPaymentMethod)
   const [periodFilter, setPeriodFilter] = React.useState<{ start: string | null; end: string | null }>({ start: null, end: null })
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [sortState, setSortState] = React.useState<SortState | null>({

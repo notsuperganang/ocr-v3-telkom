@@ -5,10 +5,9 @@ import {
   ArrowLeft,
   RefreshCw,
   AlertCircle,
-  CheckCircle,
-  Download
+  CheckCircle
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PdfPreview } from '@/components/PdfPreview';
@@ -168,57 +167,55 @@ export function ReviewPage() {
   }
 
   return (
-    <div className="p-4 space-y-3">
-      {/* Status Header with Back Button */}
-      <Card>
-        <CardHeader className="py-2">
-          <div className="flex items-center justify-between mb-1">
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              size="sm"
-              className="flex items-center gap-1 text-muted-foreground hover:text-white focus-visible:text-white -ml-2 h-7"
-            >
-              <ArrowLeft className="w-3 h-3" />
-              <span className="text-xs">Kembali ke Upload</span>
-            </Button>
+    <div className="-m-2 md:-m-10 h-[calc(100%+1rem)] md:h-[calc(100%+5rem)] w-[calc(100%+1rem)] md:w-[calc(100%+5rem)] flex flex-col overflow-hidden">
+      {/* Compact Header Bar */}
+      <div className="flex items-center justify-between py-2 px-3 border-b shrink-0">
+        {/* Left - Back button */}
+        <Button
+          variant="ghost"
+          onClick={handleBack}
+          size="sm"
+          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground hover:bg-gray-100 h-8"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-sm">Kembali</span>
+        </Button>
 
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="text-blue-600 border-blue-600 text-xs py-0 px-1.5 h-5"
-              >
-                <CheckCircle className="w-2.5 h-2.5 mr-1" />
-                Siap Review
-              </Badge>
+        {/* Center - Filename */}
+        <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
+          <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="text-sm font-medium">
+            {extractionData.filename}
+          </span>
+        </div>
 
-              {statusData?.processing_time_seconds && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3" />
-                  {statusData.processing_time_seconds}s
-                </div>
-              )}
+        {/* Right - Badges */}
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className="text-emerald-600 border-emerald-300 bg-emerald-50 text-xs py-0.5 px-2"
+          >
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Siap Review
+          </Badge>
 
-              <Badge variant="secondary" className="text-xs py-0 px-1.5 h-5">2 halaman</Badge>
-            </div>
-          </div>
+          {statusData?.processing_time_seconds && (
+            <Badge variant="secondary" className="text-xs py-0.5 px-2">
+              <Clock className="w-3 h-3 mr-1" />
+              {statusData.processing_time_seconds}s
+            </Badge>
+          )}
 
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" />
-            <div>
-              <CardTitle className="text-base leading-tight">Review Data Ekstraksi</CardTitle>
-              <p className="text-xs text-muted-foreground leading-tight">
-                {extractionData.filename}
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+          <Badge variant="secondary" className="text-xs py-0.5 px-2">
+            2 halaman
+          </Badge>
+        </div>
+      </div>
 
       {/* Main Content - 2 Pane Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-140px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0 p-3">
         {/* Left Pane - PDF Preview */}
-        <div className="h-full">
+        <div className="h-full min-h-0">
           <PdfPreview
             jobId={numericJobId}
             className="h-full"
@@ -226,7 +223,7 @@ export function ReviewPage() {
         </div>
 
         {/* Right Pane - Extraction Form */}
-        <div className="h-full overflow-y-auto">
+        <div className="h-full min-h-0 overflow-y-auto">
           <ExtractionForm
             jobId={numericJobId}
             initialData={formData}
@@ -242,23 +239,6 @@ export function ReviewPage() {
           />
         </div>
       </div>
-
-      {/* Footer Actions */}
-      <Card>
-        <CardContent className="p-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>💡 Data akan tersimpan otomatis saat Anda mengedit</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-1 text-xs h-7"
-            >
-              <Download className="w-3 h-3" />
-              Export PDF
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

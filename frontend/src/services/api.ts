@@ -11,7 +11,14 @@ import type {
   UnifiedContractListResponse,
   ContractDetail,
   ContractStatsResponse,
-  ApiError
+  ApiError,
+  TerminPayment,
+  UpdateTerminPaymentRequest,
+  RecurringPayment,
+  UpdateRecurringPaymentRequest,
+  DashboardOverview,
+  TerminUpcomingResponse,
+  RecurringCurrentMonthResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -306,6 +313,68 @@ class ApiClient {
 
   async getContractStats(): Promise<ContractStatsResponse> {
     return this.request<ContractStatsResponse>('/api/contracts/stats/summary');
+  }
+
+  // Termin Payment Management
+  async getTerminPayments(contractId: number): Promise<TerminPayment[]> {
+    return this.request<TerminPayment[]>(`/api/contracts/${contractId}/termin-payments`);
+  }
+
+  async updateTerminPayment(
+    contractId: number,
+    terminNumber: number,
+    updateData: UpdateTerminPaymentRequest
+  ): Promise<TerminPayment> {
+    return this.request<TerminPayment>(
+      `/api/contracts/${contractId}/termin-payments/${terminNumber}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      }
+    );
+  }
+
+  // Recurring Payment Management
+  async getRecurringPayments(contractId: number): Promise<RecurringPayment[]> {
+    return this.request<RecurringPayment[]>(`/api/contracts/${contractId}/recurring-payments`);
+  }
+
+  async updateRecurringPayment(
+    contractId: number,
+    cycleNumber: number,
+    updateData: UpdateRecurringPaymentRequest
+  ): Promise<RecurringPayment> {
+    return this.request<RecurringPayment>(
+      `/api/contracts/${contractId}/recurring-payments/${cycleNumber}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      }
+    );
+  }
+
+  // Dashboard
+  async getDashboardOverview(): Promise<DashboardOverview> {
+    return this.request<DashboardOverview>('/api/dashboard/overview');
+  }
+
+  async getTerminUpcoming(days: number = 30): Promise<TerminUpcomingResponse> {
+    return this.request<TerminUpcomingResponse>(`/api/dashboard/termin-upcoming?days=${days}`);
+  }
+
+  async getRecurringCurrentMonth(year?: number, month?: number): Promise<RecurringCurrentMonthResponse> {
+    const searchParams = new URLSearchParams();
+    if (year !== undefined) searchParams.append('year', year.toString());
+    if (month !== undefined) searchParams.append('month', month.toString());
+    
+    const query = searchParams.toString();
+    const endpoint = `/api/dashboard/recurring-current-month${query ? `?${query}` : ''}`;
+    
+    return this.request<RecurringCurrentMonthResponse>(endpoint);
+  }
+
+  async getRecurringAll(): Promise<TerminUpcomingResponse> {
+    return this.request<TerminUpcomingResponse>('/api/dashboard/recurring-all');
   }
 }
 
