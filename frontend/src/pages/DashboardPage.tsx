@@ -19,13 +19,12 @@ import {
   Clock,
   ArrowRight,
   Upload,
-  Calendar,
   TrendingUp,
   ChevronDown,
   ChevronRight,
   AlertCircle
 } from 'lucide-react';
-import { useDashboardOverview, useTerminUpcoming } from '@/hooks/useContracts';
+import { useDashboardOverview, useTerminUpcoming, useRecurringAll } from '@/hooks/useContracts';
 import { cn } from '@/lib/utils';
 import { STATUS_INFO, STATUS_ORDER } from '@/lib/termin-utils';
 import type { TerminUpcomingItem } from '@/types/api';
@@ -218,17 +217,6 @@ function formatProcessingTime(seconds: number | null): string {
   return `${remainingSeconds} dtk`;
 }
 
-// Helper function to format date
-function formatDate(dateString: string | null): string {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
-}
-
 // Type for grouped termin data
 interface GroupedTerminData {
   status: 'OVERDUE' | 'DUE' | 'PENDING';
@@ -261,63 +249,90 @@ function groupTerminByStatus(items: TerminUpcomingItem[]): GroupedTerminData[] {
   }));
 }
 
-// Dummy data for Recurring section
-const DUMMY_RECURRING_DATA = [
-  {
-    contract_id: 13,
-    customer_name: 'SMK Negeri 1 Jakarta',
-    period_start: '2024-01-01',
-    period_end: '2026-12-31',
-    month_number: 12,
-    month_label: 'Desember 2025',
-    amount: '3017260',
-  },
-  {
-    contract_id: 14,
-    customer_name: 'SMK Negeri 2 Bandung',
-    period_start: '2025-01-01',
-    period_end: '2026-12-31',
-    month_number: 6,
-    month_label: 'Juni 2025',
-    amount: '1017260',
-  },
-  {
-    contract_id: 15,
-    customer_name: 'SMK Negeri 3 Surabaya',
-    period_start: '2025-01-01',
-    period_end: '2025-12-31',
-    month_number: 9,
-    month_label: 'September 2025',
-    amount: '6017260',
-  },
-  {
-    contract_id: 16,
-    customer_name: 'SMK Negeri 4 Medan',
-    period_start: '2025-01-01',
-    period_end: '2025-12-31',
-    month_number: 9,
-    month_label: 'September 2025',
-    amount: '5017260',
-  },
-  {
-    contract_id: 17,
-    customer_name: 'SMK Negeri 5 Semarang',
-    period_start: '2024-01-01',
-    period_end: '2025-12-31',
-    month_number: 6,
-    month_label: 'Juni 2025',
-    amount: '2017260',
-  },
-  {
-    contract_id: 18,
-    customer_name: 'SMK Negeri 6 Makassar',
-    period_start: '2024-01-01',
-    period_end: '2025-12-31',
-    month_number: 6,
-    month_label: 'Juni 2025',
-    amount: '4017260',
-  },
-];
+// Type for consolidated recurring item (contract with month range)
+interface ConsolidatedRecurringItem {
+  contract_id: number;
+  customer_name: string;
+  period_start: string | null;
+  period_end: string | null;
+  cycle_start: number;
+  cycle_end: number;
+  period_label: string;
+  total_amount: number;
+  item_count: number;
+}
+
+// Type for grouped recurring data
+interface GroupedRecurringData {
+  status: 'OVERDUE' | 'DUE' | 'PENDING';
+  items: ConsolidatedRecurringItem[];
+  count: number;
+  totalAmount: number;
+}
+
+// Helper function to consolidate recurring items by contract and consecutive months
+function consolidateRecurringByContract(items: TerminUpcomingItem[]): ConsolidatedRecurringItem[] {
+  // Group by contract_id first
+  const byContract = items.reduce((acc, item) => {
+    if (!acc[item.contract_id]) {
+      acc[item.contract_id] = [];
+    }
+    acc[item.contract_id].push(item);
+    return acc;
+  }, {} as Record<number, TerminUpcomingItem[]>);
+
+  const consolidated: ConsolidatedRecurringItem[] = [];
+
+  // For each contract, sort by cycle number and create consolidated entry
+  Object.entries(byContract).forEach(([contractId, contractItems]) => {
+    // Sort by cycle number
+    contractItems.sort((a, b) => a.termin_number - b.termin_number);
+
+    const firstItem = contractItems[0];
+    const lastItem = contractItems[contractItems.length - 1];
+    const totalAmount = contractItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
+
+    consolidated.push({
+      contract_id: parseInt(contractId),
+      customer_name: firstItem.customer_name,
+      period_start: firstItem.period_start,
+      period_end: firstItem.period_end,
+      cycle_start: firstItem.termin_number,
+      cycle_end: lastItem.termin_number,
+      period_label: firstItem.termin_number === lastItem.termin_number 
+        ? firstItem.termin_period_label 
+        : `${firstItem.termin_period_label} - ${lastItem.termin_period_label}`,
+      total_amount: totalAmount,
+      item_count: contractItems.length,
+    });
+  });
+
+  return consolidated;
+}
+
+// Helper function to group recurring items by status
+function groupRecurringByStatus(items: TerminUpcomingItem[]): GroupedRecurringData[] {
+  const groups: Record<string, { items: TerminUpcomingItem[]; totalAmount: number }> = {
+    OVERDUE: { items: [], totalAmount: 0 },
+    DUE: { items: [], totalAmount: 0 },
+    PENDING: { items: [], totalAmount: 0 },
+  };
+
+  items.forEach((item) => {
+    const status = item.status as 'OVERDUE' | 'DUE' | 'PENDING';
+    if (groups[status]) {
+      groups[status].items.push(item);
+      groups[status].totalAmount += parseFloat(item.amount || '0');
+    }
+  });
+
+  return STATUS_ORDER.map((status) => ({
+    status,
+    items: consolidateRecurringByContract(groups[status].items),
+    count: groups[status].items.length,
+    totalAmount: groups[status].totalAmount,
+  }));
+}
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -325,9 +340,11 @@ export function DashboardPage() {
   // Fetch dashboard data
   const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
   const { data: terminData, isLoading: terminLoading } = useTerminUpcoming(30);
+  const { data: recurringData, isLoading: recurringLoading } = useRecurringAll();
 
   // State for accordion expanded sections (default: all expanded)
-  const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set(['OVERDUE', 'DUE', 'PENDING']));
+  const [expandedTerminSections, setExpandedTerminSections] = React.useState<Set<string>>(new Set(['OVERDUE', 'DUE', 'PENDING']));
+  const [expandedRecurringSections, setExpandedRecurringSections] = React.useState<Set<string>>(new Set(['OVERDUE', 'DUE', 'PENDING']));
 
   // Group termin data by status
   const groupedTerminData = React.useMemo(() => {
@@ -335,9 +352,28 @@ export function DashboardPage() {
     return groupTerminByStatus(terminData.items);
   }, [terminData]);
 
-  // Toggle accordion section
-  const toggleSection = (status: string) => {
-    setExpandedSections((prev) => {
+  // Group recurring data by status
+  const groupedRecurringData = React.useMemo(() => {
+    if (!recurringData?.items) return [];
+    return groupRecurringByStatus(recurringData.items);
+  }, [recurringData]);
+
+  // Toggle accordion section for termin
+  const toggleTerminSection = (status: string) => {
+    setExpandedTerminSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  };
+
+  // Toggle accordion section for recurring
+  const toggleRecurringSection = (status: string) => {
+    setExpandedRecurringSections((prev) => {
       const next = new Set(prev);
       if (next.has(status)) {
         next.delete(status);
@@ -353,7 +389,12 @@ export function DashboardPage() {
     navigate(`/contracts/${contractId}#termin-section`);
   };
 
-  // Calculate MoM comparison for contracts
+  // Navigate to contract detail recurring section
+  const handleRecurringRowClick = (contractId: number) => {
+    navigate(`/contracts/${contractId}#recurring-section`);
+  };
+
+  // Calculate MoM comparison for contractsu 
   const momDiff = overview
     ? overview.contracts_this_month - overview.contracts_last_month
     : 0;
@@ -363,13 +404,6 @@ export function DashboardPage() {
   const percentChange = overview && overview.contracts_last_month > 0
     ? ((overview.contracts_this_month - overview.contracts_last_month) / overview.contracts_last_month * 100).toFixed(1)
     : '0';
-
-  // Calculate recurring dummy totals
-  const recurringTotalContracts = DUMMY_RECURRING_DATA.length;
-  const recurringTotalAmount = DUMMY_RECURRING_DATA.reduce(
-    (sum, item) => sum + parseFloat(item.amount),
-    0
-  );
 
   // Build KPI descriptors for enhanced cards
   const kpiDescriptors: KpiDescriptor[] = React.useMemo(() => {
@@ -543,12 +577,12 @@ export function DashboardPage() {
                       "rounded-xl border p-3 cursor-pointer transition-all",
                       info.bgColor,
                       info.borderColor,
-                      expandedSections.has(group.status) && "ring-2 ring-offset-1",
-                      group.status === 'OVERDUE' && expandedSections.has(group.status) && "ring-red-400",
-                      group.status === 'DUE' && expandedSections.has(group.status) && "ring-amber-400",
-                      group.status === 'PENDING' && expandedSections.has(group.status) && "ring-slate-400"
+                      expandedTerminSections.has(group.status) && "ring-2 ring-offset-1",
+                      group.status === 'OVERDUE' && expandedTerminSections.has(group.status) && "ring-red-400",
+                      group.status === 'DUE' && expandedTerminSections.has(group.status) && "ring-amber-400",
+                      group.status === 'PENDING' && expandedTerminSections.has(group.status) && "ring-slate-400"
                     )}
-                    onClick={() => toggleSection(group.status)}
+                    onClick={() => toggleTerminSection(group.status)}
                   >
                     <div className="flex items-center gap-1.5 mb-1">
                       <span className="text-sm">{info.icon}</span>
@@ -585,7 +619,7 @@ export function DashboardPage() {
                 <div className="space-y-3 pr-3">
                   {groupedTerminData.map((group) => {
                     const info = STATUS_INFO[group.status];
-                    const isExpanded = expandedSections.has(group.status);
+                    const isExpanded = expandedTerminSections.has(group.status);
 
                     if (group.count === 0) return null;
 
@@ -593,7 +627,7 @@ export function DashboardPage() {
                       <div key={group.status} className="border rounded-lg overflow-hidden">
                         {/* Accordion Header */}
                         <button
-                          onClick={() => toggleSection(group.status)}
+                          onClick={() => toggleTerminSection(group.status)}
                           className={cn(
                             "w-full flex items-center justify-between p-3 text-left transition-colors",
                             info.bgColor,
@@ -684,10 +718,10 @@ export function DashboardPage() {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-lg font-semibold">
-                  Recurring Bulan Ini
+                  Status Pembayaran Recurring
                 </CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Tagihan berkala yang jatuh tempo pada bulan berjalan
+                  Monitoring recurring terlambat, jatuh tempo, dan akan datang
                 </p>
               </div>
               <Button
@@ -701,71 +735,153 @@ export function DashboardPage() {
               </Button>
             </div>
 
-            {/* Summary Stats */}
-            <div className="mt-4">
-              <div className="text-3xl font-bold text-[#d71920]">
-                {recurringTotalContracts} Kontrak
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Total nominal: {formatCurrency(recurringTotalAmount, true)}
-              </p>
+            {/* Summary Cards */}
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {groupedRecurringData.map((group) => {
+                const info = STATUS_INFO[group.status];
+                return (
+                  <motion.div
+                    key={group.status}
+                    whileHover={{ y: -2 }}
+                    className={cn(
+                      "rounded-xl border p-3 cursor-pointer transition-all",
+                      info.bgColor,
+                      info.borderColor,
+                      expandedRecurringSections.has(group.status) && "ring-2 ring-offset-1",
+                      group.status === 'OVERDUE' && expandedRecurringSections.has(group.status) && "ring-red-400",
+                      group.status === 'DUE' && expandedRecurringSections.has(group.status) && "ring-amber-400",
+                      group.status === 'PENDING' && expandedRecurringSections.has(group.status) && "ring-slate-400"
+                    )}
+                    onClick={() => toggleRecurringSection(group.status)}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-sm">{info.icon}</span>
+                      <span className={cn("text-[0.65rem] font-semibold uppercase tracking-wider", info.color)}>
+                        {info.shortLabel}
+                      </span>
+                    </div>
+                    <div className={cn("text-2xl font-bold", info.color)}>
+                      {recurringLoading ? '--' : group.count}
+                    </div>
+                    <div className="text-[0.65rem] text-muted-foreground mt-0.5">
+                      {recurringLoading ? '-' : formatCurrency(group.totalAmount, true)}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </CardHeader>
 
           <CardContent className="pt-0">
-            <ScrollArea className="h-[300px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">
-                      <div className="flex items-center gap-1">
-                        Pelanggan
-                        <FileText className="w-3 h-3" />
+            <ScrollArea className="h-[350px]">
+              {recurringLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-muted-foreground">Memuat data...</div>
+                </div>
+              ) : groupedRecurringData.every(g => g.count === 0) ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
+                  <div className="text-muted-foreground">
+                    Tidak ada tagihan recurring.
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 pr-3">
+                  {groupedRecurringData.map((group) => {
+                    const info = STATUS_INFO[group.status];
+                    const isExpanded = expandedRecurringSections.has(group.status);
+
+                    if (group.count === 0) return null;
+
+                    return (
+                      <div key={group.status} className="border rounded-lg overflow-hidden">
+                        {/* Accordion Header */}
+                        <button
+                          onClick={() => toggleRecurringSection(group.status)}
+                          className={cn(
+                            "w-full flex items-center justify-between p-3 text-left transition-colors",
+                            info.bgColor,
+                            "hover:opacity-90"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isExpanded ? (
+                              <ChevronDown className={cn("w-4 h-4", info.color)} />
+                            ) : (
+                              <ChevronRight className={cn("w-4 h-4", info.color)} />
+                            )}
+                            <span className={cn("text-sm font-semibold", info.color)}>
+                              {info.label} ({group.count})
+                            </span>
+                          </div>
+                          <span className={cn("text-sm font-medium", info.color)}>
+                            {formatCurrency(group.totalAmount, true)}
+                          </span>
+                        </button>
+
+                        {/* Accordion Content */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Table className="table-fixed">
+                                <TableHeader>
+                                  <TableRow className="bg-muted/30">
+                                    <TableHead className="text-xs py-2 w-[50%]">Pelanggan</TableHead>
+                                    <TableHead className="text-xs py-2 w-[30%]">Bulan Ke-</TableHead>
+                                    <TableHead className="text-xs py-2 text-right w-[20%]">Nilai</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {group.items.map((item, index) => (
+                                    <TableRow
+                                      key={`${item.contract_id}-${item.cycle_start}-${item.cycle_end}-${index}`}
+                                      onClick={() => handleRecurringRowClick(item.contract_id)}
+                                      className={cn(
+                                        "cursor-pointer transition-colors",
+                                        "hover:bg-muted/50",
+                                        group.status === 'OVERDUE' && "hover:bg-red-50"
+                                      )}
+                                    >
+                                      <TableCell className="py-2">
+                                        <div className="font-medium text-sm truncate" title={item.customer_name}>
+                                          {item.customer_name}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          ID {item.contract_id}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="py-2">
+                                        <div className="font-medium text-sm">
+                                          {item.cycle_start === item.cycle_end 
+                                            ? `Bulan ${item.cycle_start}` 
+                                            : `Bulan ${item.cycle_start} - ${item.cycle_end}`}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {item.period_label}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="py-2 text-right">
+                                        <div className="font-medium text-sm">
+                                          {formatCurrency(item.total_amount.toString(), true)}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                    </TableHead>
-                    <TableHead className="text-xs">
-                      <div className="flex items-center gap-1">
-                        Periode
-                        <Calendar className="w-3 h-3" />
-                      </div>
-                    </TableHead>
-                    <TableHead className="text-xs">Bulan Ke-</TableHead>
-                    <TableHead className="text-xs text-right">Nilai Tagihan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {DUMMY_RECURRING_DATA.map((item) => (
-                    <TableRow key={item.contract_id}>
-                      <TableCell>
-                        <div className="font-medium text-sm">{item.customer_name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          Kontrak ID {item.contract_id}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">{formatDate(item.period_start)}</div>
-                        <div className="text-xs text-muted-foreground">
-                          s/d {formatDate(item.period_end)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-sm">{item.month_number}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.month_label}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="font-medium text-sm">
-                          {formatCurrency(item.amount)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatCurrency(item.amount, true)}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    );
+                  })}
+                </div>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>
