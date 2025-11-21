@@ -250,16 +250,19 @@ export function ContractDetailPage() {
   const { data: contract, isLoading, error } = useContract(Number(contractId));
   const downloadJsonMutation = useDownloadContractJson();
 
-  // Scroll to termin section when navigating from Dashboard
+  // Scroll to section when navigating from Dashboard
   React.useEffect(() => {
-    if (!isLoading && contract && window.location.hash === '#termin-section') {
-      // Small delay to ensure DOM is fully rendered
-      setTimeout(() => {
-        const element = document.getElementById('termin-section');
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
+    if (!isLoading && contract) {
+      const hash = window.location.hash;
+      if (hash === '#termin-section' || hash === '#recurring-section') {
+        // Small delay to ensure DOM is fully rendered
+        setTimeout(() => {
+          const element = document.getElementById(hash.substring(1));
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
     }
   }, [isLoading, contract]);
 
