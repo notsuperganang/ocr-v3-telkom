@@ -376,7 +376,11 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
               </div>
             )}
 
-            {isRecurring && <RecurringScheduleCard contractId={contractId} />}
+            {isRecurring && (
+              <div id="recurring-section" className="scroll-mt-6">
+                <RecurringScheduleCard contractId={contractId} />
+              </div>
+            )}
 
             {isTermin && (
               <div id="termin-section" className="mt-2 space-y-4 scroll-mt-6">
