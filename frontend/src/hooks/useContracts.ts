@@ -275,3 +275,21 @@ export function useTerminUpcoming(days: number = 30) {
     refetchOnWindowFocus: true,
   });
 }
+
+export function useRecurringCurrentMonth(year?: number, month?: number) {
+  return useQuery({
+    queryKey: [...contractKeys.all, 'dashboard', 'recurring-current-month', year, month],
+    queryFn: () => apiService.getRecurringCurrentMonth(year, month),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useRecurringAll() {
+  return useQuery({
+    queryKey: [...contractKeys.all, 'dashboard', 'recurring-all'],
+    queryFn: () => apiService.getRecurringAll(),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+  });
+}
