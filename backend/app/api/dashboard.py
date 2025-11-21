@@ -398,3 +398,83 @@ async def get_recurring_current_month(
         total_amount=str(total_amount),
         items=items
     )
+
+
+@router.get("/recurring-all", response_model=TerminUpcomingResponse)
+async def get_recurring_all(
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """
+    Get all recurring payments (not just current month).
+
+    Returns all recurring payments for contracts with payment_method='recurring'
+    regardless of the period. Status is computed based on period date:
+    - OVERDUE: Past periods that are not PAID or CANCELLED
+    - DUE: Current month periods
+    - PENDING: Future periods
+
+    Returns:
+        - total_contracts: Number of distinct contracts with recurring payments
+        - total_amount: Sum of all recurring payment amounts
+        - items: List of recurring payment details (reusing TerminUpcomingItem structure)
+    """
+    db, current_user = db_and_user
+
+    today = date.today()
+    current_year = today.year
+    current_month = today.month
+
+    # Query all recurring payments with contract join
+    query = db.query(
+        ContractRecurringPayment,
+        Contract.customer_name,
+        Contract.period_start,
+        Contract.period_end
+    ).join(
+        Contract, ContractRecurringPayment.contract_id == Contract.id
+    ).filter(
+        Contract.payment_method == 'recurring',
+        ContractRecurringPayment.status.notin_([
+            TerminPaymentStatus.PAID.value,
+            TerminPaymentStatus.CANCELLED.value
+        ])
+    )
+
+    # Order by period (year, month) then customer name
+    query = query.order_by(
+        ContractRecurringPayment.period_year,
+        ContractRecurringPayment.period_month,
+        Contract.customer_name
+    )
+
+    results = query.all()
+
+    # Process results
+    items = []
+    contract_ids = set()
+    total_amount = Decimal('0')
+
+    for recurring, customer_name, period_start, period_end in results:
+        amount = Decimal(str(recurring.amount)) if recurring.amount else Decimal('0')
+        total_amount += amount
+        contract_ids.add(recurring.contract_id)
+
+        # Reuse TerminUpcomingItem structure (it has the same fields we need)
+        items.append(TerminUpcomingItem(
+            contract_id=recurring.contract_id,
+            customer_name=customer_name or "Unknown",
+            period_start=period_start,
+            period_end=period_end,
+            termin_number=recurring.cycle_number,  # Map cycle_number to termin_number
+            termin_period_label=recurring.period_label or f"{recurring.period_month}/{recurring.period_year}",
+            termin_period_year=recurring.period_year,
+            termin_period_month=recurring.period_month,
+            amount=str(amount),
+            status=recurring.status
+        ))
+
+    return TerminUpcomingResponse(
+        total_contracts=len(contract_ids),
+        total_amount=str(total_amount),
+        items=items
+    )
