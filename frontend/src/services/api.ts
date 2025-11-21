@@ -17,7 +17,8 @@ import type {
   RecurringPayment,
   UpdateRecurringPaymentRequest,
   DashboardOverview,
-  TerminUpcomingResponse
+  TerminUpcomingResponse,
+  RecurringCurrentMonthResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -359,6 +360,21 @@ class ApiClient {
 
   async getTerminUpcoming(days: number = 30): Promise<TerminUpcomingResponse> {
     return this.request<TerminUpcomingResponse>(`/api/dashboard/termin-upcoming?days=${days}`);
+  }
+
+  async getRecurringCurrentMonth(year?: number, month?: number): Promise<RecurringCurrentMonthResponse> {
+    const searchParams = new URLSearchParams();
+    if (year !== undefined) searchParams.append('year', year.toString());
+    if (month !== undefined) searchParams.append('month', month.toString());
+    
+    const query = searchParams.toString();
+    const endpoint = `/api/dashboard/recurring-current-month${query ? `?${query}` : ''}`;
+    
+    return this.request<RecurringCurrentMonthResponse>(endpoint);
+  }
+
+  async getRecurringAll(): Promise<TerminUpcomingResponse> {
+    return this.request<TerminUpcomingResponse>('/api/dashboard/recurring-all');
   }
 }
 
