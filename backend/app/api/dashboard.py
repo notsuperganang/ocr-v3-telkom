@@ -12,7 +12,7 @@ from sqlalchemy import func, extract, and_, or_
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import Contract, ContractTermPayment, TerminPaymentStatus
+from app.models.database import Contract, ContractTermPayment, ContractRecurringPayment, TerminPaymentStatus
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -57,6 +57,32 @@ class TerminUpcomingResponse(BaseModel):
     total_contracts: int
     total_amount: str  # Decimal as string
     items: list[TerminUpcomingItem]
+
+
+class RecurringCurrentMonthItem(BaseModel):
+    """Single recurring payment item for current month dashboard."""
+    contract_id: int
+    customer_name: str
+    period_start: Optional[date]
+    period_end: Optional[date]
+    cycle_number: int
+    period_year: int
+    period_month: int
+    period_label: str
+    amount: str  # Decimal as string
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class RecurringCurrentMonthResponse(BaseModel):
+    """Response for recurring payments in current/specified month."""
+    year: int
+    month: int
+    total_contracts: int
+    total_amount: str  # Decimal as string
+    items: list[RecurringCurrentMonthItem]
 
 
 # =============================================================================
@@ -288,6 +314,86 @@ async def get_termin_upcoming(
         ))
 
     return TerminUpcomingResponse(
+        total_contracts=len(contract_ids),
+        total_amount=str(total_amount),
+        items=items
+    )
+
+@router.get("/recurring-current-month", response_model=RecurringCurrentMonthResponse)
+async def get_recurring_current_month(
+    year: Optional[int] = Query(default=None, description="Target year (defaults to current year)"),
+    month: Optional[int] = Query(default=None, ge=1, le=12, description="Target month 1-12 (defaults to current month)"),
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """
+    Get recurring payments for a specific month (defaults to current month).
+
+    Returns all recurring payments for contracts with payment_method='recurring'
+    for the specified year and month.
+
+    Args:
+        year: Target year (defaults to current year)
+        month: Target month 1-12 (defaults to current month)
+
+    Returns:
+        - year: The queried year
+        - month: The queried month
+        - total_contracts: Number of distinct contracts with recurring payments
+        - total_amount: Sum of recurring payment amounts for the month
+        - items: List of recurring payment details with contract info
+    """
+    db, current_user = db_and_user
+
+    # Default to current year/month if not provided
+    today = date.today()
+    target_year = year if year is not None else today.year
+    target_month = month if month is not None else today.month
+
+    # Query recurring payments with contract join
+    query = db.query(
+        ContractRecurringPayment,
+        Contract.customer_name,
+        Contract.period_start,
+        Contract.period_end
+    ).join(
+        Contract, ContractRecurringPayment.contract_id == Contract.id
+    ).filter(
+        Contract.payment_method == 'recurring',
+        ContractRecurringPayment.period_year == target_year,
+        ContractRecurringPayment.period_month == target_month
+    )
+
+    # Order by customer name for consistent display
+    query = query.order_by(Contract.customer_name)
+
+    results = query.all()
+
+    # Process results
+    items = []
+    contract_ids = set()
+    total_amount = Decimal('0')
+
+    for recurring, customer_name, period_start, period_end in results:
+        amount = Decimal(str(recurring.amount)) if recurring.amount else Decimal('0')
+        total_amount += amount
+        contract_ids.add(recurring.contract_id)
+
+        items.append(RecurringCurrentMonthItem(
+            contract_id=recurring.contract_id,
+            customer_name=customer_name or "Unknown",
+            period_start=period_start,
+            period_end=period_end,
+            cycle_number=recurring.cycle_number,
+            period_year=recurring.period_year,
+            period_month=recurring.period_month,
+            period_label=recurring.period_label or f"{recurring.period_month}/{recurring.period_year}",
+            amount=str(amount),
+            status=recurring.status
+        ))
+
+    return RecurringCurrentMonthResponse(
+        year=target_year,
+        month=target_month,
         total_contracts=len(contract_ids),
         total_amount=str(total_amount),
         items=items
