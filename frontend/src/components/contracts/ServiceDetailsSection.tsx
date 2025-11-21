@@ -22,6 +22,7 @@ import { getStatusBadgeConfig } from '@/lib/termin-utils';
 import { useTerminPayments } from '@/hooks/useContracts';
 import type { TerminPaymentStatus } from '@/types/api';
 import { TerminPaymentModal } from './TerminPaymentModal';
+import { RecurringScheduleCard } from './RecurringScheduleCard';
 
 interface ServiceDetailsSectionProps {
   contractId: number;
@@ -374,6 +375,8 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                 </div>
               </div>
             )}
+
+            {isRecurring && <RecurringScheduleCard contractId={contractId} />}
 
             {isTermin && (
               <div id="termin-section" className="mt-2 space-y-4 scroll-mt-6">
