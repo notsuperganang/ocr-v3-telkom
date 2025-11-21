@@ -14,6 +14,8 @@ import type {
   ApiError,
   TerminPayment,
   UpdateTerminPaymentRequest,
+  RecurringPayment,
+  UpdateRecurringPaymentRequest,
   DashboardOverview,
   TerminUpcomingResponse
 } from '../types/api';
@@ -324,6 +326,25 @@ class ApiClient {
   ): Promise<TerminPayment> {
     return this.request<TerminPayment>(
       `/api/contracts/${contractId}/termin-payments/${terminNumber}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updateData),
+      }
+    );
+  }
+
+  // Recurring Payment Management
+  async getRecurringPayments(contractId: number): Promise<RecurringPayment[]> {
+    return this.request<RecurringPayment[]>(`/api/contracts/${contractId}/recurring-payments`);
+  }
+
+  async updateRecurringPayment(
+    contractId: number,
+    cycleNumber: number,
+    updateData: UpdateRecurringPaymentRequest
+  ): Promise<RecurringPayment> {
+    return this.request<RecurringPayment>(
+      `/api/contracts/${contractId}/recurring-payments/${cycleNumber}`,
       {
         method: 'PATCH',
         body: JSON.stringify(updateData),
