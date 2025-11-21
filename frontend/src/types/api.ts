@@ -222,3 +222,24 @@ export interface TerminUpcomingResponse {
   total_amount: string;
   items: TerminUpcomingItem[];
 }
+
+export interface RecurringCurrentMonthItem {
+  contract_id: number;
+  customer_name: string;
+  period_start: string | null;
+  period_end: string | null;
+  cycle_number: number;
+  period_year: number;
+  period_month: number;
+  period_label: string;
+  amount: string;
+  status: string;
+}
+
+export interface RecurringCurrentMonthResponse {
+  year: number;
+  month: number;
+  total_contracts: number;
+  total_amount: string;
+  items: RecurringCurrentMonthItem[];
+}
