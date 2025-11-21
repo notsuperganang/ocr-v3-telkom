@@ -256,6 +256,7 @@ async def confirm_job_data(
     from app.models.database import Contract
     from app.services.denorm import compute_denorm_fields
     from app.services.termin_sync import sync_contract_terms_from_final_data
+    from app.services.recurring_sync import sync_contract_recurring_payments
 
     # Get job
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
@@ -327,17 +328,24 @@ async def confirm_job_data(
             termin_total_amount=denorm_fields.termin_total_amount,
             payment_raw_text=denorm_fields.payment_raw_text,
             termin_payments_raw=denorm_fields.termin_payments_raw,
+            # Extended fields - Recurring Payment Details
+            recurring_monthly_amount=denorm_fields.recurring_monthly_amount,
+            recurring_month_count=denorm_fields.recurring_month_count,
+            recurring_total_amount=denorm_fields.recurring_total_amount,
             # Extended fields - Extraction Metadata
             extraction_timestamp=denorm_fields.extraction_timestamp,
             contract_processing_time_sec=denorm_fields.contract_processing_time_sec,
         )
         db.add(contract)
 
-        # Flush to get contract.id before syncing term payments
+        # Flush to get contract.id before syncing payments
         db.flush()
 
         # Sync termin payments from final_data to ContractTermPayment rows
         sync_contract_terms_from_final_data(db, contract, acting_user=current_user)
+
+        # Sync recurring payments from contract fields to ContractRecurringPayment rows
+        sync_contract_recurring_payments(db, contract, acting_user=current_user)
 
         # Update job status
         job.status = JobStatus.CONFIRMED

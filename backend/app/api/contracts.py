@@ -671,6 +671,7 @@ async def update_contract(
     # Import denormalization service
     from app.services.denorm import compute_denorm_fields
     from app.services.termin_sync import sync_contract_terms_from_final_data
+    from app.services.recurring_sync import sync_contract_recurring_payments
 
     # Get contract
     contract = db.query(Contract).filter(Contract.id == contract_id).first()
@@ -727,6 +728,11 @@ async def update_contract(
         contract.payment_raw_text = denorm_fields.payment_raw_text
         contract.termin_payments_raw = denorm_fields.termin_payments_raw
 
+        # Extended fields - Recurring Payment Details
+        contract.recurring_monthly_amount = denorm_fields.recurring_monthly_amount
+        contract.recurring_month_count = denorm_fields.recurring_month_count
+        contract.recurring_total_amount = denorm_fields.recurring_total_amount
+
         # Extended fields - Extraction Metadata
         contract.extraction_timestamp = denorm_fields.extraction_timestamp
         contract.contract_processing_time_sec = denorm_fields.contract_processing_time_sec
@@ -738,6 +744,9 @@ async def update_contract(
 
         # Sync termin payments from final_data to ContractTermPayment rows
         sync_contract_terms_from_final_data(db, contract, acting_user=current_user)
+
+        # Sync recurring payments from contract fields to ContractRecurringPayment rows
+        sync_contract_recurring_payments(db, contract, acting_user=current_user)
 
         db.commit()
         db.refresh(contract)
