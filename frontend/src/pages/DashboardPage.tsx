@@ -22,12 +22,16 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  AlertTriangle,
+  Circle
 } from 'lucide-react';
-import { useDashboardOverview, useTerminUpcoming, useRecurringAll } from '@/hooks/useContracts';
+import { useDashboardOverview, useTerminUpcoming, useRecurringAll, useFinancialSummary } from '@/hooks/useContracts';
 import { cn } from '@/lib/utils';
 import { STATUS_INFO, STATUS_ORDER } from '@/lib/termin-utils';
 import type { TerminUpcomingItem } from '@/types/api';
+import { RichKpiCard, type RichKpiDescriptor } from '@/components/dashboard/RichKpiCard';
 
 // Design tokens matching ContractsPage
 const designTokens = {
@@ -64,6 +68,8 @@ interface KpiDescriptor {
   auxValue?: string;
   sparkline: number[];
   icon: React.ReactNode;
+  richContent?: Array<{ label: string; value: string }>;
+  colSpan?: number; // For 2-column cards
 }
 
 // KPI Card component matching ContractsPage style
@@ -80,6 +86,7 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
     auxValue,
     sparkline,
     icon,
+    richContent,
   } = descriptor;
 
   return (
@@ -148,10 +155,21 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
               </div>
               {/* Additional info section */}
               <div className="space-y-2 border-t border-border/40 pt-3">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">{auxLabel}</span>
-                  <span className="text-xs font-semibold text-[#d71920] text-right">{auxValue}</span>
-                </div>
+                {richContent && richContent.length > 0 ? (
+                  // Rich content with multiple items
+                  richContent.map((item, index) => (
+                    <div key={index} className="flex items-start justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">{item.label}</span>
+                      <span className="text-xs font-semibold text-[#d71920] text-right">{item.value}</span>
+                    </div>
+                  ))
+                ) : (
+                  // Simple aux label/value
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">{auxLabel}</span>
+                    <span className="text-xs font-semibold text-[#d71920] text-right">{auxValue}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -341,6 +359,7 @@ export function DashboardPage() {
   const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
   const { data: terminData, isLoading: terminLoading } = useTerminUpcoming(30);
   const { data: recurringData, isLoading: recurringLoading } = useRecurringAll();
+  const { data: financialSummary, isLoading: financialLoading } = useFinancialSummary();
 
   // State for accordion expanded sections (default: all expanded)
   const [expandedTerminSections, setExpandedTerminSections] = React.useState<Set<string>>(new Set(['OVERDUE', 'DUE', 'PENDING']));
@@ -394,118 +413,166 @@ export function DashboardPage() {
     navigate(`/contracts/${contractId}#recurring-section`);
   };
 
-  // Calculate MoM comparison for contractsu 
-  const momDiff = overview
-    ? overview.contracts_this_month - overview.contracts_last_month
-    : 0;
-  const momText = momDiff >= 0 ? `+${momDiff} kontrak` : `${momDiff} kontrak`;
-
-  // Calculate percentage change vs last month
-  const percentChange = overview && overview.contracts_last_month > 0
-    ? ((overview.contracts_this_month - overview.contracts_last_month) / overview.contracts_last_month * 100).toFixed(1)
-    : '0';
-
-  // Build KPI descriptors for enhanced cards
+  // Build KPI descriptors for financial summary cards
   const kpiDescriptors: KpiDescriptor[] = React.useMemo(() => {
-    const totalContracts = overview?.total_contracts ?? 0;
-    const thisMonth = overview?.contracts_this_month ?? 0;
-    const totalValue = parseFloat(overview?.total_contract_value || '0');
-    const avgValue = parseFloat(overview?.avg_contract_value || '0');
-    const avgProcessing = overview?.avg_processing_time_sec ?? null;
-    const medianProcessing = overview?.median_processing_time_sec ?? null;
+    if (!financialSummary) return [];
 
-    // Generate sparklines based on data progression
-    const totalSparkline = totalContracts > 0
-      ? [
-          totalContracts * 0.60,
-          totalContracts * 0.68,
-          totalContracts * 0.75,
-          totalContracts * 0.82,
-          totalContracts * 0.88,
-          totalContracts * 0.94,
-          totalContracts,
-        ]
-      : [0, 0, 0, 0, 0, 0, 0];
+    // Helper to generate sparkline
+    const generateSparkline = (value: number) => {
+      if (value === 0) return [0, 0, 0, 0, 0, 0, 0];
+      return [
+        value * 0.60,
+        value * 0.68,
+        value * 0.75,
+        value * 0.82,
+        value * 0.88,
+        value * 0.94,
+        value,
+      ];
+    };
 
-    const monthSparkline = thisMonth > 0
-      ? [
-          thisMonth * 0.10,
-          thisMonth * 0.25,
-          thisMonth * 0.40,
-          thisMonth * 0.55,
-          thisMonth * 0.70,
-          thisMonth * 0.85,
-          thisMonth,
-        ]
-      : [0, 0, 0, 0, 0, 0, 0];
-
-    const valueSparkline = totalValue > 0
-      ? [
-          totalValue * 0.55,
-          totalValue * 0.65,
-          totalValue * 0.72,
-          totalValue * 0.80,
-          totalValue * 0.87,
-          totalValue * 0.93,
-          totalValue,
-        ]
-      : [0, 0, 0, 0, 0, 0, 0];
-
-    const processingSparkline = avgProcessing
-      ? [
-          avgProcessing * 1.40,
-          avgProcessing * 1.30,
-          avgProcessing * 1.20,
-          avgProcessing * 1.10,
-          avgProcessing * 1.05,
-          avgProcessing * 1.02,
-          avgProcessing,
-        ]
-      : [0, 0, 0, 0, 0, 0, 0];
+    const terminTotal = parseFloat(financialSummary.total_termin_cost || '0');
+    const recurringTotal = parseFloat(financialSummary.total_recurring_cost || '0');
+    const oneTimeTotal = parseFloat(financialSummary.total_one_time_cost || '0');
+    const projection = parseFloat(financialSummary.projection_90_days || '0');
+    const collected = parseFloat(financialSummary.collected_this_month || '0');
 
     return [
+      // Card 1: Total Termin Cost
       {
-        id: 'total',
-        label: 'Total Kontrak',
-        value: totalContracts,
-        formattedValue: totalContracts.toString(),
-        auxLabel: 'vs bulan lalu',
-        auxValue: `${percentChange}%`,
-        sparkline: totalSparkline,
-        icon: <FileText className="size-5 text-foreground/80" aria-hidden="true" />,
-      },
-      {
-        id: 'month',
-        label: 'Kontrak Bulan Ini',
-        value: thisMonth,
-        formattedValue: thisMonth.toString(),
-        auxLabel: 'MoM',
-        auxValue: momText,
-        sparkline: monthSparkline,
-        icon: <TrendingUp className="size-5 text-foreground/80" aria-hidden="true" />,
-      },
-      {
-        id: 'value',
-        label: 'Nilai Total Kontrak',
-        value: totalValue,
-        formattedValue: formatCurrency(totalValue, true),
-        auxLabel: 'Rata-rata/kontrak',
-        auxValue: formatCurrency(avgValue, true),
-        sparkline: valueSparkline,
+        id: 'termin-cost',
+        label: 'Total Biaya Termin',
+        value: terminTotal,
+        formattedValue: formatCurrency(terminTotal, true),
+        sparkline: generateSparkline(terminTotal),
         icon: <Banknote className="size-5 text-foreground/80" aria-hidden="true" />,
+        auxLabel: `${financialSummary.total_termin_contracts} kontrak`,
+        auxValue: `Terbayar: ${formatCurrency(financialSummary.termin_paid_amount, true)}`,
       },
+      // Card 2: Total Recurring Cost
       {
-        id: 'processing',
-        label: 'Waktu Proses',
-        value: avgProcessing ?? 0,
-        formattedValue: formatProcessingTime(avgProcessing),
-        auxLabel: 'Median',
-        auxValue: formatProcessingTime(medianProcessing),
-        sparkline: processingSparkline,
+        id: 'recurring-cost',
+        label: 'Total Biaya Recurring',
+        value: recurringTotal,
+        formattedValue: formatCurrency(recurringTotal, true),
+        sparkline: generateSparkline(recurringTotal),
+        icon: <TrendingUp className="size-5 text-foreground/80" aria-hidden="true" />,
+        auxLabel: `${financialSummary.total_recurring_contracts} kontrak`,
+        auxValue: `Avg/bulan: ${formatCurrency(financialSummary.recurring_monthly_avg, true)}`,
+      },
+      // Card 3: One-Time Charge Total
+      {
+        id: 'one-time-cost',
+        label: 'Total Biaya Sekali Bayar',
+        value: oneTimeTotal,
+        formattedValue: formatCurrency(oneTimeTotal, true),
+        sparkline: generateSparkline(oneTimeTotal),
+        icon: <FileText className="size-5 text-foreground/80" aria-hidden="true" />,
+        auxLabel: `${financialSummary.total_one_time_contracts} kontrak`,
+        auxValue: `Avg/kontrak: ${formatCurrency(financialSummary.one_time_avg_per_contract, true)}`,
+      },
+      // Card 4: 90-Day Projection
+      {
+        id: 'projection',
+        label: 'Proyeksi 90 Hari',
+        value: projection,
+        formattedValue: formatCurrency(projection, true),
+        sparkline: generateSparkline(projection),
         icon: <Clock className="size-5 text-foreground/80" aria-hidden="true" />,
+        auxLabel: `${financialSummary.projection_contracts_count} kontrak`,
+        auxValue: `Termin: ${formatCurrency(financialSummary.projection_termin, true)}`,
       },
     ];
-  }, [overview, percentChange, momText]);
+  }, [financialSummary]);
+
+  // Build Rich KPI descriptor for Card 5: Collected This Month
+  const collectedCardDescriptor: RichKpiDescriptor | null = React.useMemo(() => {
+    if (!financialSummary) return null;
+
+    const collected = parseFloat(financialSummary.collected_this_month || '0');
+    const collectedTermin = parseFloat(financialSummary.collected_termin || '0');
+    const collectedRecurring = parseFloat(financialSummary.collected_recurring || '0');
+    const target = parseFloat(financialSummary.collection_target || '0');
+    const outstanding = target - collected;
+    const percentage = target > 0 ? (collected / target) * 100 : 0;
+
+    // Calculate percentages for chart
+    const terminPercent = collected > 0 ? (collectedTermin / collected) * 100 : 0;
+    const recurringPercent = collected > 0 ? (collectedRecurring / collected) * 100 : 0;
+
+    return {
+      id: 'collected',
+      label: 'Terkumpul Bulan Ini',
+      formattedValue: formatCurrency(collected, true),
+      icon: <Banknote className="size-5 text-foreground/80" aria-hidden="true" />,
+      chartData: [
+        {
+          name: 'Termin',
+          value: collectedTermin,
+          color: '#e11d48', // rose-600
+          percentage: terminPercent,
+        },
+        {
+          name: 'Recurring',
+          value: collectedRecurring,
+          color: '#3b82f6', // blue-500
+          percentage: recurringPercent,
+        },
+      ],
+      keyMetrics: [
+        {
+          label: 'Tercapai',
+          value: `${percentage.toFixed(1)}%`,
+          type: percentage >= 80 ? 'success' : percentage >= 50 ? 'warning' : 'default',
+          icon: percentage >= 80 ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />,
+        },
+        {
+          label: 'Outstanding',
+          value: formatCurrency(outstanding, true),
+          type: outstanding > 0 ? 'warning' : 'success',
+          icon: <Circle className="size-4" />,
+        },
+      ],
+      detailMetrics: [
+        {
+          label: 'Jumlah pembayaran',
+          value: `${financialSummary.collected_count} pembayaran`,
+        },
+        {
+          label: `Termin (${terminPercent.toFixed(0)}%)`,
+          value: formatCurrency(collectedTermin, true),
+        },
+        {
+          label: `Recurring (${recurringPercent.toFixed(0)}%)`,
+          value: formatCurrency(collectedRecurring, true),
+        },
+        {
+          label: 'Target total',
+          value: formatCurrency(target, true),
+        },
+      ],
+    };
+  }, [financialSummary]);
+
+  // Build KPI descriptor for Card 6: Collection Rate
+  const collectionRateDescriptor: KpiDescriptor | null = React.useMemo(() => {
+    if (!financialSummary) return null;
+
+    return {
+      id: 'collection-rate',
+      label: 'Tingkat Penagihan',
+      value: financialSummary.collection_rate,
+      formattedValue: `${financialSummary.collection_rate.toFixed(1)}%`,
+      sparkline: [65, 70, 73, 76, 79, 82, financialSummary.collection_rate],
+      icon: <TrendingUp className="size-5 text-foreground/80" aria-hidden="true" />,
+      colSpan: 2,
+      richContent: [
+        { label: 'Tepat waktu', value: `${financialSummary.on_time_count} pembayaran` },
+        { label: 'Terlambat', value: `${financialSummary.late_count} pembayaran` },
+        { label: 'Belum terbayar', value: `${financialSummary.outstanding_count} tagihan` },
+      ],
+    };
+  }, [financialSummary]);
 
   return (
     <div className="p-6 space-y-6">
@@ -531,13 +598,35 @@ export function DashboardPage() {
 
       {/* KPI Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Top 4 cards - regular KPI cards */}
         {kpiDescriptors.map((descriptor) => (
-          <KpiCard
-            key={descriptor.id}
-            descriptor={descriptor}
-            loading={overviewLoading}
-          />
+          <div key={descriptor.id}>
+            <KpiCard
+              descriptor={descriptor}
+              loading={financialLoading}
+            />
+          </div>
         ))}
+
+        {/* Card 5: Collected This Month - Rich KPI Card with pie chart (2 columns) */}
+        {collectedCardDescriptor && (
+          <div className="lg:col-span-2">
+            <RichKpiCard
+              descriptor={collectedCardDescriptor}
+              loading={financialLoading}
+            />
+          </div>
+        )}
+
+        {/* Card 6: Collection Rate - Regular KPI Card (2 columns) */}
+        {collectionRateDescriptor && (
+          <div className="lg:col-span-2">
+            <KpiCard
+              descriptor={collectionRateDescriptor}
+              loading={financialLoading}
+            />
+          </div>
+        )}
       </section>
 
       {/* Bottom Row - Termin & Recurring */}
