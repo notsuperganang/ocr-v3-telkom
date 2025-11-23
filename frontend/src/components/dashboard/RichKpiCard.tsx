@@ -47,6 +47,13 @@ export interface MetricItem {
   icon?: React.ReactNode;
 }
 
+// Progress bar interface
+export interface ProgressBarData {
+  value: number; // 0-100
+  label: string;
+  showPercentage?: boolean;
+}
+
 // Rich KPI Descriptor interface
 export interface RichKpiDescriptor {
   id: string;
@@ -56,6 +63,7 @@ export interface RichKpiDescriptor {
   chartData?: ChartDataItem[];
   keyMetrics?: MetricItem[];
   detailMetrics?: MetricItem[];
+  progressBar?: ProgressBarData;
 }
 
 interface RichKpiCardProps {
@@ -104,6 +112,7 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
     chartData,
     keyMetrics,
     detailMetrics,
+    progressBar,
   } = descriptor;
 
   // Get metric type styling
@@ -120,6 +129,13 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
     }
   };
 
+  // Get progress bar color based on value
+  const getProgressBarColor = (value: number) => {
+    if (value >= 80) return 'bg-green-500';
+    if (value >= 50) return 'bg-amber-500';
+    return 'bg-red-500';
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -128,7 +144,7 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
         y: -4,
         transition: { duration: 0.2 },
       }}
-      className="group"
+      className="group h-full"
     >
       <MotionCard
         className={cn(
@@ -136,7 +152,7 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
           designTokens.border,
           designTokens.surface.base,
           designTokens.shadow.sm,
-          "overflow-hidden transition-all duration-200 group-hover:shadow-[0_18px_48px_-32px_rgba(215,25,32,0.55)]"
+          "overflow-hidden transition-all duration-200 group-hover:shadow-[0_18px_48px_-32px_rgba(215,25,32,0.55)] h-full flex flex-col"
         )}
       >
         {/* Header Section */}
@@ -163,7 +179,7 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 flex-1 flex flex-col">
           {loading ? (
             <Skeleton className="h-48 w-full" />
           ) : (
@@ -175,16 +191,16 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
                   <div className="flex items-center justify-center">
                     {/* Check if all values are zero */}
                     {chartData.every(item => item.value === 0) ? (
-                      <div className="flex flex-col items-center justify-center h-[160px] text-center px-4">
-                        <div className="w-20 h-20 rounded-full border-4 border-dashed border-muted-foreground/30 flex items-center justify-center mb-2">
-                          <span className="text-2xl text-muted-foreground/50">0</span>
+                      <div className="flex flex-col items-center justify-center h-[280px] text-center px-4">
+                        <div className="w-32 h-32 rounded-full border-4 border-dashed border-muted-foreground/30 flex items-center justify-center mb-2">
+                          <span className="text-4xl text-muted-foreground/50">0</span>
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                           Belum ada pembayaran
                         </p>
                       </div>
                     ) : (
-                      <ResponsiveContainer width="100%" height={160}>
+                      <ResponsiveContainer width="100%" height={280}>
                         <PieChart>
                           <Pie
                             data={chartData}
@@ -192,8 +208,8 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
                             cy="50%"
                             labelLine={false}
                             label={renderCustomLabel}
-                            outerRadius={60}
-                            innerRadius={30}
+                            outerRadius={110}
+                            innerRadius={55}
                             fill="#8884d8"
                             dataKey="value"
                             strokeWidth={2}
@@ -247,20 +263,43 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
                 )}
               </div>
 
+              {/* Progress Bar Section */}
+              {progressBar && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-muted-foreground">{progressBar.label}</span>
+                    {progressBar.showPercentage !== false && (
+                      <span className="font-bold tabular-nums text-foreground">
+                        {progressBar.value.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative h-3 w-full overflow-hidden rounded-full bg-muted/50">
+                    <div
+                      className={cn(
+                        "h-full transition-all duration-500 ease-out rounded-full",
+                        getProgressBarColor(progressBar.value)
+                      )}
+                      style={{ width: `${Math.min(100, Math.max(0, progressBar.value))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Detail Metrics Section */}
               {detailMetrics && detailMetrics.length > 0 && (
                 <div className="space-y-2 border-t border-border/40 pt-4">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                     Detail Breakdown
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {detailMetrics.map((metric, index) => (
                       <div key={index} className="flex items-center justify-between gap-2 py-1">
                         <div className="flex items-center gap-2">
                           {metric.icon && <div className="text-muted-foreground">{metric.icon}</div>}
-                          <span className="text-xs text-muted-foreground">{metric.label}</span>
+                          <span className="text-sm text-muted-foreground">{metric.label}</span>
                         </div>
-                        <span className="text-xs font-semibold text-[#d71920] text-right tabular-nums">
+                        <span className="text-sm font-semibold text-[#d71920] text-right tabular-nums">
                           {metric.value}
                         </span>
                       </div>
