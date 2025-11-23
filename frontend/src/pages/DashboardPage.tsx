@@ -554,22 +554,96 @@ export function DashboardPage() {
     };
   }, [financialSummary]);
 
-  // Build KPI descriptor for Card 6: Collection Rate
-  const collectionRateDescriptor: KpiDescriptor | null = React.useMemo(() => {
+  // Build Rich KPI descriptor for Card 6: Collection Rate
+  const collectionRateDescriptor: RichKpiDescriptor | null = React.useMemo(() => {
     if (!financialSummary) return null;
+
+    const onTimeCount = financialSummary.on_time_count;
+    const lateCount = financialSummary.late_count;
+    const outstandingCount = financialSummary.outstanding_count;
+    const totalPayments = onTimeCount + lateCount + outstandingCount;
+    const collectionRate = financialSummary.collection_rate;
+
+    // Calculate percentages for chart
+    const onTimePercent = totalPayments > 0 ? (onTimeCount / totalPayments) * 100 : 0;
+    const latePercent = totalPayments > 0 ? (lateCount / totalPayments) * 100 : 0;
+    const outstandingPercent = totalPayments > 0 ? (outstandingCount / totalPayments) * 100 : 0;
+
+    // Calculate success rate (on-time percentage)
+    const successRate = totalPayments > 0 ? (onTimeCount / totalPayments) * 100 : 0;
 
     return {
       id: 'collection-rate',
       label: 'Tingkat Penagihan',
-      value: financialSummary.collection_rate,
-      formattedValue: `${financialSummary.collection_rate.toFixed(1)}%`,
-      sparkline: [65, 70, 73, 76, 79, 82, financialSummary.collection_rate],
+      formattedValue: `${collectionRate.toFixed(1)}%`,
       icon: <TrendingUp className="size-5 text-foreground/80" aria-hidden="true" />,
-      colSpan: 2,
-      richContent: [
-        { label: 'Tepat waktu', value: `${financialSummary.on_time_count} pembayaran` },
-        { label: 'Terlambat', value: `${financialSummary.late_count} pembayaran` },
-        { label: 'Belum terbayar', value: `${financialSummary.outstanding_count} tagihan` },
+      chartData: [
+        {
+          name: 'Tepat Waktu',
+          value: onTimeCount,
+          color: '#10b981', // green-500
+          percentage: onTimePercent,
+        },
+        {
+          name: 'Terlambat',
+          value: lateCount,
+          color: '#f59e0b', // amber-500
+          percentage: latePercent,
+        },
+        {
+          name: 'Outstanding',
+          value: outstandingCount,
+          color: '#ef4444', // red-500
+          percentage: outstandingPercent,
+        },
+      ],
+      keyMetrics: [
+        {
+          label: 'Collection Rate',
+          value: `${collectionRate.toFixed(1)}%`,
+          type: collectionRate >= 80 ? 'success' : collectionRate >= 50 ? 'warning' : 'default',
+          icon: <TrendingUp className="size-4" />,
+        },
+        {
+          label: 'Total Pembayaran',
+          value: `${totalPayments} items`,
+          type: 'info',
+          icon: <Circle className="size-4" />,
+        },
+        {
+          label: 'Success Rate',
+          value: `${successRate.toFixed(1)}%`,
+          type: successRate >= 80 ? 'success' : successRate >= 50 ? 'warning' : 'default',
+          icon: <CheckCircle2 className="size-4" />,
+        },
+        {
+          label: 'Outstanding',
+          value: `${outstandingCount} tagihan`,
+          type: outstandingCount > 0 ? 'warning' : 'success',
+          icon: <AlertCircle className="size-4" />,
+        },
+      ],
+      progressBar: {
+        value: collectionRate,
+        label: 'Collection Rate Progress',
+        showPercentage: true,
+      },
+      detailMetrics: [
+        {
+          label: `Tepat waktu (${onTimePercent.toFixed(0)}%)`,
+          value: `${onTimeCount} pembayaran`,
+          icon: <CheckCircle2 className="size-3.5 text-green-600" />,
+        },
+        {
+          label: `Terlambat (${latePercent.toFixed(0)}%)`,
+          value: `${lateCount} pembayaran`,
+          icon: <AlertTriangle className="size-3.5 text-amber-600" />,
+        },
+        {
+          label: `Outstanding (${outstandingPercent.toFixed(0)}%)`,
+          value: `${outstandingCount} tagihan`,
+          icon: <AlertCircle className="size-3.5 text-red-600" />,
+        },
       ],
     };
   }, [financialSummary]);
@@ -618,10 +692,10 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Card 6: Collection Rate - Regular KPI Card (2 columns) */}
+        {/* Card 6: Collection Rate - Rich KPI Card with pie chart and progress bar (2 columns) */}
         {collectionRateDescriptor && (
           <div className="lg:col-span-2">
-            <KpiCard
+            <RichKpiCard
               descriptor={collectionRateDescriptor}
               loading={financialLoading}
             />
