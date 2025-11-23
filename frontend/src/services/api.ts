@@ -18,7 +18,8 @@ import type {
   UpdateRecurringPaymentRequest,
   DashboardOverview,
   TerminUpcomingResponse,
-  RecurringCurrentMonthResponse
+  RecurringCurrentMonthResponse,
+  DashboardFinancialSummary
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -375,6 +376,10 @@ class ApiClient {
 
   async getRecurringAll(): Promise<TerminUpcomingResponse> {
     return this.request<TerminUpcomingResponse>('/api/dashboard/recurring-all');
+  }
+
+  async getFinancialSummary(): Promise<DashboardFinancialSummary> {
+    return this.request<DashboardFinancialSummary>('/api/dashboard/financial-summary');
   }
 }
 

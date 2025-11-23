@@ -243,3 +243,41 @@ export interface RecurringCurrentMonthResponse {
   total_amount: string;
   items: RecurringCurrentMonthItem[];
 }
+
+export interface DashboardFinancialSummary {
+  // Card 1: Total Termin Cost
+  total_termin_cost: string;
+  total_termin_contracts: number;
+  termin_paid_amount: string;
+  termin_unpaid_amount: string;
+
+  // Card 2: Total Recurring Cost
+  total_recurring_cost: string;
+  total_recurring_contracts: number;
+  recurring_monthly_avg: string;
+  recurring_active_cycles: number;
+
+  // Card 3: One-Time Charge Total
+  total_one_time_cost: string;
+  total_one_time_contracts: number;
+  one_time_avg_per_contract: string;
+
+  // Card 4: 90-Day Projection
+  projection_90_days: string;
+  projection_contracts_count: number;
+  projection_termin: string;
+  projection_recurring: string;
+
+  // Card 5: Collected This Month
+  collected_this_month: string;
+  collected_count: number;
+  collected_termin: string;
+  collected_recurring: string;
+  collection_target: string;
+
+  // Card 6: Collection Rate
+  collection_rate: number;
+  on_time_count: number;
+  late_count: number;
+  outstanding_count: number;
+}
