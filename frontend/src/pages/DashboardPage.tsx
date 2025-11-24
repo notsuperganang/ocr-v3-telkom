@@ -27,7 +27,7 @@ import {
   AlertTriangle,
   Circle
 } from 'lucide-react';
-import { useDashboardOverview, useTerminUpcoming, useRecurringAll, useFinancialSummary } from '@/hooks/useContracts';
+import { useTerminUpcoming, useRecurringAll, useFinancialSummary } from '@/hooks/useContracts';
 import { cn } from '@/lib/utils';
 import { STATUS_INFO, STATUS_ORDER } from '@/lib/termin-utils';
 import type { TerminUpcomingItem } from '@/types/api';
@@ -222,19 +222,6 @@ function formatCurrency(value: string | number, compact: boolean = false): strin
   }).format(num);
 }
 
-// Helper function to format processing time
-function formatProcessingTime(seconds: number | null): string {
-  if (seconds === null || seconds === undefined) return '-';
-
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = Math.round(seconds % 60);
-
-  if (minutes > 0) {
-    return `${minutes} mnt ${remainingSeconds} dtk`;
-  }
-  return `${remainingSeconds} dtk`;
-}
-
 // Type for grouped termin data
 interface GroupedTerminData {
   status: 'OVERDUE' | 'DUE' | 'PENDING';
@@ -356,7 +343,6 @@ export function DashboardPage() {
   const navigate = useNavigate();
 
   // Fetch dashboard data
-  const { data: overview, isLoading: overviewLoading } = useDashboardOverview();
   const { data: terminData, isLoading: terminLoading } = useTerminUpcoming(30);
   const { data: recurringData, isLoading: recurringLoading } = useRecurringAll();
   const { data: financialSummary, isLoading: financialLoading } = useFinancialSummary();
@@ -435,7 +421,6 @@ export function DashboardPage() {
     const recurringTotal = parseFloat(financialSummary.total_recurring_cost || '0');
     const oneTimeTotal = parseFloat(financialSummary.total_one_time_cost || '0');
     const projection = parseFloat(financialSummary.projection_90_days || '0');
-    const collected = parseFloat(financialSummary.collected_this_month || '0');
 
     return [
       // Card 1: Total Termin Cost
@@ -493,7 +478,7 @@ export function DashboardPage() {
     const collectedTermin = parseFloat(financialSummary.collected_termin || '0');
     const collectedRecurring = parseFloat(financialSummary.collected_recurring || '0');
     const target = parseFloat(financialSummary.collection_target || '0');
-    const outstanding = target - collected;
+    const outstanding = parseFloat(financialSummary.outstanding_amount || '0'); // Use backend value
     const percentage = target > 0 ? (collected / target) * 100 : 0;
 
     // Calculate percentages for chart
@@ -561,10 +546,10 @@ export function DashboardPage() {
     const onTimeCount = financialSummary.on_time_count;
     const lateCount = financialSummary.late_count;
     const outstandingCount = financialSummary.outstanding_count;
-    const totalPayments = onTimeCount + lateCount + outstandingCount;
-    const collectionRate = financialSummary.collection_rate;
+    const totalPayments = financialSummary.total_payment_count; // Use backend total (includes PENDING)
+    const overallCollectionRate = financialSummary.overall_collection_rate; // All-time rate
 
-    // Calculate percentages for chart
+    // Calculate percentages for chart (based on total_payment_count)
     const onTimePercent = totalPayments > 0 ? (onTimeCount / totalPayments) * 100 : 0;
     const latePercent = totalPayments > 0 ? (lateCount / totalPayments) * 100 : 0;
     const outstandingPercent = totalPayments > 0 ? (outstandingCount / totalPayments) * 100 : 0;
@@ -575,7 +560,7 @@ export function DashboardPage() {
     return {
       id: 'collection-rate',
       label: 'Tingkat Penagihan',
-      formattedValue: `${collectionRate.toFixed(1)}%`,
+      formattedValue: `${overallCollectionRate.toFixed(1)}%`,
       icon: <TrendingUp className="size-5 text-foreground/80" aria-hidden="true" />,
       chartData: [
         {
@@ -600,8 +585,8 @@ export function DashboardPage() {
       keyMetrics: [
         {
           label: 'Collection Rate',
-          value: `${collectionRate.toFixed(1)}%`,
-          type: collectionRate >= 80 ? 'success' : collectionRate >= 50 ? 'warning' : 'default',
+          value: `${overallCollectionRate.toFixed(1)}%`,
+          type: overallCollectionRate >= 80 ? 'success' : overallCollectionRate >= 50 ? 'warning' : 'default',
           icon: <TrendingUp className="size-4" />,
         },
         {
@@ -624,7 +609,7 @@ export function DashboardPage() {
         },
       ],
       progressBar: {
-        value: collectionRate,
+        value: overallCollectionRate,
         label: 'Collection Rate Progress',
         showPercentage: true,
       },
