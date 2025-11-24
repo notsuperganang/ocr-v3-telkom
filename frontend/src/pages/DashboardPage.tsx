@@ -222,12 +222,65 @@ function formatCurrency(value: string | number, compact: boolean = false): strin
   }).format(num);
 }
 
+// Type for consolidated termin item (contract with termin range)
+interface ConsolidatedTerminItem {
+  contract_id: number;
+  customer_name: string;
+  period_start: string | null;
+  period_end: string | null;
+  termin_start: number;
+  termin_end: number;
+  period_label: string;
+  total_amount: number;
+  item_count: number;
+}
+
 // Type for grouped termin data
 interface GroupedTerminData {
   status: 'OVERDUE' | 'DUE' | 'PENDING';
-  items: TerminUpcomingItem[];
+  items: ConsolidatedTerminItem[];
   count: number;
   totalAmount: number;
+}
+
+// Helper function to consolidate termin items by contract and consecutive termin numbers
+function consolidateTerminByContract(items: TerminUpcomingItem[]): ConsolidatedTerminItem[] {
+  // Group by contract_id first
+  const byContract = items.reduce((acc, item) => {
+    if (!acc[item.contract_id]) {
+      acc[item.contract_id] = [];
+    }
+    acc[item.contract_id].push(item);
+    return acc;
+  }, {} as Record<number, TerminUpcomingItem[]>);
+
+  const consolidated: ConsolidatedTerminItem[] = [];
+
+  // For each contract, sort by termin number and create consolidated entry
+  Object.entries(byContract).forEach(([contractId, contractItems]) => {
+    // Sort by termin number
+    contractItems.sort((a, b) => a.termin_number - b.termin_number);
+
+    const firstItem = contractItems[0];
+    const lastItem = contractItems[contractItems.length - 1];
+    const totalAmount = contractItems.reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
+
+    consolidated.push({
+      contract_id: parseInt(contractId),
+      customer_name: firstItem.customer_name,
+      period_start: firstItem.period_start,
+      period_end: firstItem.period_end,
+      termin_start: firstItem.termin_number,
+      termin_end: lastItem.termin_number,
+      period_label: firstItem.termin_number === lastItem.termin_number
+        ? firstItem.termin_period_label
+        : `${firstItem.termin_period_label} - ${lastItem.termin_period_label}`,
+      total_amount: totalAmount,
+      item_count: contractItems.length,
+    });
+  });
+
+  return consolidated;
 }
 
 // Helper function to group termin items by status
@@ -248,7 +301,7 @@ function groupTerminByStatus(items: TerminUpcomingItem[]): GroupedTerminData[] {
 
   return STATUS_ORDER.map((status) => ({
     status,
-    items: groups[status].items,
+    items: consolidateTerminByContract(groups[status].items),
     count: groups[status].items.length,
     totalAmount: groups[status].totalAmount,
   }));
@@ -817,7 +870,7 @@ export function DashboardPage() {
                                 <TableBody>
                                   {group.items.map((item, index) => (
                                     <TableRow
-                                      key={`${item.contract_id}-${item.termin_number}-${index}`}
+                                      key={`${item.contract_id}-${item.termin_start}-${item.termin_end}-${index}`}
                                       onClick={() => handleTerminRowClick(item.contract_id)}
                                       className={cn(
                                         "cursor-pointer transition-colors",
@@ -834,14 +887,18 @@ export function DashboardPage() {
                                         </div>
                                       </TableCell>
                                       <TableCell className="py-2">
-                                        <div className="font-medium text-sm">Termin {item.termin_number}</div>
+                                        <div className="font-medium text-sm">
+                                          {item.termin_start === item.termin_end
+                                            ? `Termin ${item.termin_start}`
+                                            : `Termin ${item.termin_start} - ${item.termin_end}`}
+                                        </div>
                                         <div className="text-xs text-muted-foreground">
-                                          {item.termin_period_label}
+                                          {item.period_label}
                                         </div>
                                       </TableCell>
                                       <TableCell className="py-2 text-right">
                                         <div className="font-medium text-sm">
-                                          {formatCurrency(item.amount, true)}
+                                          {formatCurrency(item.total_amount.toString(), true)}
                                         </div>
                                       </TableCell>
                                     </TableRow>
