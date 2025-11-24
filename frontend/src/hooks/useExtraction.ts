@@ -124,6 +124,9 @@ export function useConfirmExtraction() {
       // Invalidate contracts queries to show new contract immediately
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
 
+      // Invalidate dashboard queries for auto-refresh
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+
       // Navigate to contracts page with success message
       navigate('/contracts', {
         state: {

@@ -119,6 +119,8 @@ export function useUpdateContract() {
       queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedContract.id) });
       // Invalidate contracts list to update any summary data
       queryClient.invalidateQueries({ queryKey: contractKeys.lists() });
+      // Invalidate dashboard for financial updates
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
     },
     onError: (error) => {
       console.error('Failed to update contract:', error);
@@ -136,6 +138,9 @@ export function useDeleteContract() {
       // Invalidate and refetch contracts list
       queryClient.invalidateQueries({ queryKey: contractKeys.lists() });
       queryClient.invalidateQueries({ queryKey: contractKeys.unifiedLists() });
+      // Invalidate dashboard and stats for KPI updates
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
+      queryClient.invalidateQueries({ queryKey: [...contractKeys.all, 'stats'] });
     },
     onError: (error) => {
       console.error('Failed to delete contract:', error);
@@ -211,6 +216,8 @@ export function useUpdateTerminPayment() {
       queryClient.invalidateQueries({ queryKey: contractKeys.terminPayments(updatedTermin.contract_id) });
       // Also invalidate contract detail in case denormalized fields changed
       queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedTermin.contract_id) });
+      // Invalidate all dashboard queries for complete auto-refresh (includes financial summary and payment lists)
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
     },
     onError: (error) => {
       console.error('Failed to update termin payment:', error);
@@ -250,6 +257,8 @@ export function useUpdateRecurringPayment() {
       queryClient.invalidateQueries({ queryKey: contractKeys.recurringPayments(updatedPayment.contract_id) });
       // Also invalidate contract detail in case denormalized fields changed
       queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedPayment.contract_id) });
+      // Invalidate all dashboard queries for complete auto-refresh (includes financial summary and payment lists)
+      queryClient.invalidateQueries({ queryKey: ['contracts', 'dashboard'] });
     },
     onError: (error) => {
       console.error('Failed to update recurring payment:', error);
