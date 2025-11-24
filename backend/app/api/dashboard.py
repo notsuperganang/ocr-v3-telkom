@@ -2,6 +2,7 @@
 Dashboard API endpoints for KPIs and overview data.
 """
 
+import logging
 from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db_and_user
 from app.models.database import Contract, ContractTermPayment, ContractRecurringPayment, TerminPaymentStatus
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -245,6 +248,17 @@ async def get_termin_upcoming(
     """
     db, _current_user = db_and_user
 
+    # Auto-update termin statuses before fetching data
+    from app.services.termin_status import update_termin_statuses
+    try:
+        status_result = update_termin_statuses(db, dry_run=False)
+        if status_result['updated'] > 0:
+            logger.info(f"Auto-updated {status_result['updated']} termin payment statuses on dashboard load")
+        db.commit()  # Commit status updates
+    except Exception as e:
+        logger.warning(f"Failed to auto-update termin statuses: {e}")
+        db.rollback()
+
     today = date.today()
     target_date = today + timedelta(days=days)
 
@@ -464,6 +478,17 @@ async def get_recurring_all(
         - items: List of recurring payment details (reusing TerminUpcomingItem structure)
     """
     db, _current_user = db_and_user
+
+    # Auto-update recurring statuses before fetching data
+    from app.services.termin_status import update_recurring_statuses
+    try:
+        status_result = update_recurring_statuses(db, dry_run=False)
+        if status_result['updated'] > 0:
+            logger.info(f"Auto-updated {status_result['updated']} recurring payment statuses on dashboard load")
+        db.commit()  # Commit status updates
+    except Exception as e:
+        logger.warning(f"Failed to auto-update recurring statuses: {e}")
+        db.rollback()
 
     # Query all recurring payments with contract join
     query = db.query(
