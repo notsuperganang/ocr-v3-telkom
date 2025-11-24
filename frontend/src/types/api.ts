@@ -274,10 +274,13 @@ export interface DashboardFinancialSummary {
   collected_termin: string;
   collected_recurring: string;
   collection_target: string;
+  outstanding_amount: string;
 
   // Card 6: Collection Rate
   collection_rate: number;
   on_time_count: number;
   late_count: number;
   outstanding_count: number;
+  overall_collection_rate: number;
+  total_payment_count: number;
 }
