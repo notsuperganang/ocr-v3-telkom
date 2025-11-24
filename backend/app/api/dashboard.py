@@ -85,6 +85,48 @@ class RecurringCurrentMonthResponse(BaseModel):
     items: list[RecurringCurrentMonthItem]
 
 
+class DashboardFinancialSummary(BaseModel):
+    """Comprehensive financial KPIs for dashboard cards."""
+    # Card 1: Total Termin Cost
+    total_termin_cost: str
+    total_termin_contracts: int
+    termin_paid_amount: str
+    termin_unpaid_amount: str
+
+    # Card 2: Total Recurring Cost
+    total_recurring_cost: str
+    total_recurring_contracts: int
+    recurring_monthly_avg: str
+    recurring_active_cycles: int
+
+    # Card 3: One-Time Charge Total
+    total_one_time_cost: str
+    total_one_time_contracts: int
+    one_time_avg_per_contract: str
+
+    # Card 4: 90-Day Projection
+    projection_90_days: str
+    projection_contracts_count: int
+    projection_termin: str
+    projection_recurring: str
+
+    # Card 5: Collected This Month
+    collected_this_month: str
+    collected_count: int
+    collected_termin: str
+    collected_recurring: str
+    collection_target: str
+
+    # Card 6: Collection Rate
+    collection_rate: float
+    on_time_count: int
+    late_count: int
+    outstanding_count: int
+
+    class Config:
+        from_attributes = True
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -477,4 +519,253 @@ async def get_recurring_all(
         total_contracts=len(contract_ids),
         total_amount=str(total_amount),
         items=items
+    )
+
+
+@router.get("/financial-summary", response_model=DashboardFinancialSummary)
+async def get_financial_summary(
+    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+):
+    """
+    Get comprehensive financial KPIs for dashboard cards.
+
+    Aggregates financial data across termin, recurring, and one-time contracts:
+    - Card 1: Total termin cost with paid/unpaid breakdown
+    - Card 2: Total recurring cost with monthly average
+    - Card 3: Total one-time charges with average per contract
+    - Card 4: 90-day payment projection
+    - Card 5: Collections this month with breakdown
+    - Card 6: Collection rate with on-time/late/outstanding counts
+
+    Returns:
+        DashboardFinancialSummary with all financial KPIs
+    """
+    db, current_user = db_and_user
+
+    today = date.today()
+    current_year = today.year
+    current_month = today.month
+
+    # ==== CARD 1: Total Termin Cost ====
+    termin_total = db.query(func.sum(ContractTermPayment.amount)).scalar() or Decimal('0')
+
+    termin_paid = db.query(func.sum(ContractTermPayment.amount)).filter(
+        ContractTermPayment.status == TerminPaymentStatus.PAID.value
+    ).scalar() or Decimal('0')
+
+    termin_unpaid = termin_total - termin_paid
+
+    termin_contracts = db.query(
+        func.count(func.distinct(ContractTermPayment.contract_id))
+    ).scalar() or 0
+
+    # ==== CARD 2: Total Recurring Cost ====
+    recurring_total = db.query(func.sum(Contract.recurring_total_amount)).filter(
+        Contract.payment_method == 'recurring'
+    ).scalar() or Decimal('0')
+
+    recurring_contracts = db.query(func.count(Contract.id)).filter(
+        Contract.payment_method == 'recurring'
+    ).scalar() or 0
+
+    recurring_monthly_avg = (recurring_total / recurring_contracts) if recurring_contracts > 0 else Decimal('0')
+
+    recurring_active_cycles = db.query(func.count(ContractRecurringPayment.id)).filter(
+        ContractRecurringPayment.status.notin_([
+            TerminPaymentStatus.PAID.value,
+            TerminPaymentStatus.CANCELLED.value
+        ])
+    ).scalar() or 0
+
+    # ==== CARD 3: One-Time Charge Total (annual subscription for one_time payment method) ====
+    one_time_total = db.query(func.sum(Contract.annual_subscription_cost)).filter(
+        Contract.payment_method == 'one_time'
+    ).scalar() or Decimal('0')
+
+    one_time_contracts = db.query(func.count(Contract.id)).filter(
+        Contract.payment_method == 'one_time'
+    ).scalar() or 0
+
+    one_time_avg = (one_time_total / one_time_contracts) if one_time_contracts > 0 else Decimal('0')
+
+    # ==== CARD 4: 90-Day Projection ====
+    # Calculate termin projection (next 90 days, ~3 months from current month)
+    projection_termin = db.query(func.sum(ContractTermPayment.amount)).filter(
+        ContractTermPayment.status.notin_([
+            TerminPaymentStatus.PAID.value,
+            TerminPaymentStatus.CANCELLED.value
+        ]),
+        or_(
+            and_(
+                ContractTermPayment.period_year == current_year,
+                ContractTermPayment.period_month <= current_month + 3
+            ),
+            and_(
+                ContractTermPayment.period_year == current_year + 1,
+                ContractTermPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
+            )
+        )
+    ).scalar() or Decimal('0')
+
+    # Calculate recurring projection (next 90 days, ~3 months)
+    projection_recurring = db.query(func.sum(ContractRecurringPayment.amount)).filter(
+        ContractRecurringPayment.status.notin_([
+            TerminPaymentStatus.PAID.value,
+            TerminPaymentStatus.CANCELLED.value
+        ]),
+        or_(
+            and_(
+                ContractRecurringPayment.period_year == current_year,
+                ContractRecurringPayment.period_month <= current_month + 3
+            ),
+            and_(
+                ContractRecurringPayment.period_year == current_year + 1,
+                ContractRecurringPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
+            )
+        )
+    ).scalar() or Decimal('0')
+
+    projection_total = projection_termin + projection_recurring
+
+    projection_contract_ids = set()
+    # Count distinct contracts with upcoming payments
+    termin_contract_ids = db.query(ContractTermPayment.contract_id).filter(
+        ContractTermPayment.status.notin_([TerminPaymentStatus.PAID.value, TerminPaymentStatus.CANCELLED.value]),
+        or_(
+            and_(
+                ContractTermPayment.period_year == current_year,
+                ContractTermPayment.period_month <= current_month + 3
+            ),
+            and_(
+                ContractTermPayment.period_year == current_year + 1,
+                ContractTermPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
+            )
+        )
+    ).distinct().all()
+
+    recurring_contract_ids = db.query(ContractRecurringPayment.contract_id).filter(
+        ContractRecurringPayment.status.notin_([TerminPaymentStatus.PAID.value, TerminPaymentStatus.CANCELLED.value]),
+        or_(
+            and_(
+                ContractRecurringPayment.period_year == current_year,
+                ContractRecurringPayment.period_month <= current_month + 3
+            ),
+            and_(
+                ContractRecurringPayment.period_year == current_year + 1,
+                ContractRecurringPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
+            )
+        )
+    ).distinct().all()
+
+    for (cid,) in termin_contract_ids:
+        projection_contract_ids.add(cid)
+    for (cid,) in recurring_contract_ids:
+        projection_contract_ids.add(cid)
+
+    # ==== CARD 5: Collected This Month ====
+    collected_termin = db.query(func.sum(ContractTermPayment.amount)).filter(
+        ContractTermPayment.status == TerminPaymentStatus.PAID.value,
+        extract('year', ContractTermPayment.paid_at) == current_year,
+        extract('month', ContractTermPayment.paid_at) == current_month
+    ).scalar() or Decimal('0')
+
+    collected_recurring = db.query(func.sum(ContractRecurringPayment.amount)).filter(
+        ContractRecurringPayment.status == TerminPaymentStatus.PAID.value,
+        extract('year', ContractRecurringPayment.paid_at) == current_year,
+        extract('month', ContractRecurringPayment.paid_at) == current_month
+    ).scalar() or Decimal('0')
+
+    collected_total = collected_termin + collected_recurring
+
+    collected_termin_count = db.query(func.count(ContractTermPayment.id)).filter(
+        ContractTermPayment.status == TerminPaymentStatus.PAID.value,
+        extract('year', ContractTermPayment.paid_at) == current_year,
+        extract('month', ContractTermPayment.paid_at) == current_month
+    ).scalar() or 0
+
+    collected_recurring_count = db.query(func.count(ContractRecurringPayment.id)).filter(
+        ContractRecurringPayment.status == TerminPaymentStatus.PAID.value,
+        extract('year', ContractRecurringPayment.paid_at) == current_year,
+        extract('month', ContractRecurringPayment.paid_at) == current_month
+    ).scalar() or 0
+
+    collected_count = collected_termin_count + collected_recurring_count
+
+    # Calculate collection target (TOTAL that should be collected this month: PAID + DUE + OVERDUE)
+    target_termin = db.query(func.sum(ContractTermPayment.amount)).filter(
+        ContractTermPayment.status.in_([
+            TerminPaymentStatus.PAID.value,
+            TerminPaymentStatus.DUE.value,
+            TerminPaymentStatus.OVERDUE.value
+        ]),
+        ContractTermPayment.period_year == current_year,
+        ContractTermPayment.period_month == current_month
+    ).scalar() or Decimal('0')
+
+    target_recurring = db.query(func.sum(ContractRecurringPayment.amount)).filter(
+        ContractRecurringPayment.status.in_([
+            TerminPaymentStatus.PAID.value,
+            TerminPaymentStatus.DUE.value,
+            TerminPaymentStatus.OVERDUE.value
+        ]),
+        ContractRecurringPayment.period_year == current_year,
+        ContractRecurringPayment.period_month == current_month
+    ).scalar() or Decimal('0')
+
+    collection_target = target_termin + target_recurring
+
+    # ==== CARD 6: Collection Rate ====
+    # Count on-time (paid on or before due date)
+    # For simplicity, we'll count all PAID in current month as on-time
+    on_time_count = collected_count
+
+    # Count late (paid after due date) - for now, we'll use 0 as we don't track this distinction yet
+    late_count = 0
+
+    # Count outstanding (DUE + OVERDUE not paid)
+    outstanding_termin = db.query(func.count(ContractTermPayment.id)).filter(
+        ContractTermPayment.status.in_([TerminPaymentStatus.DUE.value, TerminPaymentStatus.OVERDUE.value])
+    ).scalar() or 0
+
+    outstanding_recurring = db.query(func.count(ContractRecurringPayment.id)).filter(
+        ContractRecurringPayment.status.in_([TerminPaymentStatus.DUE.value, TerminPaymentStatus.OVERDUE.value])
+    ).scalar() or 0
+
+    outstanding_count = outstanding_termin + outstanding_recurring
+
+    # Calculate collection rate (collected / target * 100)
+    # Since collection_target now includes PAID + DUE + OVERDUE, it's the total target
+    collection_rate = float((collected_total / collection_target * 100)) if collection_target > 0 else 0.0
+
+    return DashboardFinancialSummary(
+        # Card 1
+        total_termin_cost=str(termin_total),
+        total_termin_contracts=termin_contracts,
+        termin_paid_amount=str(termin_paid),
+        termin_unpaid_amount=str(termin_unpaid),
+        # Card 2
+        total_recurring_cost=str(recurring_total),
+        total_recurring_contracts=recurring_contracts,
+        recurring_monthly_avg=str(recurring_monthly_avg),
+        recurring_active_cycles=recurring_active_cycles,
+        # Card 3
+        total_one_time_cost=str(one_time_total),
+        total_one_time_contracts=one_time_contracts,
+        one_time_avg_per_contract=str(one_time_avg),
+        # Card 4
+        projection_90_days=str(projection_total),
+        projection_contracts_count=len(projection_contract_ids),
+        projection_termin=str(projection_termin),
+        projection_recurring=str(projection_recurring),
+        # Card 5
+        collected_this_month=str(collected_total),
+        collected_count=collected_count,
+        collected_termin=str(collected_termin),
+        collected_recurring=str(collected_recurring),
+        collection_target=str(collection_target),
+        # Card 6
+        collection_rate=round(collection_rate, 1),
+        on_time_count=on_time_count,
+        late_count=late_count,
+        outstanding_count=outstanding_count,
     )

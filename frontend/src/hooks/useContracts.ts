@@ -293,3 +293,12 @@ export function useRecurringAll() {
     refetchOnWindowFocus: true,
   });
 }
+
+export function useFinancialSummary() {
+  return useQuery({
+    queryKey: [...contractKeys.all, 'dashboard', 'financial-summary'],
+    queryFn: () => apiService.getFinancialSummary(),
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: true,
+  });
+}
