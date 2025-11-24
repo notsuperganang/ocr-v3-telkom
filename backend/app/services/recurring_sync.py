@@ -25,7 +25,10 @@ MONTH_NAMES_ID = [
 
 def iter_months_inclusive(start_date: date, end_date: date) -> List[Tuple[int, int, int]]:
     """
-    Generate list of (year, month, cycle_number) for all months between dates (inclusive).
+    Generate list of (year, month, cycle_number) for all months between dates.
+
+    Only includes FULL months. If start_date is not on the 1st, the first partial
+    month is skipped and billing starts from the next full month.
 
     Args:
         start_date: Contract start date
@@ -35,9 +38,15 @@ def iter_months_inclusive(start_date: date, end_date: date) -> List[Tuple[int, i
         List of tuples: [(year, month, cycle_number), ...]
         Example: [(2025, 1, 1), (2025, 2, 2), (2025, 3, 3), ...]
 
-    Example:
+    Examples:
+        iter_months_inclusive(date(2024, 12, 6), date(2025, 12, 5))
+        -> [(2025, 1, 1), (2025, 2, 2), ..., (2025, 12, 12)]  # 12 months
+
+        iter_months_inclusive(date(2025, 1, 1), date(2025, 12, 31))
+        -> [(2025, 1, 1), (2025, 2, 2), ..., (2025, 12, 12)]  # 12 months
+
         iter_months_inclusive(date(2025, 1, 15), date(2025, 3, 20))
-        -> [(2025, 1, 1), (2025, 2, 2), (2025, 3, 3)]
+        -> [(2025, 2, 1), (2025, 3, 2)]  # Skips partial January
     """
     if start_date > end_date:
         logger.warning(f"Start date {start_date} is after end date {end_date}")
@@ -46,6 +55,16 @@ def iter_months_inclusive(start_date: date, end_date: date) -> List[Tuple[int, i
     months = []
     year = start_date.year
     month = start_date.month
+
+    # Skip partial first month if not starting on the 1st
+    if start_date.day > 1:
+        # Move to next month
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+
     cycle_number = 1
 
     while (year, month) <= (end_date.year, end_date.month):
