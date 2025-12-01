@@ -64,6 +64,7 @@ export interface RichKpiDescriptor {
   keyMetrics?: MetricItem[];
   detailMetrics?: MetricItem[];
   progressBar?: ProgressBarData;
+  chartDataType?: 'currency' | 'count'; // Type of data in chart: currency (Rp) or count (numbers)
 }
 
 interface RichKpiCardProps {
@@ -113,6 +114,7 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
     keyMetrics,
     detailMetrics,
     progressBar,
+    chartDataType = 'currency', // Default to currency for backward compatibility
   } = descriptor;
 
   // Get metric type styling
@@ -220,14 +222,19 @@ export const RichKpiCard: React.FC<RichKpiCardProps> = ({ descriptor, loading })
                             ))}
                           </Pie>
                           <Tooltip
-                            formatter={(value: number) =>
-                              new Intl.NumberFormat('id-ID', {
+                            formatter={(value: number) => {
+                              if (chartDataType === 'count') {
+                                // For count data, show as plain number with unit
+                                return `${value.toLocaleString('id-ID')} pembayaran`;
+                              }
+                              // For currency data, format as Rupiah
+                              return new Intl.NumberFormat('id-ID', {
                                 style: 'currency',
                                 currency: 'IDR',
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 0,
-                              }).format(value)
-                            }
+                              }).format(value);
+                            }}
                           />
                         </PieChart>
                       </ResponsiveContainer>

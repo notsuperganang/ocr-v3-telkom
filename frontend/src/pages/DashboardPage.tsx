@@ -683,6 +683,7 @@ export function DashboardPage() {
           icon: <AlertCircle className="size-3.5 text-red-600" />,
         },
       ],
+      chartDataType: 'count', // Data is payment count, not currency
     };
   }, [financialSummary]);
 
