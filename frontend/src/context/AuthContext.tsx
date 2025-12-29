@@ -2,11 +2,15 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { apiClient } from '../services/api';
-import type { LoginRequest } from '../types/api';
+import type { LoginRequest, UserRole } from '../types/api';
 
 interface AuthUser {
   username: string;
   token: string;
+  role: UserRole;
+  userId: number;
+  email?: string;
+  fullName?: string;
 }
 
 interface AuthContextType {
@@ -15,6 +19,9 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isManager: boolean;
+  userRole: UserRole | null;
+  refreshUserInfo: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,20 +39,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const initializeAuth = async () => {
       const token = localStorage.getItem('authToken');
       const username = localStorage.getItem('authUsername');
-      
-      if (token && username) {
+      const role = localStorage.getItem('authRole') as UserRole | null;
+      const userId = localStorage.getItem('authUserId');
+
+      if (token && username && role && userId) {
         try {
-          // Verify token is still valid by making a test request
-          await apiClient.getHealth();
-          setUser({ username, token });
+          // Fetch full user info to verify token and get latest data
+          const userInfo = await apiClient.getCurrentUser();
+          setUser({
+            username: userInfo.username,
+            token,
+            role: userInfo.role as UserRole,
+            userId: userInfo.user_id,
+            email: userInfo.email,
+            fullName: userInfo.full_name || undefined,
+          });
         } catch (error) {
-          // Token is invalid, clear stored data
+          // Token is invalid, clear all stored data
           localStorage.removeItem('authToken');
           localStorage.removeItem('authUsername');
+          localStorage.removeItem('authRole');
+          localStorage.removeItem('authUserId');
           apiClient.clearToken();
         }
       }
-      
+
       setIsLoading(false);
     };
 
@@ -55,20 +73,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (credentials: LoginRequest) => {
     try {
       const response = await apiClient.login(credentials);
-      
+
       const userData: AuthUser = {
         username: response.username,
         token: response.access_token,
+        role: response.role as UserRole,
+        userId: response.user_id,
       };
-      
-      // Store username in localStorage for persistence
+
+      // Store username, role, and userId in localStorage for persistence
       localStorage.setItem('authUsername', response.username);
-      
+      localStorage.setItem('authRole', response.role);
+      localStorage.setItem('authUserId', response.user_id.toString());
+
+      // Fetch full user info for email/full_name
+      try {
+        const userInfo = await apiClient.getCurrentUser();
+        userData.email = userInfo.email;
+        userData.fullName = userInfo.full_name || undefined;
+      } catch (err) {
+        console.warn('Could not fetch full user info:', err);
+      }
+
       setUser(userData);
     } catch (error) {
       // Clear any existing auth data on login failure
       apiClient.clearToken();
       localStorage.removeItem('authUsername');
+      localStorage.removeItem('authRole');
+      localStorage.removeItem('authUserId');
       throw error;
     }
   };
@@ -76,7 +109,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = () => {
     apiClient.logout();
     localStorage.removeItem('authUsername');
+    localStorage.removeItem('authRole');
+    localStorage.removeItem('authUserId');
     setUser(null);
+  };
+
+  const refreshUserInfo = async () => {
+    try {
+      const userInfo = await apiClient.getCurrentUser();
+      setUser(prev => prev ? {
+        ...prev,
+        email: userInfo.email,
+        fullName: userInfo.full_name || undefined,
+        role: userInfo.role as UserRole,
+      } : null);
+    } catch (error) {
+      console.error('Failed to refresh user info:', error);
+      throw error;
+    }
   };
 
   const value: AuthContextType = {
@@ -85,6 +135,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     isLoading,
     isAuthenticated: !!user,
+    isManager: user?.role === 'MANAGER',
+    userRole: user?.role || null,
+    refreshUserInfo,
   };
 
   return (
