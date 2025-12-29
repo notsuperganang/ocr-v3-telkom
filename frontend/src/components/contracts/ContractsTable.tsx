@@ -39,6 +39,7 @@ import {
   Building2,
   FileX,
   Loader2,
+  User,
 } from 'lucide-react';
 import type { UnifiedContractListResponse } from '@/types/api';
 import {
@@ -127,6 +128,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                 <TableHead className="font-semibold">Pelanggan</TableHead>
                 <TableHead className="font-semibold">Periode Kontrak</TableHead>
                 <TableHead className="font-semibold">Metode Pembayaran</TableHead>
+                <TableHead className="font-semibold">Dikonfirmasi Oleh</TableHead>
                 <TableHead className="font-semibold">Tanggal</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="w-[100px] font-semibold">Aksi</TableHead>
@@ -189,6 +191,20 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                 <TableCell>
                   {item.payment_method ? (
                     <PaymentMethodBadge method={item.payment_method} />
+                  ) : (
+                    <span className="text-muted-foreground text-sm italic">-</span>
+                  )}
+                </TableCell>
+
+                {/* Confirmed By */}
+                <TableCell>
+                  {item.status === 'confirmed' && item.confirmed_by ? (
+                    <div className="flex items-center space-x-2">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        {item.confirmed_by}
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-muted-foreground text-sm italic">-</span>
                   )}
