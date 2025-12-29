@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict PhSpeTtW4QkAQEjBeTXfwmKIc3MULsP4sm1Bz5t5k3Ec245LQgn1RhSnScIZ3kf
+\restrict 8xZZpl0IWImrlqztDQesrARpTP62H9zsKN54IhKumWNDca7D535Uha2jEe4W9BX
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
@@ -61,6 +61,154 @@ CREATE TABLE public.alembic_version (
 
 
 ALTER TABLE public.alembic_version OWNER TO postgres;
+
+--
+-- Name: contract_recurring_payments; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.contract_recurring_payments (
+    id bigint NOT NULL,
+    contract_id integer NOT NULL,
+    cycle_number integer NOT NULL,
+    period_label text NOT NULL,
+    period_year integer NOT NULL,
+    period_month integer NOT NULL,
+    original_amount numeric(18,2) NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    status text DEFAULT 'PENDING'::text NOT NULL,
+    paid_at timestamp with time zone,
+    notes text,
+    created_by text,
+    updated_by text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_contract_recurring_payments_cycle_number CHECK ((cycle_number >= 1)),
+    CONSTRAINT ck_contract_recurring_payments_period_month CHECK (((period_month >= 1) AND (period_month <= 12))),
+    CONSTRAINT ck_contract_recurring_payments_period_year CHECK (((period_year >= 2000) AND (period_year <= 2100))),
+    CONSTRAINT ck_contract_recurring_payments_status CHECK ((status = ANY (ARRAY['PENDING'::text, 'DUE'::text, 'OVERDUE'::text, 'PAID'::text, 'CANCELLED'::text])))
+);
+
+
+ALTER TABLE public.contract_recurring_payments OWNER TO postgres;
+
+--
+-- Name: TABLE contract_recurring_payments; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.contract_recurring_payments IS 'Normalized recurring payment tracking table for operational monthly billing management';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.cycle_number; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.cycle_number IS 'Billing cycle sequence number (1, 2, 3, ...)';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.period_label; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.period_label IS 'Period string (e.g., "Januari 2025")';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.period_year; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.period_year IS 'Billing year (e.g., 2025)';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.period_month; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.period_month IS 'Billing month 1-12 (Januari-Desember)';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.original_amount; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.original_amount IS 'Original monthly amount from extraction';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.amount; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.amount IS 'Current editable monthly amount';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.status IS 'PENDING/DUE/OVERDUE/PAID/CANCELLED';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.paid_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.paid_at IS 'Timestamp when marked as paid';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.notes; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.notes IS 'Additional notes or comments';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.created_by; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.created_by IS 'User who created this record';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.updated_by; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.updated_by IS 'User who last updated this record';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.created_at IS 'Creation timestamp';
+
+
+--
+-- Name: COLUMN contract_recurring_payments.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contract_recurring_payments.updated_at IS 'Last update timestamp';
+
+
+--
+-- Name: contract_recurring_payments_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.contract_recurring_payments_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.contract_recurring_payments_id_seq OWNER TO postgres;
+
+--
+-- Name: contract_recurring_payments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.contract_recurring_payments_id_seq OWNED BY public.contract_recurring_payments.id;
+
 
 --
 -- Name: contract_term_payments; Type: TABLE; Schema: public; Owner: postgres
@@ -255,7 +403,10 @@ CREATE TABLE public.contracts (
     payment_raw_text text,
     termin_payments_raw jsonb,
     extraction_timestamp timestamp with time zone,
-    contract_processing_time_sec double precision
+    contract_processing_time_sec double precision,
+    recurring_monthly_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    recurring_month_count integer,
+    recurring_total_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL
 );
 
 
@@ -266,6 +417,27 @@ ALTER TABLE public.contracts OWNER TO postgres;
 --
 
 COMMENT ON COLUMN public.contracts.termin_payments_raw IS 'Raw termin payment snapshot from OCR extraction (not operational data)';
+
+
+--
+-- Name: COLUMN contracts.recurring_monthly_amount; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contracts.recurring_monthly_amount IS 'Monthly subscription charge (annual_subscription_cost / 12, excludes installation)';
+
+
+--
+-- Name: COLUMN contracts.recurring_month_count; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contracts.recurring_month_count IS 'Number of monthly billing cycles (period_start to period_end inclusive)';
+
+
+--
+-- Name: COLUMN contracts.recurring_total_amount; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.contracts.recurring_total_amount IS 'Total recurring billing amount (recurring_monthly_amount * recurring_month_count)';
 
 
 --
@@ -452,6 +624,13 @@ ALTER SEQUENCE public.processing_jobs_id_seq OWNED BY public.processing_jobs.id;
 
 
 --
+-- Name: contract_recurring_payments id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contract_recurring_payments ALTER COLUMN id SET DEFAULT nextval('public.contract_recurring_payments_id_seq'::regclass);
+
+
+--
 -- Name: contract_term_payments id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -499,6 +678,14 @@ ALTER TABLE ONLY public.processing_jobs ALTER COLUMN id SET DEFAULT nextval('pub
 
 ALTER TABLE ONLY public.alembic_version
     ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
+
+
+--
+-- Name: contract_recurring_payments contract_recurring_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contract_recurring_payments
+    ADD CONSTRAINT contract_recurring_payments_pkey PRIMARY KEY (id);
 
 
 --
@@ -550,11 +737,40 @@ ALTER TABLE ONLY public.processing_jobs
 
 
 --
+-- Name: contract_recurring_payments uq_contract_recurring_payments_contract_period; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contract_recurring_payments
+    ADD CONSTRAINT uq_contract_recurring_payments_contract_period UNIQUE (contract_id, period_year, period_month);
+
+
+--
 -- Name: contract_term_payments uq_contract_term_payments_contract_termin; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.contract_term_payments
     ADD CONSTRAINT uq_contract_term_payments_contract_termin UNIQUE (contract_id, termin_number);
+
+
+--
+-- Name: idx_contract_recurring_payments_contract_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_contract_recurring_payments_contract_id ON public.contract_recurring_payments USING btree (contract_id);
+
+
+--
+-- Name: idx_contract_recurring_payments_period; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_contract_recurring_payments_period ON public.contract_recurring_payments USING btree (period_year, period_month);
+
+
+--
+-- Name: idx_contract_recurring_payments_status_period; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_contract_recurring_payments_status_period ON public.contract_recurring_payments USING btree (status, period_year, period_month);
 
 
 --
@@ -709,6 +925,14 @@ ALTER TABLE ONLY public.extraction_logs
 
 
 --
+-- Name: contract_recurring_payments fk_contract_recurring_payments_contract_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contract_recurring_payments
+    ADD CONSTRAINT fk_contract_recurring_payments_contract_id FOREIGN KEY (contract_id) REFERENCES public.contracts(id) ON DELETE CASCADE;
+
+
+--
 -- Name: contract_term_payments fk_contract_term_payments_contract_id; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -728,4 +952,5 @@ ALTER TABLE ONLY public.processing_jobs
 -- PostgreSQL database dump complete
 --
 
-\unrestrict PhSpeTtW4QkAQEjBeTXfwmKIc3MULsP4sm1Bz5t5k3Ec245LQgn1RhSnScIZ3kf
+\unrestrict 8xZZpl0IWImrlqztDQesrARpTP62H9zsKN54IhKumWNDca7D535Uha2jEe4W9BX
+
