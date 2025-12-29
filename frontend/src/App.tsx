@@ -10,6 +10,7 @@ import { UploadPage } from './pages/UploadPage';
 import { ContractsPage as ContractsPageMain } from './pages/ContractsPage';
 import { ContractDetailPage } from './pages/ContractDetailPage';
 import { ContractEditPage } from './pages/ContractEditPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { ProcessingPage } from './pages/ProcessingPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { Toaster } from './components/ui/toaster';
@@ -45,6 +46,7 @@ function App() {
                       <Route path="/contracts" element={<ContractsPageMain />} />
                       <Route path="/contracts/:contractId" element={<ContractDetailPage />} />
                       <Route path="/contracts/:contractId/edit" element={<ContractEditPage />} />
+                      <Route path="/profile" element={<ProfilePage />} />
                       <Route path="/processing/:jobId" element={<ProcessingPage />} />
                       <Route path="/review/:jobId" element={<ReviewPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
