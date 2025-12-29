@@ -2,11 +2,12 @@
 Authentication utilities - JWT and password handling
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.config import settings
 
@@ -45,25 +46,52 @@ def verify_token(token: str) -> Optional[dict]:
     except JWTError:
         return None
 
-def authenticate_user(username: str, password: str) -> bool:
+def authenticate_user(db: Session, username: str, password: str):
     """
-    Authenticate user against environment credentials
-    Returns True if credentials are valid
-    """
-    # Simple comparison against environment variables
-    # In production, you might want to hash the stored password too
-    return (
-        username == settings.auth_username and 
-        password == settings.auth_password
-    )
+    Authenticate user against database.
+    Returns User object if credentials are valid, None otherwise.
 
-def create_auth_token(username: str) -> str:
+    Also updates last_login_at timestamp on successful authentication.
     """
-    Create authentication token for valid user
+    from app.models.database import User
+
+    # Query user by username
+    user = db.query(User).filter(User.username == username).first()
+
+    if not user:
+        return None
+
+    # Check if account is active
+    if not user.is_active:
+        return None
+
+    # Verify password hash
+    if not verify_password(password, user.password_hash):
+        return None
+
+    # Update last login timestamp
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+
+    return user
+
+def create_auth_token(user) -> str:
     """
+    Create authentication token for valid user.
+    Token includes user_id, username, and role for authorization.
+
+    Args:
+        user: User object from database
+
+    Returns:
+        JWT access token string
+    """
+    from app.models.database import User
+
     token_data = {
-        "sub": username,
-        "username": username,
+        "sub": str(user.id),  # Subject = user ID (as string for JWT)
+        "username": user.username,
+        "role": user.role.value,  # "STAFF" or "MANAGER"
         "iat": datetime.utcnow()
     }
     return create_access_token(token_data)
