@@ -291,7 +291,7 @@ async def confirm_job_data(
             source_job_id=job.id,
             file_id=job.file_id,
             final_data=final_data,
-            confirmed_by=current_user,
+            confirmed_by_id=current_user.id,
             confirmed_at=datetime.now(timezone.utc),
             # Original denormalized fields for efficient querying
             customer_name=denorm_fields.customer_name,
