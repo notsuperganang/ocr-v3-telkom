@@ -3,7 +3,7 @@ SQLAlchemy database models for Telkom Contract Extractor
 Based on the project brief database schema design
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, BigInteger, Enum, ForeignKey, Float, Date, Numeric
+from sqlalchemy import Column, Integer, String, DateTime, Text, BigInteger, Enum, ForeignKey, Float, Date, Numeric, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -34,6 +34,40 @@ class TerminPaymentStatus(enum.Enum):
     OVERDUE = "OVERDUE"
     PAID = "PAID"
     CANCELLED = "CANCELLED"
+
+class UserRole(enum.Enum):
+    """User role enumeration for RBAC"""
+    STAFF = "STAFF"
+    MANAGER = "MANAGER"
+
+class User(Base):
+    """User authentication and management"""
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+
+    # Role-based access control
+    role = Column(Enum(UserRole), nullable=False, default=UserRole.STAFF)
+
+    # Account status
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Audit timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships (back_populates defined in related tables)
+    reviewed_jobs = relationship("ProcessingJob", back_populates="reviewer")
+    confirmed_contracts = relationship("Contract", back_populates="confirmer")
+    created_term_payments = relationship("ContractTermPayment", foreign_keys="ContractTermPayment.created_by_id", back_populates="creator")
+    updated_term_payments = relationship("ContractTermPayment", foreign_keys="ContractTermPayment.updated_by_id", back_populates="updater")
+    created_recurring_payments = relationship("ContractRecurringPayment", foreign_keys="ContractRecurringPayment.created_by_id", back_populates="creator")
+    updated_recurring_payments = relationship("ContractRecurringPayment", foreign_keys="ContractRecurringPayment.updated_by_id", back_populates="updater")
 
 class File(Base):
     """File metadata and storage"""
@@ -72,13 +106,14 @@ class ProcessingJob(Base):
     # Audit fields
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    reviewed_by = Column(String)  # Future: user who reviewed/confirmed
+    reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who reviewed/confirmed
     reviewed_at = Column(DateTime(timezone=True))
-    
+
     # Relationships
     file = relationship("File", back_populates="processing_jobs")
     contracts = relationship("Contract", back_populates="source_job")
     extraction_logs = relationship("ExtractionLog", back_populates="job")
+    reviewer = relationship("User", back_populates="reviewed_jobs")
 
 class Contract(Base):
     """Final 'committed' contract data"""
@@ -153,7 +188,7 @@ class Contract(Base):
     contract_processing_time_sec = Column(Float)  # From final_data->processing_time_seconds or processing_job
 
     # Confirmation metadata
-    confirmed_by = Column(String)  # User who confirmed (future: foreign key to users)
+    confirmed_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # User who confirmed
     confirmed_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Audit fields
@@ -166,6 +201,7 @@ class Contract(Base):
     export_history = relationship("ExportHistory", back_populates="contract")
     term_payments = relationship("ContractTermPayment", back_populates="contract", cascade="all, delete-orphan")
     recurring_payments = relationship("ContractRecurringPayment", back_populates="contract", cascade="all, delete-orphan")
+    confirmer = relationship("User", back_populates="confirmed_contracts")
 
 class ContractTermPayment(Base):
     """Normalized termin payment tracking for operational reminders and status management"""
@@ -190,13 +226,15 @@ class ContractTermPayment(Base):
     notes = Column(Text, nullable=True)  # Additional notes or comments
 
     # Audit fields
-    created_by = Column(Text, nullable=True)  # User who created this record
-    updated_by = Column(Text, nullable=True)  # User who last updated this record
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who created this record
+    updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who last updated this record
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     contract = relationship("Contract", back_populates="term_payments")
+    creator = relationship("User", foreign_keys=[created_by_id], back_populates="created_term_payments")
+    updater = relationship("User", foreign_keys=[updated_by_id], back_populates="updated_term_payments")
 
 class ContractRecurringPayment(Base):
     """Normalized recurring payment tracking for operational monthly billing management"""
@@ -221,13 +259,15 @@ class ContractRecurringPayment(Base):
     notes = Column(Text, nullable=True)  # Additional notes or comments
 
     # Audit fields
-    created_by = Column(Text, nullable=True)  # User who created this record
-    updated_by = Column(Text, nullable=True)  # User who last updated this record
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who created this record
+    updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who last updated this record
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     contract = relationship("Contract", back_populates="recurring_payments")
+    creator = relationship("User", foreign_keys=[created_by_id], back_populates="created_recurring_payments")
+    updater = relationship("User", foreign_keys=[updated_by_id], back_populates="updated_recurring_payments")
 
 class ExtractionLog(Base):
     """Processing logs and audit trail"""
