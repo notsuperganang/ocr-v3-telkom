@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Dict, Any
 
-from app.api.dependencies import get_db_and_user
+from app.api.dependencies import get_db_and_manager
+from app.models.database import User
 from app.services.file_manager import file_manager
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -28,7 +29,7 @@ class CleanupResponse(BaseModel):
 
 @router.get("/storage/metrics", response_model=StorageMetricsResponse)
 async def get_storage_metrics(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_manager)
 ):
     """Get comprehensive storage usage metrics"""
     db, current_user = db_and_user
@@ -45,7 +46,7 @@ async def get_storage_metrics(
 
 @router.get("/storage/orphaned")
 async def find_orphaned_files(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_manager)
 ):
     """Find files in storage without database references"""
     db, current_user = db_and_user
@@ -62,7 +63,7 @@ async def find_orphaned_files(
 
 @router.delete("/storage/orphaned", response_model=CleanupResponse)
 async def cleanup_orphaned_files(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_manager)
 ):
     """Delete all orphaned files from storage"""
     db, current_user = db_and_user
@@ -71,7 +72,7 @@ async def cleanup_orphaned_files(
         cleanup_result = file_manager.cleanup_orphaned_files(db)
 
         return CleanupResponse(
-            message=f"Cleaned up orphaned files by {current_user}",
+            message=f"Cleaned up orphaned files by {current_user.username}",
             deleted_files=cleanup_result["total_count"],
             total_size=cleanup_result["total_size"],
             errors=cleanup_result["errors"]
@@ -85,7 +86,7 @@ async def cleanup_orphaned_files(
 
 @router.delete("/storage/temp", response_model=CleanupResponse)
 async def cleanup_temp_files(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_manager)
 ):
     """Clean up temporary OCR processing files"""
     db, current_user = db_and_user
@@ -94,7 +95,7 @@ async def cleanup_temp_files(
         cleanup_result = file_manager.cleanup_temp_files()
 
         return CleanupResponse(
-            message=f"Cleaned up temporary files by {current_user}",
+            message=f"Cleaned up temporary files by {current_user.username}",
             deleted_files=len(cleanup_result["deleted_files"]),
             total_size=cleanup_result["total_size"],
             errors=cleanup_result["errors"]
@@ -108,7 +109,7 @@ async def cleanup_temp_files(
 
 @router.delete("/storage/all", response_model=CleanupResponse)
 async def cleanup_all_files(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_manager)
 ):
     """Clean up all orphaned and temporary files"""
     db, current_user = db_and_user
@@ -125,7 +126,7 @@ async def cleanup_all_files(
         all_errors = orphaned_result["errors"] + temp_result["errors"]
 
         return CleanupResponse(
-            message=f"Cleaned up all orphaned and temporary files by {current_user}",
+            message=f"Cleaned up all orphaned and temporary files by {current_user.username}",
             deleted_files=total_deleted,
             total_size=total_size,
             errors=all_errors
@@ -139,7 +140,7 @@ async def cleanup_all_files(
 
 @router.get("/storage/health")
 async def storage_health_check(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_manager)
 ):
     """Get storage health status and recommendations"""
     db, current_user = db_and_user
@@ -177,7 +178,7 @@ async def storage_health_check(
             "orphaned_size_bytes": orphaned["total_size"],
             "orphaned_ratio": round(orphaned_ratio * 100, 2),
             "recommendations": recommendations,
-            "last_checked": current_user
+            "last_checked": current_user.username
         }
 
     except Exception as e:
