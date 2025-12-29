@@ -9,6 +9,40 @@ export interface LoginResponse {
   access_token: string;
   token_type: string;
   username: string;
+  role: string;
+  user_id: number;
+}
+
+export type UserRole = "STAFF" | "MANAGER";
+
+export interface UserInfo {
+  user_id: number;
+  username: string;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  is_active: boolean;
+  authenticated: boolean;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}
+
+export interface ChangePasswordResponse {
+  message: string;
+}
+
+export interface UpdateProfileRequest {
+  email?: string;
+  full_name?: string;
+}
+
+export interface UpdateProfileResponse {
+  message: string;
+  user: UserInfo;
 }
 
 export interface HealthResponse {
