@@ -133,6 +133,13 @@ export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
+  // Create profile link
+  const profileLink: Links = {
+    label: 'Profil',
+    href: '/profile',
+    icon: <User className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+  };
+
   // Create logout link
   const logoutLink: Links = {
     label: 'Keluar',
@@ -167,8 +174,14 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           <div>
+            {/* Profile link */}
+            <CustomSidebarLink
+              link={profileLink}
+              isActive={location.pathname === '/profile'}
+            />
+
             {/* User info */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 my-4">
               <div className="h-7 w-7 bg-primary rounded-full flex items-center justify-center">
                 <User className="h-4 w-4 text-primary-foreground" />
               </div>
@@ -178,7 +191,7 @@ export function Layout({ children }: LayoutProps) {
                     {user?.username}
                   </span>
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                    Administrator
+                    {user?.role === 'MANAGER' ? 'Manager' : 'Staff'}
                   </span>
                 </div>
               )}
