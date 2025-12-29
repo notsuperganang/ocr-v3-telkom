@@ -19,7 +19,12 @@ import type {
   DashboardOverview,
   TerminUpcomingResponse,
   RecurringCurrentMonthResponse,
-  DashboardFinancialSummary
+  DashboardFinancialSummary,
+  UserInfo,
+  ChangePasswordRequest,
+  ChangePasswordResponse,
+  UpdateProfileRequest,
+  UpdateProfileResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -99,6 +104,30 @@ class ApiClient {
 
   logout() {
     this.clearToken();
+  }
+
+  // Get current user info from /auth/me
+  async getCurrentUser(): Promise<UserInfo> {
+    return this.request<UserInfo>('/auth/me');
+  }
+
+  // Change own password (self-service)
+  async changeOwnPassword(passwordData: ChangePasswordRequest): Promise<ChangePasswordResponse> {
+    return this.request<ChangePasswordResponse>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+      }),
+    });
+  }
+
+  // Update own profile (self-service)
+  async updateOwnProfile(profileData: UpdateProfileRequest): Promise<UpdateProfileResponse> {
+    return this.request<UpdateProfileResponse>('/auth/update-profile', {
+      method: 'PATCH',
+      body: JSON.stringify(profileData),
+    });
   }
 
   // Health check
