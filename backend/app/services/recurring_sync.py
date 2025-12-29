@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.database import Contract, ContractRecurringPayment
+from app.models.database import Contract, ContractRecurringPayment, User
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ def format_period_label(year: int, month: int) -> str:
 def sync_contract_recurring_payments(
     db: Session,
     contract: Contract,
-    acting_user: Optional[str] = None,
+    acting_user: Optional[User] = None,
 ) -> None:
     """
     Sync recurring payment schedule from contract fields to ContractRecurringPayment rows.
@@ -124,7 +124,7 @@ def sync_contract_recurring_payments(
     Args:
         db: SQLAlchemy database session
         contract: Contract instance (must have contract.id available)
-        acting_user: Username for created_by/updated_by audit fields
+        acting_user: User object for created_by_id/updated_by_id audit fields
 
     Raises:
         ValueError: If contract.id is None (call db.flush() first)
@@ -244,7 +244,7 @@ def sync_contract_recurring_payments(
 
             # Update audit field
             if acting_user:
-                existing_payment.updated_by = acting_user
+                existing_payment.updated_by_id = acting_user.id
 
             logger.debug(
                 f"Updated recurring payment for contract {contract.id}: "
@@ -265,8 +265,8 @@ def sync_contract_recurring_payments(
                 status="PENDING",  # New payments start as PENDING
                 paid_at=None,
                 notes=None,
-                created_by=acting_user,
-                updated_by=acting_user,
+                created_by_id=acting_user.id if acting_user else None,
+                updated_by_id=acting_user.id if acting_user else None,
             )
             db.add(new_payment)
 

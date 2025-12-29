@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.database import Contract, ContractTermPayment
+from app.models.database import Contract, ContractTermPayment, User
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ def _parse_decimal_amount(value: Any, context: str = "amount") -> Decimal:
 def sync_contract_terms_from_final_data(
     db: Session,
     contract: Contract,
-    acting_user: Optional[str] = None,
+    acting_user: Optional[User] = None,
 ) -> None:
     """
     Sync termin payment data from contract.final_data to ContractTermPayment rows.
@@ -149,7 +149,7 @@ def sync_contract_terms_from_final_data(
     Args:
         db: SQLAlchemy database session
         contract: Contract instance (must have contract.id available)
-        acting_user: Username for created_by/updated_by audit fields
+        acting_user: User object for created_by_id/updated_by_id audit fields
 
     Raises:
         ValueError: If contract.id is None (call db.flush() first)
@@ -297,7 +297,7 @@ def sync_contract_terms_from_final_data(
 
             # Update audit field
             if acting_user:
-                existing_term.updated_by = acting_user
+                existing_term.updated_by_id = acting_user.id
 
             logger.debug(
                 f"Updated termin {termin_number} for contract {contract.id}: "
@@ -318,8 +318,8 @@ def sync_contract_terms_from_final_data(
                 status="PENDING",  # New terms start as PENDING
                 paid_at=None,
                 notes=None,
-                created_by=acting_user,
-                updated_by=acting_user,
+                created_by_id=acting_user.id if acting_user else None,
+                updated_by_id=acting_user.id if acting_user else None,
             )
             db.add(new_term)
 
