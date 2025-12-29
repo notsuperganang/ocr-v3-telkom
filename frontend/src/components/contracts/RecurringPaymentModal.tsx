@@ -150,6 +150,28 @@ export function RecurringPaymentModal({
               className="resize-none"
             />
           </div>
+
+          {/* User Info Footer */}
+          {paymentData && (
+            <div className="border-t pt-4 space-y-2 text-xs text-muted-foreground">
+              {paymentData.created_by && (
+                <div className="flex items-center justify-between">
+                  <span>Dibuat oleh:</span>
+                  <span className="font-medium text-foreground">
+                    {paymentData.created_by}
+                  </span>
+                </div>
+              )}
+              {paymentData.updated_by && (
+                <div className="flex items-center justify-between">
+                  <span>Terakhir diperbarui oleh:</span>
+                  <span className="font-medium text-foreground">
+                    {paymentData.updated_by}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <AlertDialogFooter>

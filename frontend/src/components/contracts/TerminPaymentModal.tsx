@@ -168,6 +168,28 @@ export function TerminPaymentModal({
               className="resize-none"
             />
           </div>
+
+          {/* User Info Footer */}
+          {terminData && (
+            <div className="border-t pt-4 space-y-2 text-xs text-muted-foreground">
+              {terminData.created_by && (
+                <div className="flex items-center justify-between">
+                  <span>Dibuat oleh:</span>
+                  <span className="font-medium text-foreground">
+                    {terminData.created_by}
+                  </span>
+                </div>
+              )}
+              {terminData.updated_by && (
+                <div className="flex items-center justify-between">
+                  <span>Terakhir diperbarui oleh:</span>
+                  <span className="font-medium text-foreground">
+                    {terminData.updated_by}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <AlertDialogFooter>
