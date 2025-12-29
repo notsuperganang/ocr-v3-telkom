@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import File as FileModel, ProcessingJob, JobStatus
+from app.models.database import File as FileModel, ProcessingJob, JobStatus, User
 from app.config import settings
 
 router = APIRouter(prefix="/api", tags=["upload"])
@@ -97,12 +97,12 @@ async def save_uploaded_file(file: UploadFile, file_id: str) -> tuple[str, int]:
             detail=f"Failed to save file: {str(e)}"
         )
 
-def create_processing_job(db: Session, file_model: FileModel, current_user: str) -> ProcessingJob:
+def create_processing_job(db: Session, file_model: FileModel, current_user: User) -> ProcessingJob:
     """Create a new processing job for the uploaded file"""
     job = ProcessingJob(
         file_id=file_model.id,
         status=JobStatus.QUEUED,
-        reviewed_by=current_user
+        reviewed_by_id=current_user.id
     )
     db.add(job)
     db.commit()
@@ -187,7 +187,7 @@ async def process_file_background(job_id: int, file_path: str):
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Upload a single PDF file for processing"""
     db, current_user = db_and_user
@@ -237,7 +237,7 @@ async def upload_file(
 async def upload_batch(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Upload multiple PDF files for batch processing"""
     db, current_user = db_and_user

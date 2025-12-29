@@ -29,6 +29,7 @@ from app.models.database import (
     ContractTermPayment,
     ContractRecurringPayment,
     TerminPaymentStatus,
+    User,
 )
 from app.config import settings
 
@@ -268,7 +269,7 @@ def _format_payment_method(payment_method: Optional[str]) -> str:
 
 @router.get("/stats/summary", response_model=ContractStatsResponse)
 async def get_contract_stats(
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """
     Get contract KPI statistics using denormalized columns
@@ -355,7 +356,7 @@ async def list_contracts(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(10, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search in filename or contract data"),
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Get paginated list of confirmed contracts"""
     db, current_user = db_and_user
@@ -396,7 +397,7 @@ async def list_contracts(
             file_id=contract.file_id,
             source_job_id=contract.source_job_id,
             filename=file_model.original_filename if file_model else "Unknown",
-            confirmed_by=contract.confirmed_by,
+            confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
             # Use denormalized columns directly - no JSONB parsing!
@@ -422,7 +423,7 @@ async def list_all_contract_items(
     per_page: int = Query(10, ge=1, le=100, description="Items per page"),
     search: Optional[str] = Query(None, description="Search in filename or contract data"),
     status_filter: Optional[str] = Query(None, description="Filter by status: confirmed, awaiting_review, or all"),
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """
     Get paginated list of both confirmed contracts AND awaiting_review jobs
@@ -471,7 +472,7 @@ async def list_all_contract_items(
             contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
             payment_method=_format_payment_method(contract.payment_method),
             total_contract_value=str(contract.total_contract_value) if contract.total_contract_value else None,
-            confirmed_by=contract.confirmed_by,
+            confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
             updated_at=contract.updated_at
@@ -547,7 +548,7 @@ async def list_all_contract_items(
 @router.get("/{contract_id}", response_model=ContractDetail)
 async def get_contract_detail(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Get detailed view of a specific contract"""
     db, current_user = db_and_user
@@ -578,7 +579,7 @@ async def get_contract_detail(
         filename=file_model.original_filename,
         final_data=contract.final_data,
         version=contract.version,
-        confirmed_by=contract.confirmed_by,
+        confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
         confirmed_at=contract.confirmed_at,
         created_at=contract.created_at,
         updated_at=contract.updated_at,
@@ -589,7 +590,7 @@ async def get_contract_detail(
 @router.get("/{contract_id}/json")
 async def download_contract_json(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Download contract data as JSON file"""
     db, current_user = db_and_user
@@ -611,19 +612,19 @@ async def download_contract_json(
             "contract_id": contract.id,
             "filename": file_model.original_filename if file_model else "unknown",
             "confirmed_at": contract.confirmed_at.isoformat(),
-            "confirmed_by": contract.confirmed_by,
+            "confirmed_by": contract.confirmer.username if contract.confirmer else "Unknown",
             "version": contract.version,
             "data": contract.final_data
         }
-        
+
         json_content = json.dumps(json_data, indent=2, ensure_ascii=False)
-        
+
         # Log export
         export_record = ExportHistory(
             contract_id=contract.id,
             export_target=ExportTarget.JSON,
             status="success",
-            notes=f"Downloaded by {current_user}"
+            notes=f"Downloaded by {current_user.username}"
         )
         db.add(export_record)
         db.commit()
@@ -648,7 +649,7 @@ async def download_contract_json(
 @router.get("/{contract_id}/pdf")
 async def download_contract_pdf(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Download original PDF file for contract"""
     db, current_user = db_and_user
@@ -692,7 +693,7 @@ async def update_contract(
     contract_id: int,
     updated_data: Dict[str, Any],
     increment_version: bool = Query(False, description="Increment contract version (use for confirmations)"),
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Update contract data and recompute denormalized fields"""
     db, current_user = db_and_user
@@ -790,7 +791,7 @@ async def update_contract(
             filename=file_model.original_filename if file_model else "unknown",
             final_data=contract.final_data,
             version=contract.version,
-            confirmed_by=contract.confirmed_by,
+            confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
             updated_at=contract.updated_at,
@@ -808,7 +809,7 @@ async def update_contract(
 @router.get("/{contract_id}/pdf/stream")
 async def stream_contract_pdf(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Stream PDF file for contract editing preview"""
     db, current_user = db_and_user
@@ -847,7 +848,7 @@ async def stream_contract_pdf(
 @router.delete("/{contract_id}")
 async def delete_contract(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Delete a contract and associated files (admin operation)"""
     db, current_user = db_and_user
@@ -896,7 +897,7 @@ async def delete_contract(
             "message": "Contract and associated files deleted successfully",
             "contract_id": contract_id,
             "filename": filename,
-            "deleted_by": current_user,
+            "deleted_by": current_user.username,
             "deleted_at": datetime.now(timezone.utc),
             "file_cleanup": {
                 "deleted_files": len(file_cleanup_result.get("deleted_files", [])),
@@ -915,7 +916,7 @@ async def delete_contract(
 @router.get("/{contract_id}/termin-payments", response_model=List[TerminPaymentResponse])
 async def get_termin_payments(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Get all termin payments for a contract"""
     db, current_user = db_and_user
@@ -970,8 +971,8 @@ async def get_termin_payments(
             status=tp.status,
             paid_at=tp.paid_at,
             notes=tp.notes,
-            created_by=tp.created_by,
-            updated_by=tp.updated_by,
+            created_by=tp.creator.username if tp.creator else None,
+            updated_by=tp.updater.username if tp.updater else None,
             created_at=tp.created_at,
             updated_at=tp.updated_at
         )
@@ -983,7 +984,7 @@ async def update_termin_payment(
     contract_id: int,
     termin_number: int,
     update_data: UpdateTerminPaymentRequest,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Update a specific termin payment (status, paid_at, notes, or amount)"""
     db, current_user = db_and_user
@@ -1030,7 +1031,7 @@ async def update_termin_payment(
         termin_payment.amount = update_data.amount
 
     # Update audit fields
-    termin_payment.updated_by = current_user
+    termin_payment.updated_by_id = current_user.id
     termin_payment.updated_at = datetime.now(timezone.utc)
 
     try:
@@ -1050,8 +1051,8 @@ async def update_termin_payment(
             status=termin_payment.status,
             paid_at=termin_payment.paid_at,
             notes=termin_payment.notes,
-            created_by=termin_payment.created_by,
-            updated_by=termin_payment.updated_by,
+            created_by=termin_payment.creator.username if termin_payment.creator else None,
+            updated_by=termin_payment.updater.username if termin_payment.updater else None,
             created_at=termin_payment.created_at,
             updated_at=termin_payment.updated_at
         )
@@ -1066,7 +1067,7 @@ async def update_termin_payment(
 @router.get("/{contract_id}/recurring-payments", response_model=List[RecurringPaymentResponse])
 async def get_recurring_payments(
     contract_id: int,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Get all recurring payments for a contract"""
     db, current_user = db_and_user
@@ -1120,8 +1121,8 @@ async def get_recurring_payments(
             status=rp.status,
             paid_at=rp.paid_at,
             notes=rp.notes,
-            created_by=rp.created_by,
-            updated_by=rp.updated_by,
+            created_by=rp.creator.username if rp.creator else None,
+            updated_by=rp.updater.username if rp.updater else None,
             created_at=rp.created_at,
             updated_at=rp.updated_at
         )
@@ -1133,7 +1134,7 @@ async def update_recurring_payment(
     contract_id: int,
     cycle_number: int,
     update_data: UpdateRecurringPaymentRequest,
-    db_and_user: tuple[Session, str] = Depends(get_db_and_user)
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Update a specific recurring payment (status, paid_at, notes)"""
     db, current_user = db_and_user
@@ -1181,7 +1182,7 @@ async def update_recurring_payment(
         recurring_payment.notes = update_data.notes
 
     # Update audit fields
-    recurring_payment.updated_by = current_user
+    recurring_payment.updated_by_id = current_user.id
     recurring_payment.updated_at = datetime.now(timezone.utc)
 
     try:
@@ -1201,8 +1202,8 @@ async def update_recurring_payment(
             status=recurring_payment.status,
             paid_at=recurring_payment.paid_at,
             notes=recurring_payment.notes,
-            created_by=recurring_payment.created_by,
-            updated_by=recurring_payment.updated_by,
+            created_by=recurring_payment.creator.username if recurring_payment.creator else None,
+            updated_by=recurring_payment.updater.username if recurring_payment.updater else None,
             created_at=recurring_payment.created_at,
             updated_at=recurring_payment.updated_at
         )
