@@ -35,6 +35,13 @@ from app.config import settings
 
 router = APIRouter(prefix="/api/contracts", tags=["contracts"])
 
+# Helper function to get user display name
+def _get_user_display_name(user: Optional[User]) -> str:
+    """Get user display name, preferring full_name over username"""
+    if not user:
+        return "Unknown"
+    return user.full_name if user.full_name else user.username
+
 # Response models
 class ContractSummary(BaseModel):
     id: int
@@ -397,7 +404,7 @@ async def list_contracts(
             file_id=contract.file_id,
             source_job_id=contract.source_job_id,
             filename=file_model.original_filename if file_model else "Unknown",
-            confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
+            confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
             # Use denormalized columns directly - no JSONB parsing!
@@ -472,7 +479,7 @@ async def list_all_contract_items(
             contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
             payment_method=_format_payment_method(contract.payment_method),
             total_contract_value=str(contract.total_contract_value) if contract.total_contract_value else None,
-            confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
+            confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
             updated_at=contract.updated_at
@@ -579,7 +586,7 @@ async def get_contract_detail(
         filename=file_model.original_filename,
         final_data=contract.final_data,
         version=contract.version,
-        confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
+        confirmed_by=_get_user_display_name(contract.confirmer),
         confirmed_at=contract.confirmed_at,
         created_at=contract.created_at,
         updated_at=contract.updated_at,
@@ -612,7 +619,7 @@ async def download_contract_json(
             "contract_id": contract.id,
             "filename": file_model.original_filename if file_model else "unknown",
             "confirmed_at": contract.confirmed_at.isoformat(),
-            "confirmed_by": contract.confirmer.username if contract.confirmer else "Unknown",
+            "confirmed_by": _get_user_display_name(contract.confirmer),
             "version": contract.version,
             "data": contract.final_data
         }
@@ -791,7 +798,7 @@ async def update_contract(
             filename=file_model.original_filename if file_model else "unknown",
             final_data=contract.final_data,
             version=contract.version,
-            confirmed_by=contract.confirmer.username if contract.confirmer else "Unknown",
+            confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
             updated_at=contract.updated_at,
@@ -971,8 +978,8 @@ async def get_termin_payments(
             status=tp.status,
             paid_at=tp.paid_at,
             notes=tp.notes,
-            created_by=tp.creator.username if tp.creator else None,
-            updated_by=tp.updater.username if tp.updater else None,
+            created_by=_get_user_display_name(tp.creator) if tp.creator else None,
+            updated_by=_get_user_display_name(tp.updater) if tp.updater else None,
             created_at=tp.created_at,
             updated_at=tp.updated_at
         )
@@ -1051,8 +1058,8 @@ async def update_termin_payment(
             status=termin_payment.status,
             paid_at=termin_payment.paid_at,
             notes=termin_payment.notes,
-            created_by=termin_payment.creator.username if termin_payment.creator else None,
-            updated_by=termin_payment.updater.username if termin_payment.updater else None,
+            created_by=_get_user_display_name(termin_payment.creator) if termin_payment.creator else None,
+            updated_by=_get_user_display_name(termin_payment.updater) if termin_payment.updater else None,
             created_at=termin_payment.created_at,
             updated_at=termin_payment.updated_at
         )
@@ -1121,8 +1128,8 @@ async def get_recurring_payments(
             status=rp.status,
             paid_at=rp.paid_at,
             notes=rp.notes,
-            created_by=rp.creator.username if rp.creator else None,
-            updated_by=rp.updater.username if rp.updater else None,
+            created_by=_get_user_display_name(rp.creator) if rp.creator else None,
+            updated_by=_get_user_display_name(rp.updater) if rp.updater else None,
             created_at=rp.created_at,
             updated_at=rp.updated_at
         )
@@ -1202,8 +1209,8 @@ async def update_recurring_payment(
             status=recurring_payment.status,
             paid_at=recurring_payment.paid_at,
             notes=recurring_payment.notes,
-            created_by=recurring_payment.creator.username if recurring_payment.creator else None,
-            updated_by=recurring_payment.updater.username if recurring_payment.updater else None,
+            created_by=_get_user_display_name(recurring_payment.creator) if recurring_payment.creator else None,
+            updated_by=_get_user_display_name(recurring_payment.updater) if recurring_payment.updater else None,
             created_at=recurring_payment.created_at,
             updated_at=recurring_payment.updated_at
         )
