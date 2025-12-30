@@ -45,6 +45,45 @@ export interface UpdateProfileResponse {
   user: UserInfo;
 }
 
+// User Management Types (Admin)
+export interface UserResponse {
+  id: number;
+  username: string;
+  email: string;
+  full_name: string | null;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  email: string;
+  password: string;
+  full_name?: string;
+  role: UserRole;
+}
+
+export interface UpdateUserRequest {
+  email?: string;
+  full_name?: string;
+  role?: UserRole;
+}
+
+export interface ChangeUserPasswordRequest {
+  new_password: string;
+}
+
+export interface UserListResponse {
+  users: UserResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
 export interface HealthResponse {
   status: string;
   app_name: string;
