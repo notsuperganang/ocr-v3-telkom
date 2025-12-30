@@ -15,7 +15,8 @@ import {
   FolderOpen,
   BarChart3,
   LogOut,
-  User
+  User,
+  Users
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -129,15 +130,15 @@ function LogoIcon() {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, isManager } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
-  // Create profile link
-  const profileLink: Links = {
-    label: 'Profil',
-    href: '/profile',
-    icon: <User className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+  // Create user management link (manager only)
+  const userManagementLink: Links = {
+    label: 'Manajemen User',
+    href: '/users',
+    icon: <Users className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   };
 
   // Create logout link
@@ -170,32 +171,45 @@ export function Layout({ children }: LayoutProps) {
                   isActive={location.pathname === link.href}
                 />
               ))}
+
+              {/* User Management - Manager Only */}
+              {isManager && (
+                <CustomSidebarLink
+                  link={userManagementLink}
+                  isActive={location.pathname === '/users'}
+                />
+              )}
             </div>
           </div>
 
           <div>
-            {/* Profile link */}
-            <CustomSidebarLink
-              link={profileLink}
-              isActive={location.pathname === '/profile'}
-            />
-
-            {/* User info */}
-            <div className="flex items-center gap-2 my-4">
-              <div className="h-7 w-7 bg-primary rounded-full flex items-center justify-center">
+            {/* User info - clickable to profile */}
+            <Link
+              to="/profile"
+              className={cn(
+                "flex items-center justify-start gap-2 py-2 rounded-md transition-colors mb-4 relative overflow-hidden",
+                location.pathname === '/profile'
+                  ? "bg-neutral-200 dark:bg-neutral-700"
+                  : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
+              )}
+            >
+              <div className={cn(
+                "h-7 w-7 bg-primary rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200",
+                open ? "ml-2" : "mx-auto"
+              )}>
                 <User className="h-4 w-4 text-primary-foreground" />
               </div>
               {open && (
                 <div className="flex flex-col">
                   <span className="text-xs text-neutral-700 dark:text-neutral-200 font-medium">
-                    {user?.username}
+                    {user?.fullName || user?.username}
                   </span>
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">
                     {user?.role === 'MANAGER' ? 'Manager' : 'Staff'}
                   </span>
                 </div>
               )}
-            </div>
+            </Link>
 
             {/* Logout */}
             <div onClick={handleLogout} className="cursor-pointer">
