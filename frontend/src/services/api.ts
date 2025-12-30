@@ -24,7 +24,12 @@ import type {
   ChangePasswordRequest,
   ChangePasswordResponse,
   UpdateProfileRequest,
-  UpdateProfileResponse
+  UpdateProfileResponse,
+  UserResponse,
+  CreateUserRequest,
+  UpdateUserRequest,
+  ChangeUserPasswordRequest,
+  UserListResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -127,6 +132,63 @@ class ApiClient {
     return this.request<UpdateProfileResponse>('/auth/update-profile', {
       method: 'PATCH',
       body: JSON.stringify(profileData),
+    });
+  }
+
+  // User Management (Admin/Manager only)
+  async listUsers(
+    page: number = 1,
+    perPage: number = 20,
+    search?: string,
+    roleFilter?: string,
+    activeOnly: boolean = true
+  ): Promise<UserListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      active_only: activeOnly.toString(),
+    });
+
+    if (search) params.append('search', search);
+    if (roleFilter) params.append('role_filter', roleFilter);
+
+    return this.request<UserListResponse>(`/api/users?${params.toString()}`);
+  }
+
+  async getUser(userId: number): Promise<UserResponse> {
+    return this.request<UserResponse>(`/api/users/${userId}`);
+  }
+
+  async createUser(userData: CreateUserRequest): Promise<UserResponse> {
+    return this.request<UserResponse>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async updateUser(userId: number, userData: UpdateUserRequest): Promise<UserResponse> {
+    return this.request<UserResponse>(`/api/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async changeUserPassword(userId: number, passwordData: ChangeUserPasswordRequest): Promise<{message: string; user_id: number}> {
+    return this.request<{message: string; user_id: number}>(`/api/users/${userId}/change-password`, {
+      method: 'POST',
+      body: JSON.stringify(passwordData),
+    });
+  }
+
+  async deactivateUser(userId: number): Promise<{message: string; user_id: number; deactivated_by: string}> {
+    return this.request<{message: string; user_id: number; deactivated_by: string}>(`/api/users/${userId}/deactivate`, {
+      method: 'POST',
+    });
+  }
+
+  async activateUser(userId: number): Promise<{message: string; user_id: number; activated_by: string}> {
+    return this.request<{message: string; user_id: number; activated_by: string}>(`/api/users/${userId}/activate`, {
+      method: 'POST',
     });
   }
 
