@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DenormFields:
     """Denormalized contract fields for efficient querying"""
+    # Contract identification
+    contract_number: Optional[str] = None  # K.TEL. XX/XXX/XXX/YYYY format
+
     # Original fields
     customer_name: Optional[str] = None
     customer_npwp: Optional[str] = None
@@ -330,6 +333,9 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
         logger.error(f"Invalid final_data type: {type(final_data)}, expected dict")
         return DenormFields()
 
+    # Extract contract identification (root level)
+    contract_number = _safe_get(final_data, 'nomor_kontrak')
+
     # Extract customer information
     customer_name = _safe_get(final_data, 'informasi_pelanggan', 'nama_pelanggan')
     customer_npwp = _safe_get(final_data, 'informasi_pelanggan', 'npwp')
@@ -455,6 +461,8 @@ def compute_denorm_fields(final_data: Dict[str, Any]) -> DenormFields:
         )
 
     return DenormFields(
+        # Contract identification
+        contract_number=contract_number,
         # Original fields
         customer_name=customer_name,
         customer_npwp=customer_npwp,
