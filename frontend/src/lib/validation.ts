@@ -111,6 +111,9 @@ function normalizePhoneNumber(value: string): string {
 // VALIDATION SCHEMAS WITH ROBUST NULL/UNDEFINED HANDLING
 // =============================================================================
 
+// Contract number format: K.TEL. XX/XXX/XXX/YYYY
+const contractNumberRegex = /^K\.TEL\.\s*[\d\.]+\s*\/[A-Z0-9\.\-\/\s]+\/\d{4}$/i;
+
 // Enhanced NPWP validation supporting 15-digit (legacy), 16-digit (NIK), and 19-digit (company) formats
 const npwpLegacyRegex = /^\d{15}$/; // Legacy format: 15 digits
 const npwpNewRegex = /^\d{16}$/;    // New format: 16 digits (NIK or 0+15digits)
@@ -134,6 +137,16 @@ const npwpSchema = z.preprocess(
     z.string().regex(npwpLegacyRegex, 'NPWP harus berisi 15 digit angka (format lama)'),
     z.string().regex(npwpNewRegex, 'NPWP/NIK harus berisi 16 digit angka (format baru)'),
     z.string().regex(npwpCompanyRegex, 'NPWP harus berisi 19 digit angka (format perusahaan)'),
+    z.undefined()
+  ]).optional()
+);
+
+// Contract number validation - K.TEL. XX/XXX/XXX/YYYY format
+const contractNumberSchema = z.preprocess(
+  (val) => nullToUndefined(val),
+  z.union([
+    z.string().regex(contractNumberRegex, 'Format nomor kontrak harus: K.TEL. XX/XXX/XXX/YYYY'),
+    z.string().length(0),
     z.undefined()
   ]).optional()
 );
@@ -315,6 +328,7 @@ const rincianLayananSchema = z.object({
 
 // Main contract data schema
 export const telkomContractDataSchema = z.object({
+  nomor_kontrak: contractNumberSchema,
   informasi_pelanggan: informasiPelangganSchema.nullable().optional(),
   layanan_utama: layananUtamaSchema.nullable().optional(),
   rincian_layanan: z.array(rincianLayananSchema).default([]),
@@ -431,6 +445,7 @@ const formKontakPersonTelkomSchema = z.object({
 
 // Clean form validation schema - matches TelkomContractFormData interface exactly
 export const telkomContractFormSchema = z.object({
+  nomor_kontrak: z.string().optional(),
   informasi_pelanggan: formInformasiPelangganSchema.optional(),
   layanan_utama: formLayananUtamaSchema.optional(),
   rincian_layanan: z.array(formRincianLayananSchema),
@@ -508,6 +523,7 @@ export interface FormKontakPersonTelkom {
 
 // Main form data interface - pure TypeScript, no Zod inference
 export interface TelkomContractFormData {
+  nomor_kontrak?: string;
   informasi_pelanggan?: FormInformasiPelanggan;
   layanan_utama?: FormLayananUtama;
   rincian_layanan: FormRincianLayanan[];
@@ -525,6 +541,7 @@ export interface TelkomContractFormData {
 // Transform backend data (with nulls, complex types) to clean form data
 export function backendToForm(backendData: TelkomContractData): TelkomContractFormData {
   return {
+    nomor_kontrak: backendData.nomor_kontrak || '',
     informasi_pelanggan: backendData.informasi_pelanggan ? {
       nama_pelanggan: backendData.informasi_pelanggan.nama_pelanggan || '',
       alamat: backendData.informasi_pelanggan.alamat || '',
