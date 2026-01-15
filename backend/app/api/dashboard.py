@@ -614,71 +614,92 @@ async def get_financial_summary(
 
     # ==== CARD 4: 90-Day Projection ====
     # Calculate termin projection (next 90 days, ~3 months from current month)
+    # Build conditions based on whether projection crosses year boundary
+    termin_conditions = [
+        and_(
+            ContractTermPayment.period_year == current_year,
+            ContractTermPayment.period_month <= min(current_month + 3, 12)
+        )
+    ]
+    # Add next year condition only if projection crosses year boundary
+    if current_month + 3 > 12:
+        termin_conditions.append(
+            and_(
+                ContractTermPayment.period_year == current_year + 1,
+                ContractTermPayment.period_month <= (current_month + 3 - 12)
+            )
+        )
+    
     projection_termin = db.query(func.sum(ContractTermPayment.amount)).filter(
         ContractTermPayment.status.notin_([
             TerminPaymentStatus.PAID.value,
             TerminPaymentStatus.CANCELLED.value
         ]),
-        or_(
-            and_(
-                ContractTermPayment.period_year == current_year,
-                ContractTermPayment.period_month <= current_month + 3
-            ),
-            and_(
-                ContractTermPayment.period_year == current_year + 1,
-                ContractTermPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
-            )
-        )
+        or_(*termin_conditions)
     ).scalar() or Decimal('0')
 
     # Calculate recurring projection (next 90 days, ~3 months)
+    recurring_conditions = [
+        and_(
+            ContractRecurringPayment.period_year == current_year,
+            ContractRecurringPayment.period_month <= min(current_month + 3, 12)
+        )
+    ]
+    # Add next year condition only if projection crosses year boundary
+    if current_month + 3 > 12:
+        recurring_conditions.append(
+            and_(
+                ContractRecurringPayment.period_year == current_year + 1,
+                ContractRecurringPayment.period_month <= (current_month + 3 - 12)
+            )
+        )
+    
     projection_recurring = db.query(func.sum(ContractRecurringPayment.amount)).filter(
         ContractRecurringPayment.status.notin_([
             TerminPaymentStatus.PAID.value,
             TerminPaymentStatus.CANCELLED.value
         ]),
-        or_(
-            and_(
-                ContractRecurringPayment.period_year == current_year,
-                ContractRecurringPayment.period_month <= current_month + 3
-            ),
-            and_(
-                ContractRecurringPayment.period_year == current_year + 1,
-                ContractRecurringPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
-            )
-        )
+        or_(*recurring_conditions)
     ).scalar() or Decimal('0')
 
     projection_total = projection_termin + projection_recurring
 
     projection_contract_ids = set()
     # Count distinct contracts with upcoming payments
-    termin_contract_ids = db.query(ContractTermPayment.contract_id).filter(
-        ContractTermPayment.status.notin_([TerminPaymentStatus.PAID.value, TerminPaymentStatus.CANCELLED.value]),
-        or_(
-            and_(
-                ContractTermPayment.period_year == current_year,
-                ContractTermPayment.period_month <= current_month + 3
-            ),
+    termin_contract_conditions = [
+        and_(
+            ContractTermPayment.period_year == current_year,
+            ContractTermPayment.period_month <= current_month + 3
+        )
+    ]
+    if current_month + 3 > 12:
+        termin_contract_conditions.append(
             and_(
                 ContractTermPayment.period_year == current_year + 1,
-                ContractTermPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
+                ContractTermPayment.period_month <= (current_month + 3 - 12)
             )
         )
+    termin_contract_ids = db.query(ContractTermPayment.contract_id).filter(
+        ContractTermPayment.status.notin_([TerminPaymentStatus.PAID.value, TerminPaymentStatus.CANCELLED.value]),
+        or_(*termin_contract_conditions)
     ).distinct().all()
 
-    recurring_contract_ids = db.query(ContractRecurringPayment.contract_id).filter(
-        ContractRecurringPayment.status.notin_([TerminPaymentStatus.PAID.value, TerminPaymentStatus.CANCELLED.value]),
-        or_(
-            and_(
-                ContractRecurringPayment.period_year == current_year,
-                ContractRecurringPayment.period_month <= current_month + 3
-            ),
+    recurring_contract_conditions = [
+        and_(
+            ContractRecurringPayment.period_year == current_year,
+            ContractRecurringPayment.period_month <= current_month + 3
+        )
+    ]
+    if current_month + 3 > 12:
+        recurring_contract_conditions.append(
             and_(
                 ContractRecurringPayment.period_year == current_year + 1,
-                ContractRecurringPayment.period_month <= (current_month + 3 - 12) if current_month + 3 > 12 else 0
+                ContractRecurringPayment.period_month <= (current_month + 3 - 12)
             )
         )
+    recurring_contract_ids = db.query(ContractRecurringPayment.contract_id).filter(
+        ContractRecurringPayment.status.notin_([TerminPaymentStatus.PAID.value, TerminPaymentStatus.CANCELLED.value]),
+        or_(*recurring_contract_conditions)
     ).distinct().all()
 
     for (cid,) in termin_contract_ids:
