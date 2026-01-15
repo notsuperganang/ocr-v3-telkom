@@ -293,6 +293,8 @@ async def confirm_job_data(
             final_data=final_data,
             confirmed_by_id=current_user.id,
             confirmed_at=datetime.now(timezone.utc),
+            # Contract identification
+            contract_number=denorm_fields.contract_number,
             # Original denormalized fields for efficient querying
             customer_name=denorm_fields.customer_name,
             customer_npwp=denorm_fields.customer_npwp,

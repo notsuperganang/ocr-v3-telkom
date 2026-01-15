@@ -48,6 +48,7 @@ class ContractSummary(BaseModel):
     file_id: int
     source_job_id: int
     filename: str
+    contract_number: Optional[str] = None
     confirmed_by: str
     confirmed_at: datetime
     created_at: datetime
@@ -67,7 +68,7 @@ class ContractDetail(BaseModel):
     final_data: Dict[str, Any]
     version: int
     confirmed_by: str
-    confirmed_at: datetime
+    confirmed_at: datetime 
     created_at: datetime
     updated_at: datetime
     file_size_bytes: int
@@ -111,6 +112,7 @@ class UnifiedContractItem(BaseModel):
     file_id: int
     source_job_id: Optional[int] = None
     filename: str
+    contract_number: Optional[str] = None
     customer_name: Optional[str] = None
     contract_start_date: Optional[str] = None
     contract_end_date: Optional[str] = None
@@ -194,6 +196,7 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
     data = job.edited_data or job.extracted_data or {}
 
     # Safely extract nested data with fallbacks
+    contract_number = None
     customer_name = None
     contract_start_date = None
     contract_end_date = None
@@ -201,6 +204,9 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
     total_contract_value = None
 
     try:
+        # Extract contract number from root level
+        contract_number = data.get('nomor_kontrak')
+
         if 'informasi_pelanggan' in data:
             customer_name = data['informasi_pelanggan'].get('nama_pelanggan')
 
@@ -255,6 +261,7 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
         pass
 
     return {
+        'contract_number': contract_number,
         'customer_name': customer_name,
         'contract_start_date': contract_start_date,
         'contract_end_date': contract_end_date,
@@ -377,6 +384,8 @@ async def list_contracts(
         query = query.filter(
             or_(
                 FileModel.original_filename.ilike(search_term),
+                Contract.contract_number.ilike(search_term),
+                Contract.customer_name.ilike(search_term),
                 cast(Contract.final_data, String).ilike(search_term)
             )
         )
@@ -404,6 +413,7 @@ async def list_contracts(
             file_id=contract.file_id,
             source_job_id=contract.source_job_id,
             filename=file_model.original_filename if file_model else "Unknown",
+            contract_number=contract.contract_number,
             confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
@@ -449,6 +459,8 @@ async def list_all_contract_items(
         contract_query = contract_query.filter(
             or_(
                 FileModel.original_filename.ilike(search_term),
+                Contract.contract_number.ilike(search_term),
+                Contract.customer_name.ilike(search_term),
                 cast(Contract.final_data, String).ilike(search_term)
             )
         )
@@ -474,6 +486,7 @@ async def list_all_contract_items(
             file_id=contract.file_id,
             source_job_id=contract.source_job_id,
             filename=file_model.original_filename if file_model else "Unknown",
+            contract_number=contract.contract_number,
             customer_name=contract.customer_name,
             contract_start_date=contract.period_start.isoformat() if contract.period_start else None,
             contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
@@ -524,6 +537,7 @@ async def list_all_contract_items(
             file_id=job.file_id,
             source_job_id=None,  # Jobs don't have source_job_id yet
             filename=file_model.original_filename if file_model else "Unknown",
+            contract_number=display_data.get('contract_number'),
             customer_name=display_data.get('customer_name'),
             contract_start_date=display_data.get('contract_start_date'),
             contract_end_date=display_data.get('contract_end_date'),
