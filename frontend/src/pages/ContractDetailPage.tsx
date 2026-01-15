@@ -321,6 +321,7 @@ export function ContractDetailPage() {
   }
 
   const contractData = contract.final_data;
+  const contractNumber = contractData?.nomor_kontrak;
   const customerInfo = contractData?.informasi_pelanggan || {};
   const serviceInfo = contractData?.layanan_utama || {};
   const paymentInfo = contractData?.tata_cara_pembayaran || {};
@@ -407,6 +408,7 @@ export function ContractDetailPage() {
 
   const profileDetails: Array<{ label: string; value: string; icon: LucideIcon; monospace?: boolean }> = [
     { label: 'Nama Pelanggan', value: customerNameDisplay, icon: UserRound },
+    ...(contractNumber ? [{ label: 'Nomor Kontrak', value: contractNumber, icon: Hash, monospace: true }] : []),
     { label: 'Alamat', value: customerAddressDisplay, icon: MapPin },
     { label: 'NPWP', value: customerNPWP, icon: Hash, monospace: true },
   ];
@@ -514,6 +516,7 @@ export function ContractDetailPage() {
 
   const heroChips = [
     { label: 'ID Kontrak', value: `#${contract.id}` },
+    ...(contractNumber ? [{ label: 'Nomor Kontrak', value: contractNumber }] : []),
     { label: 'Versi', value: `v${contract.version}` },
     { label: 'Ukuran File', value: formatFileSize(contract.file_size_bytes) },
     { label: 'Total Layanan', value: totalServiceCount.toString() },
