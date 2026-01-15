@@ -711,6 +711,73 @@ def _extract_field_multi_strategy(texts: List[str], field_patterns: List[str], s
     
     return None
 
+# -------------------- Contract Number Extraction --------------------
+# Pattern: K.TEL. XX/XXX/XXX/YYYY (e.g., K.TEL. 43/HK.810/RIW-0A/2025)
+_CONTRACT_NUMBER_PATTERN = re.compile(
+    r'K\.?\s*TEL\.?\s*(\d+\.?\d*\s*/[A-Z0-9\.\-/\s]+/\d{4})',
+    re.IGNORECASE
+)
+
+def _extract_contract_number(texts: List[str]) -> Optional[str]:
+    """
+    Extract contract number (Nomor Kontrak) from OCR texts.
+
+    Format: K.TEL. XX/XXX/XXX/YYYY
+    Located: Top of first page, usually after "Nomor Kontrak" label
+
+    Examples:
+    - K.TEL. 43/HK.810/RIW-0A/000000/2025
+    - K.TEL. 36.1/810/RIW-A0100000/2025
+
+    Returns:
+        Normalized contract number string or None if not found
+    """
+    full_text = " ".join(texts)
+
+    # Strategy 1: Look near "Nomor Kontrak" label
+    nomor_kontrak_patterns = [
+        "Nomor Kontrak",
+        "NomorKontrak",
+        "NOMOR KONTRAK",
+        "No. Kontrak",
+        "No Kontrak",
+        "Nomor",  # Sometimes just "Nomor" followed by contract number
+    ]
+
+    for pattern in nomor_kontrak_patterns:
+        idx = _find_containing(texts, pattern)
+        if idx is not None:
+            # Search in nearby tokens (within 5 tokens)
+            search_range = texts[max(0, idx):min(len(texts), idx + 6)]
+            search_text = " ".join(search_range)
+            match = _CONTRACT_NUMBER_PATTERN.search(search_text)
+            if match:
+                # Normalize: uppercase, remove extra spaces
+                number = match.group(1).strip()
+                number = re.sub(r'\s+', ' ', number)  # Normalize spaces
+                return f"K.TEL. {number}"
+
+    # Strategy 2: Search entire document for K.TEL pattern
+    match = _CONTRACT_NUMBER_PATTERN.search(full_text)
+    if match:
+        number = match.group(1).strip()
+        number = re.sub(r'\s+', ' ', number)
+        return f"K.TEL. {number}"
+
+    # Strategy 3: Try more permissive pattern for OCR errors
+    # Handle cases with extra spaces or missing dots
+    permissive_pattern = re.compile(
+        r'K\.?\s*T\s*E\s*L\.?\s*[:\s]*(\d+\.?\d*\s*/[A-Z0-9\.\-/\s]+/\d{4})',
+        re.IGNORECASE
+    )
+    match = permissive_pattern.search(full_text)
+    if match:
+        number = match.group(1).strip()
+        number = re.sub(r'\s+', ' ', number)
+        return f"K.TEL. {number}"
+
+    return None
+
 def _extract_cost_from_biaya_section(texts: List[str], cost_type: str) -> float:
     """
     Extract cost from structured BIAYA-BIAYA section.
@@ -996,6 +1063,9 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     """
     t0 = time.time()
     texts = _texts_from_ocr(ocr_json_page1)
+
+    # --- Contract Number Extraction ---
+    nomor_kontrak = _extract_contract_number(texts)
 
     # --- Informasi Pelanggan (Enhanced Robust Extraction) ---
     nama_pelanggan = alamat = npwp = None
@@ -1347,6 +1417,7 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     jangka_waktu = JangkaWaktu(mulai=None, akhir=None)
 
     data = TelkomContractData(
+        nomor_kontrak=nomor_kontrak,
         informasi_pelanggan=informasi_pelanggan,
         layanan_utama=layanan_utama,
         rincian_layanan=rincian_layanan,
