@@ -101,24 +101,24 @@ def validate_and_log_config(settings_instance):
     print(f"[CONFIG] ={'='*60}")
     
     # Core Configuration
-    print(f"[CONFIG] 🏭 PP-StructureV3 Configuration:")
+    print(f"[CONFIG]   🏭 PP-StructureV3 Configuration:")
     print(f"[CONFIG]   📝 Text Recognition Model: {settings_instance.text_recognition_model or 'DEFAULT'}")
     print(f"[CONFIG]   🔍 Text Detection Model: {settings_instance.text_detection_model or 'DEFAULT'}")  
     print(f"[CONFIG]   📐 Layout Detection Model: {settings_instance.layout_detection_model or 'DEFAULT'}")
     
     # Recognition Features
-    print(f"[CONFIG] 🎯 Recognition Features:")
+    print(f"[CONFIG]   🎯 Recognition Features:")
     print(f"[CONFIG]   📊 Table Recognition: {settings_instance.use_table_recognition}")
     print(f"[CONFIG]   🔐 Seal Recognition: {settings_instance.use_seal_recognition}")
     print(f"[CONFIG]   🧮 Formula Recognition: {settings_instance.use_formula_recognition}")
     
     # Performance Settings
-    print(f"[CONFIG] ⚡ Performance Settings:")
+    print(f"[CONFIG]   ⚡ Performance Settings:")
     print(f"[CONFIG]   🚀 High Performance Inference: {settings_instance.enable_hpi}")
     print(f"[CONFIG]   💻 Device: {settings_instance.device}")
     
     # Logging Configuration
-    print(f"[CONFIG] 📋 Logging Configuration:")
+    print(f"[CONFIG]   📋 Logging Configuration:")
     print(f"[CONFIG]   📝 Log Level: {settings_instance.log_level}")
     print(f"[CONFIG]   💾 Config Details: {settings_instance.log_config_details}")
     print(f"[CONFIG]   🔧 Model Loading: {settings_instance.log_model_loading}")
