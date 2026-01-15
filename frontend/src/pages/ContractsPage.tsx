@@ -70,6 +70,7 @@ interface ContractRecord {
   item: UnifiedContractItem
   fileName: string
   customerName: string
+  // contractNumber?: string | null
   periodStart?: string | null
   periodEnd?: string | null
   paymentMethod: PaymentMethod | null
@@ -151,6 +152,7 @@ const paymentBadgeStyles: Record<PaymentMethod, string> = {
 const tableColumns = [
   { id: "fileName", label: "File", sortable: true, filterable: false },
   { id: "customerName", label: "Pelanggan", sortable: true, filterable: false },
+  // { id: "contractNumber", label: "Nomor Kontrak", sortable: false, filterable: false },
   { id: "period", label: "Periode", sortable: false, filterable: true },
   { id: "method", label: "Metode", sortable: false, filterable: true },
   { id: "value", label: "Nilai Kontrak", sortable: true, filterable: false },
@@ -340,6 +342,7 @@ function toContractRecord(item: UnifiedContractItem): ContractRecord {
     item,
     fileName: item.filename,
     customerName: item.customer_name ?? "Tidak diketahui",
+    // contractNumber: item.contract_number ?? undefined,
     periodStart: item.contract_start_date ?? undefined,
     periodEnd: item.contract_end_date ?? undefined,
     paymentMethod: mapPaymentMethod(item.payment_method),
@@ -1249,6 +1252,19 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                         </div>
                       </TableCell>
                     )}
+                    {/* {visibleColumns.has("contractNumber") && (
+                      <TableCell>
+                        {record.contractNumber ? (
+                          <span className="text-sm font-mono text-foreground">
+                            {record.contractNumber}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm italic">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                    )} */}
                     {visibleColumns.has("period") && (
                       <TableCell>
                         {renderPeriod(record)}
