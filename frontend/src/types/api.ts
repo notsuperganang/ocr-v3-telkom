@@ -137,6 +137,7 @@ export interface ContractSummary {
   file_id: number;
   source_job_id: number;
   filename: string;
+  contract_number?: string | null;
   confirmed_by: string;
   confirmed_at: string;
   created_at: string;
@@ -161,6 +162,7 @@ export interface UnifiedContractItem {
   file_id: number;
   source_job_id?: number | null;
   filename: string;
+  contract_number?: string | null;
   customer_name?: string | null;
   contract_start_date?: string | null;
   contract_end_date?: string | null;
@@ -185,6 +187,7 @@ export interface ContractDetail {
   file_id: number;
   source_job_id: number;
   filename: string;
+  contract_number?: string | null;
   final_data: any;
   version: number;
   confirmed_by: string;
