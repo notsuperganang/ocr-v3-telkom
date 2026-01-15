@@ -122,6 +122,30 @@ export function CustomerInfoSection({
           )}
         </div>
 
+        {/* Contract Number - Optional field */}
+        <div className="space-y-2">
+          <Label htmlFor="nomor_kontrak" className="text-sm font-medium flex items-center gap-2">
+            <Building className="w-4 h-4" />
+            Nomor Kontrak
+            <span className="text-xs text-muted-foreground font-normal">(Opsional)</span>
+          </Label>
+          <Input
+            id="nomor_kontrak"
+            {...register('nomor_kontrak')}
+            placeholder="Contoh: K.TEL. 01/AKSES/WIFI/2024"
+            className={errors.nomor_kontrak ? 'border-red-500' : ''}
+          />
+          {errors.nomor_kontrak && (
+            <p className="text-xs text-red-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.nomor_kontrak.message}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Format: K.TEL. XX/XXX/XXX/YYYY
+          </p>
+        </div>
+
         {/* NPWP - Optional field */}
         <div className="space-y-2">
           <Label htmlFor="npwp" className="text-sm font-medium flex items-center gap-2">
