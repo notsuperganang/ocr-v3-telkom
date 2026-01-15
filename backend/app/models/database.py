@@ -128,6 +128,9 @@ class Contract(Base):
     version = Column(Integer, default=1)        # For future versioning
 
     # Denormalized fields for efficient querying and aggregation
+    # Contract identification
+    contract_number = Column(String(100), unique=True, nullable=True, index=True)  # K.TEL. XX/XXX/XXX/YYYY format
+
     # Customer information
     customer_name = Column(String(500))  # From final_data->informasi_pelanggan->nama_pelanggan
     customer_npwp = Column(String(50))   # From final_data->informasi_pelanggan->npwp

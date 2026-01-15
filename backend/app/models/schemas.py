@@ -67,6 +67,9 @@ class TataCaraPembayaran(BaseModel):
 
 # === Main Extraction Result ===
 class TelkomContractData(BaseModel):
+    # Contract identification (root level)
+    nomor_kontrak: Optional[str] = Field(None, description="Contract number in K.TEL. XX/XXX/XXX/YYYY format")
+
     # inti kontrak
     informasi_pelanggan: Optional[InformasiPelanggan] = None
     layanan_utama: Optional[LayananUtama] = None
