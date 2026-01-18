@@ -21,6 +21,10 @@ from app.api.contracts import router as contracts_router
 from app.api.admin import router as admin_router
 from app.api.dashboard import router as dashboard_router
 from app.api.users import router as users_router
+from app.api.segments import router as segments_router
+from app.api.witels import router as witels_router
+from app.api.account_managers import router as account_managers_router
+from app.api.accounts import router as accounts_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -103,6 +107,12 @@ app.include_router(contracts_router)
 app.include_router(admin_router)
 app.include_router(dashboard_router)
 app.include_router(users_router)
+
+# Reference data routes (backbone)
+app.include_router(segments_router)
+app.include_router(witels_router)
+app.include_router(account_managers_router)
+app.include_router(accounts_router)
 
 # Health check endpoint (unprotected)
 @app.get("/")
