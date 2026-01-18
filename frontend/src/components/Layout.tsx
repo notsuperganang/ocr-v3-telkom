@@ -16,7 +16,11 @@ import {
   BarChart3,
   LogOut,
   User,
-  Users
+  Users,
+  Layers,
+  MapPin,
+  UserCog,
+  Building2
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -130,7 +134,7 @@ function LogoIcon() {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { user, logout, isManager } = useAuth();
+  const { user, logout, isManager, isStaff } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
@@ -140,6 +144,30 @@ export function Layout({ children }: LayoutProps) {
     href: '/users',
     icon: <Users className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   };
+
+  // Create master data links (staff & manager only)
+  const masterDataLinks: Links[] = [
+    {
+      label: 'Segment',
+      href: '/segments',
+      icon: <Layers className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Witel',
+      href: '/witels',
+      icon: <MapPin className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Account Manager',
+      href: '/account-managers',
+      icon: <UserCog className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+    },
+    {
+      label: 'Account',
+      href: '/accounts',
+      icon: <Building2 className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+    },
+  ];
 
   // Create logout link
   const logoutLink: Links = {
@@ -172,12 +200,51 @@ export function Layout({ children }: LayoutProps) {
                 />
               ))}
 
+              {/* Master Data - Staff & Manager */}
+              {(isStaff || isManager) && (
+                <>
+                  {/* Section header when open */}
+                  {open && (
+                    <div className="mt-6 mb-2 px-2">
+                      <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                        Master Data
+                      </span>
+                    </div>
+                  )}
+                  {/* Divider when closed */}
+                  {!open && (
+                    <div className="my-2 border-t-2 border-[#E42313]" />
+                  )}
+                  {masterDataLinks.map((link, idx) => (
+                    <CustomSidebarLink
+                      key={`master-${idx}`}
+                      link={link}
+                      isActive={location.pathname === link.href}
+                    />
+                  ))}
+                </>
+              )}
+
               {/* User Management - Manager Only */}
               {isManager && (
-                <CustomSidebarLink
-                  link={userManagementLink}
-                  isActive={location.pathname === '/users'}
-                />
+                <>
+                  {/* Section header when open */}
+                  {open && (
+                    <div className="mt-6 mb-2 px-2">
+                      <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                        Admin
+                      </span>
+                    </div>
+                  )}
+                  {/* Divider when closed */}
+                  {!open && (
+                    <div className="my-2 border-t-2 border-[#E42313]" />
+                  )}
+                  <CustomSidebarLink
+                    link={userManagementLink}
+                    isActive={location.pathname === '/users'}
+                  />
+                </>
               )}
             </div>
           </div>
