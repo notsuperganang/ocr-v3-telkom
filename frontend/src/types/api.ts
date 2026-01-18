@@ -360,3 +360,169 @@ export interface DashboardFinancialSummary {
   overall_collection_rate: number;
   total_payment_count: number;
 }
+
+// ============================================================================
+// Master Data Types (Segments, Witels, Account Managers, Accounts)
+// ============================================================================
+
+// Segment Types
+export interface SegmentResponse {
+  id: number;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SegmentCreate {
+  name: string;
+  code?: string;
+}
+
+export interface SegmentUpdate {
+  name?: string;
+  code?: string;
+}
+
+export interface SegmentListResponse {
+  segments: SegmentResponse[];
+  total: number;
+}
+
+// Witel Types
+export interface WitelResponse {
+  id: number;
+  code: string;
+  name: string;
+  region?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WitelCreate {
+  code: string;
+  name: string;
+  region?: string;
+}
+
+export interface WitelUpdate {
+  code?: string;
+  name?: string;
+  region?: string;
+}
+
+export interface WitelListResponse {
+  witels: WitelResponse[];
+  total: number;
+}
+
+// Account Manager Types
+export interface AccountManagerResponse {
+  id: number;
+  name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountManagerCreate {
+  name: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface AccountManagerUpdate {
+  name?: string;
+  title?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface AccountManagerListResponse {
+  account_managers: AccountManagerResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+// Account Types (with nested entities)
+export interface SegmentBrief {
+  id: number;
+  name: string;
+  code: string | null;
+}
+
+export interface WitelBrief {
+  id: number;
+  code: string;
+  name: string;
+}
+
+export interface AccountManagerBrief {
+  id: number;
+  name: string;
+  title: string | null;
+}
+
+export interface UserBrief {
+  id: number;
+  username: string;
+  full_name: string | null;
+}
+
+export interface AccountResponse {
+  id: number;
+  account_number: string | null;
+  name: string;
+  nipnas: string | null;
+  bus_area: string | null;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  segment: SegmentBrief | null;
+  witel: WitelBrief | null;
+  account_manager: AccountManagerBrief | null;
+  assigned_officer: UserBrief | null;
+  creator: UserBrief | null;
+  contract_count: number | null;
+}
+
+export interface AccountCreate {
+  account_number?: string;
+  name: string;
+  nipnas?: string;
+  bus_area?: string;
+  segment_id?: number;
+  witel_id?: number;
+  account_manager_id?: number;
+  assigned_officer_id?: number;
+  notes?: string;
+}
+
+export interface AccountUpdate {
+  account_number?: string;
+  name?: string;
+  nipnas?: string;
+  bus_area?: string;
+  segment_id?: number;
+  witel_id?: number;
+  account_manager_id?: number;
+  assigned_officer_id?: number;
+  notes?: string;
+}
+
+export interface AccountListResponse {
+  accounts: AccountResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}

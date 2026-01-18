@@ -20,6 +20,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isManager: boolean;
+  isStaff: boolean;
   userRole: UserRole | null;
   refreshUserInfo: () => Promise<void>;
 }
@@ -136,6 +137,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     isAuthenticated: !!user,
     isManager: user?.role === 'MANAGER',
+    isStaff: user?.role === 'STAFF' || user?.role === 'MANAGER',
     userRole: user?.role || null,
     refreshUserInfo,
   };
