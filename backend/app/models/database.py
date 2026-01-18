@@ -68,6 +68,100 @@ class User(Base):
     updated_term_payments = relationship("ContractTermPayment", foreign_keys="ContractTermPayment.updated_by_id", back_populates="updater")
     created_recurring_payments = relationship("ContractRecurringPayment", foreign_keys="ContractRecurringPayment.created_by_id", back_populates="creator")
     updated_recurring_payments = relationship("ContractRecurringPayment", foreign_keys="ContractRecurringPayment.updated_by_id", back_populates="updater")
+    # Account relationships
+    assigned_accounts = relationship("Account", foreign_keys="Account.assigned_officer_id", back_populates="assigned_officer")
+    created_accounts = relationship("Account", foreign_keys="Account.created_by_id", back_populates="creator")
+
+
+class AccountManager(Base):
+    """Telkom Account Managers - CRUD managed by Paycol officers"""
+    __tablename__ = "account_managers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=True)  # Jabatan/position
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Audit timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    accounts = relationship("Account", back_populates="account_manager")
+    contracts = relationship("Contract", back_populates="telkom_contact")
+
+
+class Segment(Base):
+    """Segment master data for client classification"""
+    __tablename__ = "segments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    code = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Audit timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    accounts = relationship("Account", back_populates="segment")
+
+
+class Witel(Base):
+    """Witel (regional office) master data"""
+    __tablename__ = "witels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(20), nullable=False, unique=True)  # e.g., "901"
+    name = Column(String(100), nullable=False)  # e.g., "Aceh"
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    # Audit timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    accounts = relationship("Account", back_populates="witel")
+
+
+class Account(Base):
+    """Master client entity - manually managed via CRUD by staff"""
+    __tablename__ = "accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Business identifiers
+    account_number = Column(String(50), unique=True, nullable=True, index=True)  # Telkom internal ID
+    name = Column(String(500), nullable=False)  # Customer name
+    nipnas = Column(String(50), nullable=True, index=True)  # Customer identifier
+    bus_area = Column(String(50), nullable=True)  # Business area (manual input)
+
+    # Foreign keys to reference tables
+    segment_id = Column(Integer, ForeignKey("segments.id", ondelete="SET NULL"), nullable=True, index=True)
+    witel_id = Column(Integer, ForeignKey("witels.id", ondelete="SET NULL"), nullable=True, index=True)
+    account_manager_id = Column(Integer, ForeignKey("account_managers.id", ondelete="SET NULL"), nullable=True, index=True)
+    assigned_officer_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Status and notes
+    is_active = Column(Boolean, default=True, nullable=False, index=True)
+    notes = Column(Text, nullable=True)
+
+    # Audit fields
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    # Relationships
+    segment = relationship("Segment", back_populates="accounts")
+    witel = relationship("Witel", back_populates="accounts")
+    account_manager = relationship("AccountManager", back_populates="accounts")
+    assigned_officer = relationship("User", foreign_keys=[assigned_officer_id], back_populates="assigned_accounts")
+    creator = relationship("User", foreign_keys=[created_by_id], back_populates="created_accounts")
+    contracts = relationship("Contract", back_populates="account")
+
 
 class File(Base):
     """File metadata and storage"""
@@ -122,6 +216,11 @@ class Contract(Base):
     id = Column(Integer, primary_key=True, index=True)
     source_job_id = Column(Integer, ForeignKey("processing_jobs.id"), nullable=False)
     file_id = Column(Integer, ForeignKey("files.id"), nullable=False)
+
+    # Account relationship (new backbone refactor)
+    account_id = Column(Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    contract_year = Column(Integer, nullable=False, index=True)  # Working year (2024, 2025, etc.)
+    telkom_contact_id = Column(Integer, ForeignKey("account_managers.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Final confirmed data
     final_data = Column(JSONB, nullable=False)  # Merged edited_data from job (source of truth)
@@ -205,6 +304,10 @@ class Contract(Base):
     term_payments = relationship("ContractTermPayment", back_populates="contract", cascade="all, delete-orphan")
     recurring_payments = relationship("ContractRecurringPayment", back_populates="contract", cascade="all, delete-orphan")
     confirmer = relationship("User", back_populates="confirmed_contracts")
+    # Account backbone relationships
+    account = relationship("Account", back_populates="contracts")
+    telkom_contact = relationship("AccountManager", back_populates="contracts")
+
 
 class ContractTermPayment(Base):
     """Normalized termin payment tracking for operational reminders and status management"""

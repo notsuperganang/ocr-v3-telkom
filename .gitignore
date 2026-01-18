@@ -116,3 +116,5 @@ backend/storage
 gha-creds-*.json
 .github/
 .claude
+
+DESIGN_GUIDE.md
