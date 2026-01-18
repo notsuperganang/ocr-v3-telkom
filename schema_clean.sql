@@ -87,7 +87,8 @@ CREATE TABLE public.contracts (
     contract_processing_time_sec double precision,
     recurring_monthly_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
     recurring_month_count integer,
-    recurring_total_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL
+    recurring_total_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    contract_number character varying(100)
 );
 CREATE TABLE public.export_history (
     id integer NOT NULL,
