@@ -29,7 +29,23 @@ import type {
   CreateUserRequest,
   UpdateUserRequest,
   ChangeUserPasswordRequest,
-  UserListResponse
+  UserListResponse,
+  SegmentResponse,
+  SegmentCreate,
+  SegmentUpdate,
+  SegmentListResponse,
+  WitelResponse,
+  WitelCreate,
+  WitelUpdate,
+  WitelListResponse,
+  AccountManagerResponse,
+  AccountManagerCreate,
+  AccountManagerUpdate,
+  AccountManagerListResponse,
+  AccountResponse,
+  AccountCreate,
+  AccountUpdate,
+  AccountListResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -471,6 +487,190 @@ class ApiClient {
 
   async getFinancialSummary(): Promise<DashboardFinancialSummary> {
     return this.request<DashboardFinancialSummary>('/api/dashboard/financial-summary');
+  }
+
+  // ============================================================================
+  // Master Data API Methods (Segments, Witels, Account Managers, Accounts)
+  // ============================================================================
+
+  // Segments
+  async listSegments(activeOnly: boolean = true, search?: string): Promise<SegmentListResponse> {
+    const params = new URLSearchParams();
+    params.append('active_only', activeOnly.toString());
+    if (search) params.append('search', search);
+    
+    return this.request<SegmentListResponse>(`/api/segments?${params.toString()}`);
+  }
+
+  async getSegment(id: number): Promise<SegmentResponse> {
+    return this.request<SegmentResponse>(`/api/segments/${id}`);
+  }
+
+  async createSegment(data: SegmentCreate): Promise<SegmentResponse> {
+    return this.request<SegmentResponse>('/api/segments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSegment(id: number, data: SegmentUpdate): Promise<SegmentResponse> {
+    return this.request<SegmentResponse>(`/api/segments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateSegment(id: number): Promise<SegmentResponse> {
+    return this.request<SegmentResponse>(`/api/segments/${id}/deactivate`, {
+      method: 'POST',
+    });
+  }
+
+  async activateSegment(id: number): Promise<SegmentResponse> {
+    return this.request<SegmentResponse>(`/api/segments/${id}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  // Witels
+  async listWitels(activeOnly: boolean = true, search?: string): Promise<WitelListResponse> {
+    const params = new URLSearchParams();
+    params.append('active_only', activeOnly.toString());
+    if (search) params.append('search', search);
+    
+    return this.request<WitelListResponse>(`/api/witels?${params.toString()}`);
+  }
+
+  async getWitel(id: number): Promise<WitelResponse> {
+    return this.request<WitelResponse>(`/api/witels/${id}`);
+  }
+
+  async createWitel(data: WitelCreate): Promise<WitelResponse> {
+    return this.request<WitelResponse>('/api/witels', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateWitel(id: number, data: WitelUpdate): Promise<WitelResponse> {
+    return this.request<WitelResponse>(`/api/witels/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateWitel(id: number): Promise<WitelResponse> {
+    return this.request<WitelResponse>(`/api/witels/${id}/deactivate`, {
+      method: 'POST',
+    });
+  }
+
+  async activateWitel(id: number): Promise<WitelResponse> {
+    return this.request<WitelResponse>(`/api/witels/${id}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  // Account Managers
+  async listAccountManagers(
+    page: number = 1,
+    perPage: number = 20,
+    activeOnly: boolean = true,
+    search?: string
+  ): Promise<AccountManagerListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      active_only: activeOnly.toString(),
+    });
+    if (search) params.append('search', search);
+    
+    return this.request<AccountManagerListResponse>(`/api/account-managers?${params.toString()}`);
+  }
+
+  async getAccountManager(id: number): Promise<AccountManagerResponse> {
+    return this.request<AccountManagerResponse>(`/api/account-managers/${id}`);
+  }
+
+  async createAccountManager(data: AccountManagerCreate): Promise<AccountManagerResponse> {
+    return this.request<AccountManagerResponse>('/api/account-managers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAccountManager(id: number, data: AccountManagerUpdate): Promise<AccountManagerResponse> {
+    return this.request<AccountManagerResponse>(`/api/account-managers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateAccountManager(id: number): Promise<AccountManagerResponse> {
+    return this.request<AccountManagerResponse>(`/api/account-managers/${id}/deactivate`, {
+      method: 'POST',
+    });
+  }
+
+  async activateAccountManager(id: number): Promise<AccountManagerResponse> {
+    return this.request<AccountManagerResponse>(`/api/account-managers/${id}/activate`, {
+      method: 'POST',
+    });
+  }
+
+  // Accounts
+  async listAccounts(
+    page: number = 1,
+    perPage: number = 20,
+    activeOnly: boolean = true,
+    search?: string,
+    segmentId?: number,
+    witelId?: number,
+    accountManagerId?: number,
+    assignedOfficerId?: number
+  ): Promise<AccountListResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+      active_only: activeOnly.toString(),
+    });
+    if (search) params.append('search', search);
+    if (segmentId !== undefined) params.append('segment_id', segmentId.toString());
+    if (witelId !== undefined) params.append('witel_id', witelId.toString());
+    if (accountManagerId !== undefined) params.append('account_manager_id', accountManagerId.toString());
+    if (assignedOfficerId !== undefined) params.append('assigned_officer_id', assignedOfficerId.toString());
+    
+    return this.request<AccountListResponse>(`/api/accounts?${params.toString()}`);
+  }
+
+  async getAccount(id: number): Promise<AccountResponse> {
+    return this.request<AccountResponse>(`/api/accounts/${id}`);
+  }
+
+  async createAccount(data: AccountCreate): Promise<AccountResponse> {
+    return this.request<AccountResponse>('/api/accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAccount(id: number, data: AccountUpdate): Promise<AccountResponse> {
+    return this.request<AccountResponse>(`/api/accounts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateAccount(id: number): Promise<AccountResponse> {
+    return this.request<AccountResponse>(`/api/accounts/${id}/deactivate`, {
+      method: 'POST',
+    });
+  }
+
+  async activateAccount(id: number): Promise<AccountResponse> {
+    return this.request<AccountResponse>(`/api/accounts/${id}/activate`, {
+      method: 'POST',
+    });
   }
 }
 
