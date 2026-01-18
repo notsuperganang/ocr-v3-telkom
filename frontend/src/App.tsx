@@ -14,6 +14,10 @@ import { ProfilePage } from './pages/ProfilePage';
 import { UserManagementPage } from './pages/UserManagementPage';
 import { ProcessingPage } from './pages/ProcessingPage';
 import { ReviewPage } from './pages/ReviewPage';
+import { SegmentsPage } from './pages/SegmentsPage';
+import { WitelsPage } from './pages/WitelsPage';
+import { AccountManagersPage } from './pages/AccountManagersPage';
+import { AccountsPage } from './pages/AccountsPage';
 import { Toaster } from './components/ui/toaster';
 
 // Create a client
@@ -49,6 +53,10 @@ function App() {
                       <Route path="/contracts/:contractId/edit" element={<ContractEditPage />} />
                       <Route path="/profile" element={<ProfilePage />} />
                       <Route path="/users" element={<UserManagementPage />} />
+                      <Route path="/segments" element={<SegmentsPage />} />
+                      <Route path="/witels" element={<WitelsPage />} />
+                      <Route path="/account-managers" element={<AccountManagersPage />} />
+                      <Route path="/accounts" element={<AccountsPage />} />
                       <Route path="/processing/:jobId" element={<ProcessingPage />} />
                       <Route path="/review/:jobId" element={<ReviewPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
