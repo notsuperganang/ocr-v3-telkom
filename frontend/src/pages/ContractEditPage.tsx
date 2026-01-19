@@ -29,7 +29,9 @@ export function ContractEditPage() {
 
   // Local state for form data
   const [formData, setFormData] = useState<any>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hasFormChanges, setHasFormChanges] = useState(false);
+  const [hasAccountChanges, setHasAccountChanges] = useState(false);
+  const hasUnsavedChanges = hasFormChanges || hasAccountChanges;
 
   // Account linkage state
   const [accountLinkage, setAccountLinkage] = useState<{
@@ -116,8 +118,12 @@ export function ContractEditPage() {
   // Handle form data changes (no auto-save, only update local state)
   const handleFormChange = (data: any) => {
     setFormData(data);
-    setHasUnsavedChanges(true);
   };
+
+  // Handle form dirty state change from ExtractionForm
+  const handleFormDirtyChange = useCallback((isDirty: boolean) => {
+    setHasFormChanges(isDirty);
+  }, []);
 
   // Handle account linkage changes (wrapped in useCallback to prevent infinite loop)
   const handleAccountLinkageChange = useCallback((data: { accountId: number | null; contractYear: number; telkomContactId: number | null }) => {
@@ -128,9 +134,7 @@ export function ContractEditPage() {
         data.accountId !== initialAccountLinkage.accountId ||
         data.contractYear !== initialAccountLinkage.contractYear ||
         data.telkomContactId !== initialAccountLinkage.telkomContactId;
-      if (hasChanged) {
-        setHasUnsavedChanges(true);
-      }
+      setHasAccountChanges(hasChanged);
     }
   }, [initialAccountLinkage]);
 
@@ -152,7 +156,8 @@ export function ContractEditPage() {
         contractYear: accountLinkage?.contractYear ?? contract.contract_year,
         telkomContactId: accountLinkage?.telkomContactId ?? null,
       });
-      setHasUnsavedChanges(false);
+      setHasFormChanges(false);
+      setHasAccountChanges(false);
       toast.success('Kontrak berhasil diperbarui');
 
       // Navigate back to detail page after successful save
@@ -316,6 +321,7 @@ export function ContractEditPage() {
             initialContractYear={contract.contract_year}
             initialTelkomContactId={contract.telkom_contact_id}
             onAccountLinkageChange={handleAccountLinkageChange}
+            onDirtyChange={handleFormDirtyChange}
           />
         </div>
       </div>
