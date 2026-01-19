@@ -108,16 +108,28 @@ export function useUpdateExtraction(jobId: number) {
   });
 }
 
+// Confirm parameters type
+export interface ConfirmExtractionParams {
+  jobId: number;
+  accountId?: number | null;
+  contractYear: number;
+  telkomContactId?: number | null;
+}
+
 // Hook for confirming extraction
 export function useConfirmExtraction() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   return useMutation({
-    mutationFn: async (jobId: number) => {
-      return apiService.confirmJob(jobId);
+    mutationFn: async (params: ConfirmExtractionParams) => {
+      return apiService.confirmJob(params.jobId, {
+        account_id: params.accountId,
+        contract_year: params.contractYear,
+        telkom_contact_id: params.telkomContactId,
+      });
     },
-    onSuccess: (data, _jobId) => {
+    onSuccess: (data, _params) => {
       // Invalidate all extraction-related queries
       queryClient.invalidateQueries({ queryKey: extractionKeys.all });
 

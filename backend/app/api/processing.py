@@ -47,6 +47,12 @@ class JobDataResponse(BaseModel):
 class DataUpdateRequest(BaseModel):
     edited_data: Dict[str, Any]
 
+class ConfirmJobRequest(BaseModel):
+    """Request body for confirming a job and creating a contract"""
+    account_id: Optional[int] = None
+    contract_year: int  # Required - the working year for this contract
+    telkom_contact_id: Optional[int] = None
+
 class JobListResponse(BaseModel):
     jobs: list[JobStatusResponse]
     total: int
@@ -247,16 +253,48 @@ async def update_job_data(
 @router.post("/confirm/{job_id}")
 async def confirm_job_data(
     job_id: int,
+    confirm_request: ConfirmJobRequest,
     db_and_user: tuple[Session, str] = Depends(get_db_and_user)
 ):
     """Confirm job data and create contract record with denormalized fields"""
     db, current_user = db_and_user
 
     # Import here to avoid circular imports
-    from app.models.database import Contract
+    from app.models.database import Contract, Account, AccountManager
     from app.services.denorm import compute_denorm_fields
     from app.services.termin_sync import sync_contract_terms_from_final_data
     from app.services.recurring_sync import sync_contract_recurring_payments
+
+    # Validate contract_year range
+    if confirm_request.contract_year < 2020 or confirm_request.contract_year > 2100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contract year must be between 2020 and 2100"
+        )
+
+    # Validate account_id if provided
+    if confirm_request.account_id is not None:
+        account = db.query(Account).filter(
+            Account.id == confirm_request.account_id,
+            Account.is_active == True
+        ).first()
+        if not account:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account not found or inactive"
+            )
+
+    # Validate telkom_contact_id if provided
+    if confirm_request.telkom_contact_id is not None:
+        contact = db.query(AccountManager).filter(
+            AccountManager.id == confirm_request.telkom_contact_id,
+            AccountManager.is_active == True
+        ).first()
+        if not contact:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Telkom contact not found or inactive"
+            )
 
     # Get job
     job = db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
@@ -293,6 +331,10 @@ async def confirm_job_data(
             final_data=final_data,
             confirmed_by_id=current_user.id,
             confirmed_at=datetime.now(timezone.utc),
+            # Account backbone fields from request
+            account_id=confirm_request.account_id,
+            contract_year=confirm_request.contract_year,
+            telkom_contact_id=confirm_request.telkom_contact_id,
             # Contract identification
             contract_number=denorm_fields.contract_number,
             # Original denormalized fields for efficient querying
