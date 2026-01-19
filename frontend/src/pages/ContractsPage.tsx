@@ -1845,7 +1845,12 @@ export function ContractsPage() {
       )
 
       try {
-        await confirmExtractionMutation.mutateAsync(job.item.id)
+        await confirmExtractionMutation.mutateAsync({
+          jobId: job.item.id,
+          contractYear: new Date().getFullYear(), // Default to current year for bulk confirm
+          accountId: null,
+          telkomContactId: null,
+        })
         successCount++
         // Remove from selection on success
         setSelectedIds((prev) => {
