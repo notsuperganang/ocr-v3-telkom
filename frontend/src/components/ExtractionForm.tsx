@@ -15,6 +15,7 @@ import { ServiceDetailsSection } from '@/components/form/ServiceDetailsSection';
 import { PaymentMethodSection } from '@/components/form/PaymentMethodSection';
 import { TelkomContactSection } from '@/components/form/TelkomContactSection';
 import { ContractPeriodSection } from '@/components/form/ContractPeriodSection';
+import { AccountLinkageSection } from '@/components/form/AccountLinkageSection';
 import { FormSummary } from '@/components/ui/form-section';
 import {
   telkomContractFormSchema,
@@ -34,6 +35,7 @@ const fieldToSectionId: Record<string, string> = {
   'tata_cara_pembayaran': 'section-tata-cara-pembayaran',
   'kontak_person_telkom': 'section-kontak-person-telkom',
   'jangka_waktu': 'section-jangka-waktu',
+  'account_linkage': 'section-account-linkage',
 };
 
 // Helper function to flatten nested React Hook Form errors into ErrorItem array
@@ -133,6 +135,12 @@ interface ExtractionFormProps {
   onDiscard?: () => void;
   disabled?: boolean;
   mode?: 'job' | 'contract'; // 'job' for processing jobs, 'contract' for editing contracts
+  // Account linkage initial values (for contract edit mode)
+  initialAccountId?: number | null;
+  initialContractYear?: number | null;
+  initialTelkomContactId?: number | null;
+  // Callback for account linkage changes (for contract edit mode)
+  onAccountLinkageChange?: (data: { accountId: number | null; contractYear: number; telkomContactId: number | null }) => void;
 }
 
 export function ExtractionForm({
@@ -143,6 +151,10 @@ export function ExtractionForm({
   onDiscard,
   disabled = false,
   mode = 'job',
+  initialAccountId,
+  initialContractYear,
+  initialTelkomContactId,
+  onAccountLinkageChange,
 }: ExtractionFormProps) {
 
   // Transform backend data to clean form data
@@ -169,8 +181,44 @@ export function ExtractionForm({
   const discardMutation = useDiscardExtraction();
   const updateMutation = useUpdateExtraction(jobId);
 
+  // Account linkage state (used in both job and contract modes)
+  const [accountId, setAccountId] = React.useState<number | null>(initialAccountId ?? null);
+  const [contractYear, setContractYear] = React.useState<number | null>(initialContractYear ?? null);
+  const [telkomContactId, setTelkomContactId] = React.useState<number | null>(initialTelkomContactId ?? null);
+  const [linkageErrors, setLinkageErrors] = React.useState<{
+    accountId?: string;
+    contractYear?: string;
+    telkomContactId?: string;
+  }>({});
+
   // Watch all form data
   const currentFormData = watch();
+
+  // Derive default contract year from period_start
+  const defaultContractYear = React.useMemo(() => {
+    const periodStart = currentFormData.jangka_waktu?.mulai;
+    if (periodStart) {
+      const year = parseInt(periodStart.split('-')[0], 10);
+      if (!isNaN(year) && year >= 2020 && year <= 2100) {
+        return year;
+      }
+    }
+    return new Date().getFullYear();
+  }, [currentFormData.jangka_waktu?.mulai]);
+
+  // Notify parent of account linkage changes (for contract edit mode)
+  React.useEffect(() => {
+    if (mode === 'contract' && onAccountLinkageChange) {
+      const yearToUse = contractYear ?? defaultContractYear;
+      if (yearToUse) {
+        onAccountLinkageChange({
+          accountId,
+          contractYear: yearToUse,
+          telkomContactId,
+        });
+      }
+    }
+  }, [accountId, contractYear, telkomContactId, mode, onAccountLinkageChange, defaultContractYear]);
 
   // Reset form when initial data changes (transform to form format)
   React.useEffect(() => {
@@ -248,11 +296,37 @@ export function ExtractionForm({
       }
 
       if (mode === 'job') {
+        // Validate account linkage (contract_year is required)
+        const yearToUse = contractYear ?? defaultContractYear;
+        const newLinkageErrors: typeof linkageErrors = {};
+
+        if (!yearToUse || yearToUse < 2020 || yearToUse > 2100) {
+          newLinkageErrors.contractYear = 'Tahun kontrak wajib diisi (2020-2100)';
+        }
+
+        if (Object.keys(newLinkageErrors).length > 0) {
+          setLinkageErrors(newLinkageErrors);
+          alert('Silakan lengkapi data penghubungan akun (tahun kontrak wajib diisi)');
+          // Scroll to account linkage section
+          const element = document.getElementById('section-account-linkage');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+          return;
+        }
+
+        setLinkageErrors({});
+
         // IMPORTANT: Save the edited data first before confirming
         // The confirm endpoint reads edited_data from the database
         await updateMutation.mutateAsync(backendData);
-        // Then confirm (backend will create contract from saved edited_data)
-        confirmMutation.mutate(jobId);
+        // Then confirm with account linkage data
+        confirmMutation.mutate({
+          jobId: jobId,
+          accountId: accountId,
+          contractYear: yearToUse,
+          telkomContactId: telkomContactId,
+        });
         onConfirm?.();
       } else if (mode === 'contract') {
         // IMPORTANT: For contract mode, pass data directly to onConfirm
@@ -291,6 +365,14 @@ export function ExtractionForm({
                                    (currentFormData.rincian_layanan[0]?.biaya_langganan_tahunan || 0) > 0;
 
     return [
+      // Account section at the top
+      {
+        name: 'Akun',
+        completed: (contractYear ?? defaultContractYear) ? 1 : 0,
+        total: 1,
+        errors: linkageErrors.contractYear ? 1 : 0,
+        required: true,
+      },
       {
         name: 'Informasi Pelanggan',
         completed: hasCustomerInfo && !errors.informasi_pelanggan ? 1 : 0,
@@ -334,7 +416,7 @@ export function ExtractionForm({
         required: true,
       },
     ];
-  }, [currentFormData, errors]);
+  }, [currentFormData, errors, contractYear, defaultContractYear, linkageErrors]);
 
   // Debug: Track formSections calculation
   React.useEffect(() => {
@@ -505,6 +587,20 @@ export function ExtractionForm({
 
         {/* Form Sections */}
         <div className="space-y-6">
+          {/* Account Linkage Section - shown at the top */}
+          <div id="section-account-linkage">
+            <AccountLinkageSection
+              accountId={accountId}
+              contractYear={contractYear}
+              telkomContactId={telkomContactId}
+              onAccountChange={setAccountId}
+              onContractYearChange={setContractYear}
+              onTelkomContactChange={setTelkomContactId}
+              defaultContractYear={defaultContractYear}
+              errors={linkageErrors}
+            />
+          </div>
+
           <div id="section-informasi-pelanggan">
             <CustomerInfoSection
               register={register}
