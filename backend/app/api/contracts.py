@@ -67,6 +67,10 @@ class ContractDetail(BaseModel):
     filename: str
     final_data: Dict[str, Any]
     version: int
+    # Account linkage fields
+    account_id: Optional[int] = None
+    contract_year: int
+    telkom_contact_id: Optional[int] = None
     confirmed_by: str
     confirmed_at: datetime 
     created_at: datetime
@@ -600,6 +604,9 @@ async def get_contract_detail(
         filename=file_model.original_filename,
         final_data=contract.final_data,
         version=contract.version,
+        account_id=contract.account_id,
+        contract_year=contract.contract_year,
+        telkom_contact_id=contract.telkom_contact_id,
         confirmed_by=_get_user_display_name(contract.confirmer),
         confirmed_at=contract.confirmed_at,
         created_at=contract.created_at,
@@ -714,6 +721,9 @@ async def update_contract(
     contract_id: int,
     updated_data: Dict[str, Any],
     increment_version: bool = Query(False, description="Increment contract version (use for confirmations)"),
+    account_id: Optional[int] = Query(None, description="Account ID to link contract"),
+    contract_year: Optional[int] = Query(None, description="Contract working year"),
+    telkom_contact_id: Optional[int] = Query(None, description="Telkom contact (Account Manager) ID"),
     db_and_user: tuple[Session, User] = Depends(get_db_and_user)
 ):
     """Update contract data and recompute denormalized fields"""
@@ -735,6 +745,14 @@ async def update_contract(
     try:
         # Update final_data
         contract.final_data = updated_data
+
+        # Update account linkage fields if provided
+        if account_id is not None:
+            contract.account_id = account_id
+        if contract_year is not None:
+            contract.contract_year = contract_year
+        if telkom_contact_id is not None:
+            contract.telkom_contact_id = telkom_contact_id
 
         # Recompute all denormalized fields
         denorm_fields = compute_denorm_fields(updated_data)
@@ -812,6 +830,9 @@ async def update_contract(
             filename=file_model.original_filename if file_model else "unknown",
             final_data=contract.final_data,
             version=contract.version,
+            account_id=contract.account_id,
+            contract_year=contract.contract_year,
+            telkom_contact_id=contract.telkom_contact_id,
             confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
