@@ -515,8 +515,9 @@ export function ContractDetailPage() {
       : paymentMethodLabel;
 
   const heroChips = [
-    { label: 'ID Kontrak', value: `#${contract.id}` },
-    ...(contractNumber ? [{ label: 'Nomor Kontrak', value: contractNumber }] : []),
+    // { label: 'ID Kontrak', value: `#${contract.id}` },
+    ...(contractNumber ? [{ label: 'Nomor', value: contractNumber }] : []),
+    ...(contract.account?.account_number ? [{ label: 'Akun', value: contract.account.account_number }] : []),
     { label: 'Versi', value: `v${contract.version}` },
     { label: 'Ukuran File', value: formatFileSize(contract.file_size_bytes) },
     { label: 'Total Layanan', value: totalServiceCount.toString() },
@@ -644,6 +645,15 @@ export function ContractDetailPage() {
                     <span className="font-normal text-slate-500">oleh {contract.confirmed_by}</span>
                   )}
                 </div>
+                {contract.account?.assigned_officer && (
+                  <div className="flex items-center gap-2 font-semibold text-rose-600">
+                    <UserRound className="w-4 h-4" />
+                    <span>Petugas:</span>
+                    <span className="text-slate-500 font-normal">
+                      {contract.account.assigned_officer.full_name || contract.account.assigned_officer.username}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-slate-400" />
                   Dibuat {formatDateTime(contract.created_at)}
