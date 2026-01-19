@@ -141,6 +141,8 @@ interface ExtractionFormProps {
   initialTelkomContactId?: number | null;
   // Callback for account linkage changes (for contract edit mode)
   onAccountLinkageChange?: (data: { accountId: number | null; contractYear: number; telkomContactId: number | null }) => void;
+  // Callback for form dirty state changes (for contract edit mode)
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 export function ExtractionForm({
@@ -155,6 +157,7 @@ export function ExtractionForm({
   initialContractYear,
   initialTelkomContactId,
   onAccountLinkageChange,
+  onDirtyChange,
 }: ExtractionFormProps) {
 
   // Transform backend data to clean form data
@@ -193,6 +196,13 @@ export function ExtractionForm({
 
   // Watch all form data
   const currentFormData = watch();
+
+  // Notify parent of form dirty state changes
+  React.useEffect(() => {
+    if (mode === 'contract' && onDirtyChange) {
+      onDirtyChange(isDirty);
+    }
+  }, [isDirty, mode, onDirtyChange]);
 
   // Derive default contract year from period_start
   const defaultContractYear = React.useMemo(() => {
