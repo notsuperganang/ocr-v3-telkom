@@ -30,6 +30,7 @@ from app.models.database import (
     ContractRecurringPayment,
     TerminPaymentStatus,
     User,
+    Account,
 )
 from app.config import settings
 
@@ -60,6 +61,24 @@ class ContractSummary(BaseModel):
     class Config:
         from_attributes = True
 
+# Brief models for nested relationships
+class UserBrief(BaseModel):
+    id: int
+    username: str
+    full_name: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+class AccountBrief(BaseModel):
+    id: int
+    name: str
+    account_number: Optional[str]
+    assigned_officer: Optional[UserBrief] = None
+
+    class Config:
+        from_attributes = True
+
 class ContractDetail(BaseModel):
     id: int
     file_id: int
@@ -71,6 +90,8 @@ class ContractDetail(BaseModel):
     account_id: Optional[int] = None
     contract_year: int
     telkom_contact_id: Optional[int] = None
+    # Account object with details
+    account: Optional[AccountBrief] = None
     confirmed_by: str
     confirmed_at: datetime 
     created_at: datetime
@@ -597,6 +618,25 @@ async def get_contract_detail(
     # Get processing job info for timing data
     job = db.query(ProcessingJob).filter(ProcessingJob.id == contract.source_job_id).first()
     
+    # Get account information if linked
+    account_brief = None
+    if contract.account_id:
+        account = db.query(Account).filter(Account.id == contract.account_id).first()
+        if account:
+            assigned_officer_brief = None
+            if account.assigned_officer:
+                assigned_officer_brief = UserBrief(
+                    id=account.assigned_officer.id,
+                    username=account.assigned_officer.username,
+                    full_name=account.assigned_officer.full_name
+                )
+            account_brief = AccountBrief(
+                id=account.id,
+                name=account.name,
+                account_number=account.account_number,
+                assigned_officer=assigned_officer_brief
+            )
+    
     return ContractDetail(
         id=contract.id,
         file_id=contract.file_id,
@@ -607,6 +647,7 @@ async def get_contract_detail(
         account_id=contract.account_id,
         contract_year=contract.contract_year,
         telkom_contact_id=contract.telkom_contact_id,
+        account=account_brief,
         confirmed_by=_get_user_display_name(contract.confirmer),
         confirmed_at=contract.confirmed_at,
         created_at=contract.created_at,
@@ -823,6 +864,25 @@ async def update_contract(
         # Get file info for response
         file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
 
+        # Get account information if linked
+        account_brief = None
+        if contract.account_id:
+            account = db.query(Account).filter(Account.id == contract.account_id).first()
+            if account:
+                assigned_officer_brief = None
+                if account.assigned_officer:
+                    assigned_officer_brief = UserBrief(
+                        id=account.assigned_officer.id,
+                        username=account.assigned_officer.username,
+                        full_name=account.assigned_officer.full_name
+                    )
+                account_brief = AccountBrief(
+                    id=account.id,
+                    name=account.name,
+                    account_number=account.account_number,
+                    assigned_officer=assigned_officer_brief
+                )
+
         return ContractDetail(
             id=contract.id,
             file_id=contract.file_id,
@@ -833,6 +893,7 @@ async def update_contract(
             account_id=contract.account_id,
             contract_year=contract.contract_year,
             telkom_contact_id=contract.telkom_contact_id,
+            account=account_brief,
             confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,
