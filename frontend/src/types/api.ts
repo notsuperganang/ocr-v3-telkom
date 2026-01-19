@@ -195,6 +195,19 @@ export interface UnifiedContractListResponse {
   total_pages: number;
 }
 
+export interface UserBrief {
+  id: number;
+  username: string;
+  full_name?: string | null;
+}
+
+export interface AccountBrief {
+  id: number;
+  name: string;
+  account_number?: string | null;
+  assigned_officer?: UserBrief | null;
+}
+
 export interface ContractDetail {
   id: number;
   file_id: number;
@@ -207,6 +220,8 @@ export interface ContractDetail {
   account_id?: number | null;
   contract_year: number;
   telkom_contact_id?: number | null;
+  // Account object with details
+  account?: AccountBrief | null;
   confirmed_by: string;
   confirmed_at: string;
   created_at: string;
@@ -486,12 +501,6 @@ export interface AccountManagerBrief {
   id: number;
   name: string;
   title: string | null;
-}
-
-export interface UserBrief {
-  id: number;
-  username: string;
-  full_name: string | null;
 }
 
 export interface AccountResponse {
