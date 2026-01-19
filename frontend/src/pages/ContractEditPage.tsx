@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   FileText,
   Clock,
@@ -31,6 +31,20 @@ export function ContractEditPage() {
   const [formData, setFormData] = useState<any>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Account linkage state
+  const [accountLinkage, setAccountLinkage] = useState<{
+    accountId: number | null;
+    contractYear: number;
+    telkomContactId: number | null;
+  } | null>(null);
+
+  // Track initial account linkage values to detect real changes
+  const [initialAccountLinkage, setInitialAccountLinkage] = useState<{
+    accountId: number | null;
+    contractYear: number;
+    telkomContactId: number | null;
+  } | null>(null);
+
   // PDF preview state
   const [pdfBlob, setPdfBlob] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(true);
@@ -40,8 +54,16 @@ export function ContractEditPage() {
   useEffect(() => {
     if (contract?.final_data) {
       setFormData(contract.final_data);
+      // Set initial account linkage values
+      if (!initialAccountLinkage) {
+        setInitialAccountLinkage({
+          accountId: contract.account_id ?? null,
+          contractYear: contract.contract_year,
+          telkomContactId: contract.telkom_contact_id ?? null,
+        });
+      }
     }
-  }, [contract]);
+  }, [contract, initialAccountLinkage]);
 
   // Load PDF on mount
   useEffect(() => {
@@ -97,17 +119,38 @@ export function ContractEditPage() {
     setHasUnsavedChanges(true);
   };
 
+  // Handle account linkage changes (wrapped in useCallback to prevent infinite loop)
+  const handleAccountLinkageChange = useCallback((data: { accountId: number | null; contractYear: number; telkomContactId: number | null }) => {
+    setAccountLinkage(data);
+    // Only mark as changed if values differ from initial
+    if (initialAccountLinkage) {
+      const hasChanged = 
+        data.accountId !== initialAccountLinkage.accountId ||
+        data.contractYear !== initialAccountLinkage.contractYear ||
+        data.telkomContactId !== initialAccountLinkage.telkomContactId;
+      if (hasChanged) {
+        setHasUnsavedChanges(true);
+      }
+    }
+  }, [initialAccountLinkage]);
+
   // Handle confirmation (save with version increment)
   const handleSave = async (dataToSave?: any) => {
     // Use passed data if available (from ExtractionForm), fallback to state
     const dataForSave = dataToSave || formData;
-    if (!dataForSave) return;
+    if (!dataForSave || !contract) return;
+
+    // Only increment version if there are actual changes
+    const shouldIncrementVersion = hasUnsavedChanges;
 
     try {
       await updateMutation.mutateAsync({
         contractId: numericContractId,
         data: dataForSave,
-        incrementVersion: true
+        incrementVersion: shouldIncrementVersion,
+        accountId: accountLinkage?.accountId ?? null,
+        contractYear: accountLinkage?.contractYear ?? contract.contract_year,
+        telkomContactId: accountLinkage?.telkomContactId ?? null,
       });
       setHasUnsavedChanges(false);
       toast.success('Kontrak berhasil diperbarui');
@@ -269,6 +312,10 @@ export function ContractEditPage() {
             onConfirm={handleSave}
             onDiscard={handleBack}
             mode="contract"
+            initialAccountId={contract.account_id}
+            initialContractYear={contract.contract_year}
+            initialTelkomContactId={contract.telkom_contact_id}
+            onAccountLinkageChange={handleAccountLinkageChange}
           />
         </div>
       </div>
