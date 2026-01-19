@@ -260,7 +260,7 @@ export function SegmentsPage() {
               Kelola klasifikasi segment customer
             </p>
           </div>
-          {isManager && (
+          {(isManager || isStaff) && (
             <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Tambah Segment
@@ -353,7 +353,7 @@ export function SegmentsPage() {
                           {format(new Date(segment.created_at), 'PPp', { locale: id })}
                         </TableCell>
                         <TableCell className="text-right">
-                          {isManager && (
+                          {(isManager || isStaff) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">

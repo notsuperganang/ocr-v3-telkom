@@ -361,7 +361,7 @@ export function AccountsPage() {
               Kelola data customer dan account Telkom
             </p>
           </div>
-          {isManager && (
+          {(isManager || isStaff) && (
             <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Tambah Account
@@ -488,6 +488,7 @@ export function AccountsPage() {
                         <TableHead>Segment</TableHead>
                         <TableHead>Witel</TableHead>
                         <TableHead>Account Manager</TableHead>
+                        <TableHead>Petugas</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Aksi</TableHead>
                       </TableRow>
@@ -518,12 +519,21 @@ export function AccountsPage() {
                             {account.account_manager?.name || '-'}
                           </TableCell>
                           <TableCell>
+                            {account.assigned_officer ? (
+                              <span className="text-sm">
+                                {account.assigned_officer.full_name || account.assigned_officer.username}
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <Badge variant={account.is_active ? 'default' : 'secondary'}>
                               {account.is_active ? 'Aktif' : 'Nonaktif'}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {isManager && (
+                            {(isManager || isStaff) && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
