@@ -143,6 +143,7 @@ class UnifiedContractItem(BaseModel):
     contract_end_date: Optional[str] = None
     payment_method: Optional[str] = None
     total_contract_value: Optional[str] = None  # String representation of Decimal
+    account: Optional[AccountBrief] = None
     confirmed_by: Optional[str] = None
     confirmed_at: Optional[datetime] = None
     created_at: datetime
@@ -504,6 +505,26 @@ async def list_all_contract_items(
     # Convert contracts to unified items
     for contract in contracts:
         file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
+        
+        # Get account information if linked
+        account_brief = None
+        if contract.account_id:
+            account = db.query(Account).filter(Account.id == contract.account_id).first()
+            if account:
+                assigned_officer_brief = None
+                if account.assigned_officer:
+                    assigned_officer_brief = UserBrief(
+                        id=account.assigned_officer.id,
+                        username=account.assigned_officer.username,
+                        full_name=account.assigned_officer.full_name
+                    )
+                account_brief = AccountBrief(
+                    id=account.id,
+                    name=account.name,
+                    account_number=account.account_number,
+                    assigned_officer=assigned_officer_brief
+                )
+        
         all_items.append(UnifiedContractItem(
             item_type='contract',
             status='confirmed',
@@ -517,6 +538,7 @@ async def list_all_contract_items(
             contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
             payment_method=_format_payment_method(contract.payment_method),
             total_contract_value=str(contract.total_contract_value) if contract.total_contract_value else None,
+            account=account_brief,
             confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
             created_at=contract.created_at,

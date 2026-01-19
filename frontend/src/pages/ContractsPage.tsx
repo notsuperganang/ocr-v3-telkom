@@ -152,6 +152,8 @@ const paymentBadgeStyles: Record<PaymentMethod, string> = {
 const tableColumns = [
   { id: "fileName", label: "File", sortable: true, filterable: false },
   { id: "customerName", label: "Pelanggan", sortable: true, filterable: false },
+  { id: "accountNumber", label: "Nomor Akun", sortable: false, filterable: false },
+  { id: "assignedOfficer", label: "Petugas", sortable: false, filterable: true },
   // { id: "contractNumber", label: "Nomor Kontrak", sortable: false, filterable: false },
   { id: "period", label: "Periode", sortable: false, filterable: true },
   { id: "method", label: "Metode", sortable: false, filterable: true },
@@ -712,7 +714,7 @@ const FilterBar: React.FC<FilterBarProps> = ({
               size="sm"
               onClick={onClearFilters}
               className={cn(
-                "text-muted-foreground hover:text-foreground whitespace-nowrap",
+                "text-muted-foreground hover:text-foreground hover:bg-red-50 dark:hover:bg-red-950/20 whitespace-nowrap",
                 designTokens.focusRing
               )}
               disabled={activeFilters === 0}
@@ -869,6 +871,9 @@ interface ContractsTableProps {
   onStatusChange: (value: FilterStatus) => void
   paymentMethod: FilterPaymentMethod
   onPaymentMethodChange: (value: FilterPaymentMethod) => void
+  officerFilter: string
+  onOfficerFilterChange: (value: string) => void
+  officerOptions: Array<{ value: string; label: string }>
   periodFilter: { start: string | null; end: string | null }
   onPeriodFilterChange: (filter: { start: string | null; end: string | null }) => void
 }
@@ -892,6 +897,9 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
   onStatusChange,
   paymentMethod,
   onPaymentMethodChange,
+  officerFilter,
+  onOfficerFilterChange,
+  officerOptions,
   periodFilter,
   onPeriodFilterChange,
 }) => {
@@ -972,15 +980,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
         {isFetching ? (
           <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-gradient-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
         ) : null}
-        {data.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-            <FileText className="size-12 text-muted-foreground" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">
-              Tidak ada kontrak pada filter ini.
-            </p>
-          </div>
-        ) : (
-          <Table className={designTokens.radius.xl}>
+        <Table className={designTokens.radius.xl}>
             <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
               <TableRow>
                 <TableHead className="w-12">
@@ -1022,9 +1022,10 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                   }
 
                   if (column.filterable) {
-                    // Filterable columns (method, status, and period)
+                    // Filterable columns (method, status, officer, and period)
                     const isMethod = column.id === "method"
                     const isStatus = column.id === "status"
+                    const isOfficer = column.id === "assignedOfficer"
                     const isPeriod = column.id === "period"
 
                     return (
@@ -1079,6 +1080,20 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                               </>
                             )}
 
+                            {isOfficer && (
+                              <>
+                                {officerOptions.map((option: { value: string; label: string }) => (
+                                  <DropdownMenuCheckboxItem
+                                    key={option.value}
+                                    checked={officerFilter === option.value}
+                                    onCheckedChange={() => onOfficerFilterChange(option.value)}
+                                  >
+                                    {option.label}
+                                  </DropdownMenuCheckboxItem>
+                                ))}
+                              </>
+                            )}
+
                             {isPeriod && (
                               <div className="p-3 space-y-3">
                                 <div className="space-y-2">
@@ -1116,7 +1131,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="w-full"
+                                  className="w-full hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-foreground"
                                   onClick={() =>
                                     onPeriodFilterChange({ start: null, end: null })
                                   }
@@ -1140,7 +1155,10 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       <TableHead
                         key={column.id}
                         aria-sort={ariaSort}
-                        className="align-middle"
+                        className={twMerge(
+                          "align-middle",
+                          column.id === "value" && "text-right"
+                        )}
                       >
                         <button
                           type="button"
@@ -1152,7 +1170,8 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                           }
                           className={twMerge(
                             "flex items-center gap-2 rounded-md px-2 py-1 text-xs font-bold uppercase tracking-wide text-[#d71920] transition-all hover:bg-red-50 dark:hover:bg-red-950/20",
-                            designTokens.focusRing
+                            designTokens.focusRing,
+                            column.id === "value" && "ml-auto"
                           )}
                         >
                           {column.label}
@@ -1189,6 +1208,21 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody className="bg-background/60">
+              {data.length === 0 ? (
+                <TableRow>
+                  <TableCell 
+                    colSpan={visibleColumns.size} 
+                    className="h-64 text-center"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-4 py-8">
+                      <FileText className="size-12 text-muted-foreground" aria-hidden="true" />
+                      <p className="text-sm text-muted-foreground">
+                        Tidak ada kontrak pada filter ini.
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
               <AnimatePresence initial={false}>
                 {data.map((record) => (
                   <MotionTableRow
@@ -1252,6 +1286,32 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                         </div>
                       </TableCell>
                     )}
+                    {visibleColumns.has("accountNumber") && (
+                      <TableCell>
+                        {record.item.account?.account_number ? (
+                          <span className="text-sm font-medium text-foreground">
+                            {record.item.account.account_number}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm italic">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
+                    {visibleColumns.has("assignedOfficer") && (
+                      <TableCell>
+                        {record.item.account?.assigned_officer ? (
+                          <span className="text-sm font-medium text-foreground">
+                            {record.item.account.assigned_officer.full_name || record.item.account.assigned_officer.username}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm italic">
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
                     {/* {visibleColumns.has("contractNumber") && (
                       <TableCell>
                         {record.contractNumber ? (
@@ -1290,7 +1350,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                       </TableCell>
                     )}
                     {visibleColumns.has("value") && (
-                      <TableCell>
+                      <TableCell className="text-center">
                         {record.totalContractValue ? (
                           <span className="font-semibold text-sm text-foreground tabular-nums">
                             {formatCurrency(Number(record.totalContractValue))}
@@ -1463,9 +1523,9 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                   </MotionTableRow>
                 ))}
               </AnimatePresence>
+              )}
             </TableBody>
           </Table>
-        )}
       </div>
       <div className="flex flex-col items-start gap-4 bg-card/90 p-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between border-t border-border/60">
         <div>
@@ -1551,36 +1611,6 @@ const LoadingSkeleton: React.FC = () => (
     </div>
     <Skeleton className="h-32 rounded-3xl" />
     <Skeleton className="h-[520px] rounded-3xl" />
-  </div>
-)
-
-const EmptyState: React.FC<{ onPrimaryAction: () => void }> = ({
-  onPrimaryAction,
-}) => (
-  <div className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-border/60 bg-muted/30 p-16 text-center shadow-inner">
-    <div className="flex size-20 items-center justify-center rounded-full border border-border/60 bg-background shadow">
-      <FileText className="size-8 text-muted-foreground" aria-hidden="true" />
-    </div>
-    <div className="space-y-2">
-      <h3 className="text-xl font-semibold text-foreground">
-        Belum ada kontrak untuk filter ini
-      </h3>
-      <p className="max-w-md text-sm text-muted-foreground">
-        Unggah dokumen baru atau ubah filter untuk melihat data kontrak yang
-        telah diekstrak. Semua progres tetap tersimpan secara otomatis.
-      </p>
-    </div>
-    <Button
-      size="lg"
-      className={twMerge(
-        "bg-[#d71920] text-white hover:bg-[#b5141b]",
-        designTokens.focusRing
-      )}
-      onClick={onPrimaryAction}
-    >
-      <Upload className="mr-2 size-4" aria-hidden="true" />
-      Upload File Baru
-    </Button>
   </div>
 )
 
@@ -1700,6 +1730,7 @@ export function ContractsPage() {
   const [search, setSearch] = React.useState("")
   const [status, setStatus] = React.useState<FilterStatus>("all")
   const [paymentMethod, setPaymentMethod] = React.useState<FilterPaymentMethod>(getInitialPaymentMethod)
+  const [officerFilter, setOfficerFilter] = React.useState<string>("all")
   const [periodFilter, setPeriodFilter] = React.useState<{ start: string | null; end: string | null }>({ start: null, end: null })
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [sortState, setSortState] = React.useState<SortState | null>({
@@ -1756,6 +1787,15 @@ export function ContractsPage() {
       })
     }
 
+    // Filter by officer
+    if (officerFilter !== "all") {
+      items = items.filter((item) => {
+        if (!item.account?.assigned_officer) return false
+        const officerName = item.account.assigned_officer.full_name || item.account.assigned_officer.username
+        return officerName === officerFilter
+      })
+    }
+
     // Filter by period
     if (periodFilter.start || periodFilter.end) {
       items = items.filter((item) => {
@@ -1773,12 +1813,27 @@ export function ContractsPage() {
     }
 
     return items
-  }, [rawContractsData, paymentMethod, periodFilter])
+  }, [rawContractsData, paymentMethod, officerFilter, periodFilter])
 
   const records = React.useMemo(() => {
     const transformed = filteredItems.map(toContractRecord)
     return applySorting(transformed, sortState)
   }, [filteredItems, sortState])
+
+  // Generate officer options from the raw data
+  const officerOptions = React.useMemo(() => {
+    const officers = new Set<string>()
+    rawContractsData?.items.forEach((item) => {
+      if (item.account?.assigned_officer) {
+        const name = item.account.assigned_officer.full_name || item.account.assigned_officer.username
+        officers.add(name)
+      }
+    })
+    return [
+      { value: "all", label: "Semua" },
+      ...Array.from(officers).sort().map((name) => ({ value: name, label: name }))
+    ]
+  }, [rawContractsData])
 
   const hasClientSideFilters =
     paymentMethod !== "all" ||
@@ -2067,6 +2122,11 @@ export function ContractsPage() {
     setPage(1)
   }
 
+  const handleOfficerFilterChange = (value: string) => {
+    setOfficerFilter(value)
+    setPage(1)
+  }
+
   const handleToggleColumn = (
     columnId: (typeof tableColumns)[number]["id"]
   ) => {
@@ -2238,15 +2298,12 @@ export function ContractsPage() {
             {resultsAnnouncement}
           </section>
 
-          {records.length === 0 ? (
-            <EmptyState onPrimaryAction={() => (window.location.href = "/upload")} />
-          ) : (
-            <ContractsTable
-              data={records}
-              sortState={sortState}
-              onSortChange={(column, direction) =>
-                handleSortChange(column, direction)
-              }
+          <ContractsTable
+            data={records}
+            sortState={sortState}
+            onSortChange={(column, direction) =>
+              handleSortChange(column, direction)
+            }
               page={page}
               pageSize={pageSize}
               totalCount={totalResults}
@@ -2268,13 +2325,15 @@ export function ContractsPage() {
               }}
               paymentMethod={paymentMethod}
               onPaymentMethodChange={handlePaymentMethodChange}
+              officerFilter={officerFilter}
+              onOfficerFilterChange={handleOfficerFilterChange}
+              officerOptions={officerOptions}
               periodFilter={periodFilter}
               onPeriodFilterChange={(value) => {
                 setPeriodFilter(value)
                 setPage(1)
               }}
             />
-          )}
         </>
       )}
     </main>

@@ -181,6 +181,7 @@ export interface UnifiedContractItem {
   contract_end_date?: string | null;
   payment_method?: string | null;
   total_contract_value?: string | null;
+  account?: AccountBrief | null;
   confirmed_by?: string | null;
   confirmed_at?: string | null;
   created_at: string;
