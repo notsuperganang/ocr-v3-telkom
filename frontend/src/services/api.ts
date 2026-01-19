@@ -276,9 +276,10 @@ class ApiClient {
     });
   }
 
-  async confirmJob(jobId: number): Promise<any> {
+  async confirmJob(jobId: number, confirmData: import('../types/api').ConfirmJobRequest): Promise<import('../types/api').ConfirmJobResponse> {
     return this.request(`/api/processing/confirm/${jobId}`, {
       method: 'POST',
+      body: JSON.stringify(confirmData),
     });
   }
 
@@ -381,9 +382,24 @@ class ApiClient {
     return response.blob();
   }
 
-  async updateContract(contractId: number, updatedData: any, incrementVersion: boolean = false): Promise<ContractDetail> {
-    const queryParams = incrementVersion ? '?increment_version=true' : '';
-    return this.request<ContractDetail>(`/api/contracts/${contractId}${queryParams}`, {
+  async updateContract(
+    contractId: number,
+    updatedData: any,
+    incrementVersion: boolean = false,
+    accountId?: number | null,
+    contractYear?: number,
+    telkomContactId?: number | null
+  ): Promise<ContractDetail> {
+    const params = new URLSearchParams();
+    if (incrementVersion) params.append('increment_version', 'true');
+    if (accountId !== undefined && accountId !== null) params.append('account_id', accountId.toString());
+    if (contractYear !== undefined) params.append('contract_year', contractYear.toString());
+    if (telkomContactId !== undefined && telkomContactId !== null) params.append('telkom_contact_id', telkomContactId.toString());
+    
+    const queryString = params.toString();
+    const url = `/api/contracts/${contractId}${queryString ? '?' + queryString : ''}`;
+    
+    return this.request<ContractDetail>(url, {
       method: 'PATCH',
       body: JSON.stringify(updatedData),
     });
