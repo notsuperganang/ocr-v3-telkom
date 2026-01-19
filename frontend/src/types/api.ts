@@ -132,6 +132,19 @@ export interface JobDataResponse {
   has_data: boolean;
 }
 
+export interface ConfirmJobRequest {
+  account_id?: number | null;
+  contract_year: number;
+  telkom_contact_id?: number | null;
+}
+
+export interface ConfirmJobResponse {
+  message: string;
+  job_id: number;
+  contract_id: number;
+  confirmed_at: string;
+}
+
 export interface ContractSummary {
   id: number;
   file_id: number;
@@ -190,6 +203,10 @@ export interface ContractDetail {
   contract_number?: string | null;
   final_data: any;
   version: number;
+  // Account linkage fields
+  account_id?: number | null;
+  contract_year: number;
+  telkom_contact_id?: number | null;
   confirmed_by: string;
   confirmed_at: string;
   created_at: string;
