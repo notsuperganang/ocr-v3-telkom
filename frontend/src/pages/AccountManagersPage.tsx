@@ -277,7 +277,7 @@ export function AccountManagersPage() {
               Kelola data Account Manager Telkom
             </p>
           </div>
-          {isManager && (
+          {(isManager || isStaff) && (
             <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Tambah Account Manager
@@ -393,7 +393,7 @@ export function AccountManagersPage() {
                             {format(new Date(am.created_at), 'PPp', { locale: id })}
                           </TableCell>
                           <TableCell className="text-right">
-                            {isManager && (
+                            {(isManager || isStaff) && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
