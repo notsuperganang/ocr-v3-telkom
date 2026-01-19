@@ -112,8 +112,22 @@ export function useUpdateContract() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ contractId, data, incrementVersion = false }: { contractId: number; data: any; incrementVersion?: boolean }) =>
-      apiService.updateContract(contractId, data, incrementVersion),
+    mutationFn: ({ 
+      contractId, 
+      data, 
+      incrementVersion = false,
+      accountId,
+      contractYear,
+      telkomContactId
+    }: { 
+      contractId: number; 
+      data: any; 
+      incrementVersion?: boolean;
+      accountId?: number | null;
+      contractYear?: number;
+      telkomContactId?: number | null;
+    }) =>
+      apiService.updateContract(contractId, data, incrementVersion, accountId, contractYear, telkomContactId),
     onSuccess: (updatedContract) => {
       // Invalidate contract detail query to refetch latest data
       queryClient.invalidateQueries({ queryKey: contractKeys.detail(updatedContract.id) });
