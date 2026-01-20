@@ -12,7 +12,6 @@ import {
   Building2,
   FileText,
   CreditCard,
-  Download,
   CheckCircle,
   MapPin,
   Phone,
@@ -35,7 +34,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useContract, useDownloadContractJson } from '@/hooks/useContracts';
+import { useContract } from '@/hooks/useContracts';
 import { formatNPWP, formatPhone } from '@/lib/validation';
 import { ServiceDetailsSection } from '@/components/contracts/ServiceDetailsSection';
 import { apiService } from '@/services/api';
@@ -248,7 +247,6 @@ export function ContractDetailPage() {
   const navigate = useNavigate();
   
   const { data: contract, isLoading, error } = useContract(Number(contractId));
-  const downloadJsonMutation = useDownloadContractJson();
 
   // Scroll to section when navigating from Dashboard
   React.useEffect(() => {
@@ -265,12 +263,6 @@ export function ContractDetailPage() {
       }
     }
   }, [isLoading, contract]);
-
-  const handleDownloadJson = () => {
-    if (contract) {
-      downloadJsonMutation.mutate(contract.id);
-    }
-  };
 
   const handleViewPdf = async () => {
     if (contract) {
@@ -637,8 +629,8 @@ export function ContractDetailPage() {
                 ))}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                <div className="flex items-center gap-2 font-semibold text-rose-600">
+              <div className="mt-3 flex items-center gap-4 text-sm text-slate-600 overflow-x-auto">
+                <div className="flex items-center gap-2 font-semibold text-rose-600 whitespace-nowrap">
                   <CheckCircle className="w-4 h-4" />
                   {formatDateTime(contract.confirmed_at)}
                   {contract.confirmed_by && (
@@ -646,7 +638,7 @@ export function ContractDetailPage() {
                   )}
                 </div>
                 {contract.account?.assigned_officer && (
-                  <div className="flex items-center gap-2 font-semibold text-rose-600">
+                  <div className="flex items-center gap-2 font-semibold text-rose-600 whitespace-nowrap">
                     <UserRound className="w-4 h-4" />
                     <span>Petugas:</span>
                     <span className="text-slate-500 font-normal">
@@ -654,18 +646,18 @@ export function ContractDetailPage() {
                     </span>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 whitespace-nowrap">
                   <Calendar className="w-4 h-4 text-slate-400" />
                   Dibuat {formatDateTime(contract.created_at)}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 whitespace-nowrap">
                   <History className="w-4 h-4 text-slate-400" />
                   Pembaharuan {formatDateTime(contract.updated_at)}
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
               <Badge
                 className="px-3 py-1 text-sm shadow-sm"
                 style={{
@@ -679,9 +671,13 @@ export function ContractDetailPage() {
               </Badge>
 
               <Button
-                variant="outline"
                 onClick={() => navigate(`/contracts/${contract.id}/edit`)}
-                className="border-white/80 bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900"
+                style={{
+                  backgroundColor: telkomColors.primary,
+                  borderColor: telkomColors.primary,
+                  color: telkomColors.white
+                }}
+                className="hover:opacity-90 transition-opacity shadow-md"
               >
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
@@ -689,22 +685,8 @@ export function ContractDetailPage() {
 
               <Button
                 variant="outline"
-                onClick={handleDownloadJson}
-                disabled={downloadJsonMutation.isPending}
-                className="border-white/80 bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                {downloadJsonMutation.isPending ? 'Mengunduh...' : 'JSON'}
-              </Button>
-
-              <Button
                 onClick={handleViewPdf}
-                style={{
-                  backgroundColor: telkomColors.primary,
-                  borderColor: telkomColors.primary,
-                  color: telkomColors.white
-                }}
-                className="hover:opacity-90 transition-opacity"
+                className="border-white/80 bg-white/90 text-slate-600 hover:bg-white hover:text-slate-900"
               >
                 <FileText className="w-4 h-4 mr-2" />
                 PDF
