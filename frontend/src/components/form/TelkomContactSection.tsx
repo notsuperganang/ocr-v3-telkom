@@ -1,17 +1,19 @@
 import React from 'react';
 import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
-import { Phone, Mail, User, Building2, AlertCircle } from 'lucide-react';
+import { Phone, Mail, User, Building2, AlertCircle, Link2 } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { TelkomContractFormData } from '@/lib/validation';
 import { formatPhone } from '@/lib/validation';
+import type { AccountManagerResponse } from '@/types/api';
 
 interface TelkomContactSectionProps {
   register: UseFormRegister<TelkomContractFormData>;
   errors: FieldErrors<TelkomContractFormData>;
   setValue: UseFormSetValue<TelkomContractFormData>;
   watch: UseFormWatch<TelkomContractFormData>;
+  linkedAccountManager?: AccountManagerResponse | null;
 }
 
 export function TelkomContactSection({
@@ -19,9 +21,13 @@ export function TelkomContactSection({
   errors,
   setValue,
   watch,
+  linkedAccountManager,
 }: TelkomContactSectionProps) {
   const telkomPhoneValue = watch('kontak_person_telkom.telepon');
   const telkomEmailValue = watch('kontak_person_telkom.email');
+  
+  // Fields are read-only when linked to an Account Manager
+  const isReadOnly = !!linkedAccountManager;
 
   // Email validation helper
   const isValidEmail = (email: string): boolean => {
@@ -38,6 +44,7 @@ export function TelkomContactSection({
 
   // Handle phone formatting
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return; // Don't allow changes in read-only mode
     const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
     setValue('kontak_person_telkom.telepon', value, { shouldDirty: true });
   };
@@ -53,6 +60,21 @@ export function TelkomContactSection({
       isRequired={false}
     >
       <div className="space-y-6">
+        {/* Read-only indicator when linked to Account Manager */}
+        {isReadOnly && (
+          <div className="flex items-start gap-3 p-3 bg-blue-50/70 border border-blue-200 rounded-lg">
+            <Link2 className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                Data diambil dari Account Manager: {linkedAccountManager?.name}
+              </p>
+              <p className="text-xs text-blue-700 mt-0.5">
+                Untuk mengubah data kontak, silakan edit data Account Manager di halaman master data.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Contact Name */}
         <div className="space-y-2">
           <Label htmlFor="telkom_contact_name" className="text-sm font-medium flex items-center gap-2">
@@ -63,7 +85,8 @@ export function TelkomContactSection({
             id="telkom_contact_name"
             {...register('kontak_person_telkom.nama')}
             placeholder="Nama lengkap kontak person Telkom"
-            className={errors.kontak_person_telkom?.nama ? 'border-red-500' : ''}
+            className={errors.kontak_person_telkom?.nama ? 'border-red-500' : isReadOnly ? 'bg-muted/50' : ''}
+            disabled={isReadOnly}
           />
           {errors.kontak_person_telkom?.nama && (
             <p className="text-xs text-red-500">
@@ -82,7 +105,8 @@ export function TelkomContactSection({
             id="telkom_contact_position"
             {...register('kontak_person_telkom.jabatan')}
             placeholder="Contoh: Account Manager, Sales Executive"
-            className={errors.kontak_person_telkom?.jabatan ? 'border-red-500' : ''}
+            className={errors.kontak_person_telkom?.jabatan ? 'border-red-500' : isReadOnly ? 'bg-muted/50' : ''}
+            disabled={isReadOnly}
           />
           {errors.kontak_person_telkom?.jabatan && (
             <p className="text-xs text-red-500">
@@ -112,13 +136,16 @@ export function TelkomContactSection({
               className={
                 errors.kontak_person_telkom?.email
                   ? 'border-red-500'
+                  : isReadOnly
+                  ? 'bg-muted/50'
                   : telkomEmailValue && !isValidEmail(telkomEmailValue)
                   ? 'border-orange-300'
                   : ''
               }
+              disabled={isReadOnly}
             />
             {/* Validation indicator - shown when typing invalid email */}
-            {telkomEmailValue && !isValidEmail(telkomEmailValue) && !errors.kontak_person_telkom?.email && (
+            {!isReadOnly && telkomEmailValue && !isValidEmail(telkomEmailValue) && !errors.kontak_person_telkom?.email && (
               <div className="flex items-start gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5 text-orange-500 mt-0.5" />
                 <p className="text-xs text-orange-600">
@@ -132,7 +159,7 @@ export function TelkomContactSection({
               </p>
             )}
             {/* Format guide */}
-            {!telkomEmailValue && (
+            {!isReadOnly && !telkomEmailValue && (
               <p className="text-xs text-muted-foreground">
                 Format: nama@telkom.co.id
               </p>
@@ -153,13 +180,16 @@ export function TelkomContactSection({
               className={
                 errors.kontak_person_telkom?.telepon
                   ? 'border-red-500'
+                  : isReadOnly
+                  ? 'bg-muted/50'
                   : telkomPhoneValue && !isValidPhone(telkomPhoneValue)
                   ? 'border-orange-300'
                   : ''
               }
+              disabled={isReadOnly}
             />
             {/* Validation indicator - shown when typing invalid phone */}
-            {telkomPhoneValue && !isValidPhone(telkomPhoneValue) && !errors.kontak_person_telkom?.telepon && (
+            {!isReadOnly && telkomPhoneValue && !isValidPhone(telkomPhoneValue) && !errors.kontak_person_telkom?.telepon && (
               <div className="flex items-start gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5 text-orange-500 mt-0.5" />
                 <p className="text-xs text-orange-600">
@@ -178,7 +208,7 @@ export function TelkomContactSection({
               </p>
             )}
             {/* Format guide */}
-            {!telkomPhoneValue && (
+            {!isReadOnly && !telkomPhoneValue && (
               <p className="text-xs text-muted-foreground">
                 Format: 08xxxxxxxxxx, 021xxxxxxxx, atau +628xxxxxxxxxx
               </p>
