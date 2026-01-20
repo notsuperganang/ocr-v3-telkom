@@ -26,6 +26,7 @@ import {
   type TelkomContractData
 } from '@/lib/validation';
 import { useUpdateExtraction, useConfirmExtraction, useDiscardExtraction } from '@/hooks/useExtraction';
+import type { AccountManagerResponse } from '@/types/api';
 
 // Field path prefix to section ID mapping for scroll-to-error
 const fieldToSectionId: Record<string, string> = {
@@ -188,11 +189,36 @@ export function ExtractionForm({
   const [accountId, setAccountId] = React.useState<number | null>(initialAccountId ?? null);
   const [contractYear, setContractYear] = React.useState<number | null>(initialContractYear ?? null);
   const [telkomContactId, setTelkomContactId] = React.useState<number | null>(initialTelkomContactId ?? null);
+  
+  // Linked Account Manager state (derived from selected account)
+  const [linkedAccountManager, setLinkedAccountManager] = React.useState<AccountManagerResponse | null>(null);
+  
   const [linkageErrors, setLinkageErrors] = React.useState<{
     accountId?: string;
     contractYear?: string;
-    telkomContactId?: string;
   }>({});
+
+  // Handle Account Manager data from AccountLinkageSection
+  const handleAccountManagerData = React.useCallback((amData: AccountManagerResponse | null) => {
+    setLinkedAccountManager(amData);
+    
+    // Auto-set telkomContactId to AM's id
+    setTelkomContactId(amData?.id ?? null);
+    
+    // Auto-populate Telkom Contact fields
+    if (amData) {
+      setValue('kontak_person_telkom.nama', amData.name || '', { shouldDirty: true });
+      setValue('kontak_person_telkom.jabatan', amData.title || '', { shouldDirty: true });
+      setValue('kontak_person_telkom.email', amData.email || '', { shouldDirty: true });
+      setValue('kontak_person_telkom.telepon', amData.phone || '', { shouldDirty: true });
+    } else {
+      // Clear fields when no AM
+      setValue('kontak_person_telkom.nama', '', { shouldDirty: true });
+      setValue('kontak_person_telkom.jabatan', '', { shouldDirty: true });
+      setValue('kontak_person_telkom.email', '', { shouldDirty: true });
+      setValue('kontak_person_telkom.telepon', '', { shouldDirty: true });
+    }
+  }, [setValue]);
 
   // Watch all form data
   const currentFormData = watch();
@@ -602,10 +628,9 @@ export function ExtractionForm({
             <AccountLinkageSection
               accountId={accountId}
               contractYear={contractYear}
-              telkomContactId={telkomContactId}
               onAccountChange={setAccountId}
               onContractYearChange={setContractYear}
-              onTelkomContactChange={setTelkomContactId}
+              onAccountManagerData={handleAccountManagerData}
               defaultContractYear={defaultContractYear}
               errors={linkageErrors}
             />
@@ -663,6 +688,7 @@ export function ExtractionForm({
               errors={errors}
               setValue={setValue}
               watch={watch}
+              linkedAccountManager={linkedAccountManager}
             />
           </div>
         </div>
