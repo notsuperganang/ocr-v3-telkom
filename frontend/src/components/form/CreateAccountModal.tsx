@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -33,6 +33,9 @@ import {
   accountCreateSchema,
   type AccountCreateInput,
 } from '@/lib/masterDataValidation';
+import { CreateSegmentModal } from '@/components/form/CreateSegmentModal';
+import { CreateWitelModal } from '@/components/form/CreateWitelModal';
+import { CreateAccountManagerModal } from '@/components/form/CreateAccountManagerModal';
 
 interface CreateAccountModalProps {
   open: boolean;
@@ -68,6 +71,11 @@ export function CreateAccountModal({
   // Submit state
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [validationErrors, setValidationErrors] = React.useState<Record<string, string>>({});
+
+  // Sub-modal states
+  const [createSegmentModalOpen, setCreateSegmentModalOpen] = React.useState(false);
+  const [createWitelModalOpen, setCreateWitelModalOpen] = React.useState(false);
+  const [createAMModalOpen, setCreateAMModalOpen] = React.useState(false);
 
   // Load master data when modal opens
   React.useEffect(() => {
@@ -156,6 +164,24 @@ export function CreateAccountModal({
     }
   };
 
+  // Handle new segment created
+  const handleSegmentCreated = (newSegment: SegmentResponse) => {
+    setSegments((prev) => [...prev, newSegment]);
+    setFormData({ ...formData, segment_id: newSegment.id });
+  };
+
+  // Handle new witel created
+  const handleWitelCreated = (newWitel: WitelResponse) => {
+    setWitels((prev) => [...prev, newWitel]);
+    setFormData({ ...formData, witel_id: newWitel.id });
+  };
+
+  // Handle new AM created
+  const handleAMCreated = (newAM: AccountManagerResponse) => {
+    setAccountManagers((prev) => [...prev, newAM]);
+    setFormData({ ...formData, account_manager_id: newAM.id });
+  };
+
   const handleClose = () => {
     resetForm();
     onOpenChange(false);
@@ -238,52 +264,74 @@ export function CreateAccountModal({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="create-account-segment">Segment</Label>
-                <Select
-                  value={formData.segment_id?.toString() || 'none'}
-                  onValueChange={(value) => {
-                    setFormData({
-                      ...formData,
-                      segment_id: value === 'none' ? null : parseInt(value)
-                    });
-                  }}
-                >
-                  <SelectTrigger id="create-account-segment">
-                    <SelectValue placeholder="Tidak ada" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Tidak ada</SelectItem>
-                    {segments.map((segment) => (
-                      <SelectItem key={segment.id} value={segment.id.toString()}>
-                        {segment.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.segment_id?.toString() || 'none'}
+                    onValueChange={(value) => {
+                      setFormData({
+                        ...formData,
+                        segment_id: value === 'none' ? null : parseInt(value)
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="create-account-segment" className="flex-1">
+                      <SelectValue placeholder="Tidak ada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Tidak ada</SelectItem>
+                      {segments.map((segment) => (
+                        <SelectItem key={segment.id} value={segment.id.toString()}>
+                          {segment.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCreateSegmentModalOpen(true)}
+                    className="flex-shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="create-account-witel">Witel</Label>
-                <Select
-                  value={formData.witel_id?.toString() || 'none'}
-                  onValueChange={(value) => {
-                    setFormData({
-                      ...formData,
-                      witel_id: value === 'none' ? null : parseInt(value)
-                    });
-                  }}
-                >
-                  <SelectTrigger id="create-account-witel">
-                    <SelectValue placeholder="Tidak ada" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Tidak ada</SelectItem>
-                    {witels.map((witel) => (
-                      <SelectItem key={witel.id} value={witel.id.toString()}>
-                        {witel.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.witel_id?.toString() || 'none'}
+                    onValueChange={(value) => {
+                      setFormData({
+                        ...formData,
+                        witel_id: value === 'none' ? null : parseInt(value)
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="create-account-witel" className="flex-1">
+                      <SelectValue placeholder="Tidak ada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Tidak ada</SelectItem>
+                      {witels.map((witel) => (
+                        <SelectItem key={witel.id} value={witel.id.toString()}>
+                          {witel.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCreateWitelModalOpen(true)}
+                    className="flex-shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -291,27 +339,38 @@ export function CreateAccountModal({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="create-account-am">Account Manager</Label>
-                <Select
-                  value={formData.account_manager_id?.toString() || 'none'}
-                  onValueChange={(value) => {
-                    setFormData({
-                      ...formData,
-                      account_manager_id: value === 'none' ? null : parseInt(value)
-                    });
-                  }}
-                >
-                  <SelectTrigger id="create-account-am">
-                    <SelectValue placeholder="Tidak ada" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Tidak ada</SelectItem>
-                    {accountManagers.map((am) => (
-                      <SelectItem key={am.id} value={am.id.toString()}>
-                        {am.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.account_manager_id?.toString() || 'none'}
+                    onValueChange={(value) => {
+                      setFormData({
+                        ...formData,
+                        account_manager_id: value === 'none' ? null : parseInt(value)
+                      });
+                    }}
+                  >
+                    <SelectTrigger id="create-account-am" className="flex-1">
+                      <SelectValue placeholder="Tidak ada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Tidak ada</SelectItem>
+                      {accountManagers.map((am) => (
+                        <SelectItem key={am.id} value={am.id.toString()}>
+                          {am.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCreateAMModalOpen(true)}
+                    className="flex-shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -367,6 +426,25 @@ export function CreateAccountModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Sub-modals for creating related entities */}
+      <CreateSegmentModal
+        open={createSegmentModalOpen}
+        onOpenChange={setCreateSegmentModalOpen}
+        onSuccess={handleSegmentCreated}
+      />
+
+      <CreateWitelModal
+        open={createWitelModalOpen}
+        onOpenChange={setCreateWitelModalOpen}
+        onSuccess={handleWitelCreated}
+      />
+
+      <CreateAccountManagerModal
+        open={createAMModalOpen}
+        onOpenChange={setCreateAMModalOpen}
+        onSuccess={handleAMCreated}
+      />
     </Dialog>
   );
 }
