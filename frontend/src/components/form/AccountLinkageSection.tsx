@@ -1,36 +1,32 @@
 import React from 'react';
-import { Building2, Calendar, User } from 'lucide-react';
+import { Building2, Calendar, User, Link2, Info } from 'lucide-react';
 import { FormSection } from '@/components/ui/form-section';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CreateAccountModal } from '@/components/form/CreateAccountModal';
-import { CreateAccountManagerModal } from '@/components/form/CreateAccountManagerModal';
 import { apiService } from '@/services/api';
 import type { AccountResponse, AccountManagerResponse } from '@/types/api';
 
 interface AccountLinkageSectionProps {
   accountId: number | null;
   contractYear: number | null;
-  telkomContactId: number | null;
   onAccountChange: (accountId: number | null) => void;
   onContractYearChange: (year: number) => void;
-  onTelkomContactChange: (contactId: number | null) => void;
+  onAccountManagerData: (amData: AccountManagerResponse | null) => void;
   defaultContractYear?: number;
   errors?: {
     accountId?: string;
     contractYear?: string;
-    telkomContactId?: string;
   };
 }
 
 export function AccountLinkageSection({
   accountId,
   contractYear,
-  telkomContactId,
   onAccountChange,
   onContractYearChange,
-  onTelkomContactChange,
+  onAccountManagerData,
   defaultContractYear,
   errors,
 }: AccountLinkageSectionProps) {
@@ -38,10 +34,10 @@ export function AccountLinkageSection({
   const [accountManagers, setAccountManagers] = React.useState<AccountManagerResponse[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = React.useState(true);
   const [isLoadingManagers, setIsLoadingManagers] = React.useState(true);
+  const [linkedAM, setLinkedAM] = React.useState<AccountManagerResponse | null>(null);
 
   // Modal states
   const [createAccountModalOpen, setCreateAccountModalOpen] = React.useState(false);
-  const [createAMModalOpen, setCreateAMModalOpen] = React.useState(false);
 
   // Load accounts on mount
   React.useEffect(() => {
@@ -59,7 +55,7 @@ export function AccountLinkageSection({
     loadAccounts();
   }, []);
 
-  // Load account managers on mount
+  // Load account managers on mount (for looking up full AM data by ID)
   React.useEffect(() => {
     const loadManagers = async () => {
       try {
@@ -74,6 +70,46 @@ export function AccountLinkageSection({
     };
     loadManagers();
   }, []);
+
+  // When accountId changes, derive AM from selected account
+  React.useEffect(() => {
+    const deriveAccountManager = async () => {
+      if (!accountId) {
+        setLinkedAM(null);
+        onAccountManagerData(null);
+        return;
+      }
+
+      const selectedAccount = accounts.find((acc) => acc.id === accountId);
+      if (!selectedAccount?.account_manager?.id) {
+        setLinkedAM(null);
+        onAccountManagerData(null);
+        return;
+      }
+
+      const amId = selectedAccount.account_manager.id;
+
+      // Try to find full AM data from already loaded list
+      const fullAM = accountManagers.find((am) => am.id === amId);
+      if (fullAM) {
+        setLinkedAM(fullAM);
+        onAccountManagerData(fullAM);
+      } else if (!isLoadingManagers) {
+        // If not found in list and loading is done, fetch directly
+        try {
+          const amData = await apiService.getAccountManager(amId);
+          setLinkedAM(amData);
+          onAccountManagerData(amData);
+        } catch (error) {
+          console.error('Failed to fetch Account Manager details:', error);
+          setLinkedAM(null);
+          onAccountManagerData(null);
+        }
+      }
+    };
+
+    deriveAccountManager();
+  }, [accountId, accounts, accountManagers, isLoadingManagers, onAccountManagerData]);
 
   // Set default contract year from period_start if not set
   React.useEffect(() => {
@@ -101,12 +137,6 @@ export function AccountLinkageSection({
     onAccountChange(newAccount.id);
   };
 
-  // Handle new AM created
-  const handleAMCreated = (newManager: AccountManagerResponse) => {
-    setAccountManagers((prev) => [...prev, newManager]);
-    onTelkomContactChange(newManager.id);
-  };
-
   // Transform accounts to searchable select items
   const accountItems = React.useMemo(() => {
     return accounts.map((account) => ({
@@ -117,17 +147,6 @@ export function AccountLinkageSection({
       searchText: account.account_number ?? '', // Allow searching by account number
     }));
   }, [accounts]);
-
-  // Transform account managers to searchable select items
-  const amItems = React.useMemo(() => {
-    return accountManagers.map((manager) => ({
-      value: manager.id.toString(),
-      label: manager.title
-        ? `${manager.name} - ${manager.title}`
-        : manager.name,
-      searchText: manager.email ?? '', // Allow searching by email
-    }));
-  }, [accountManagers]);
 
   return (
     <>
@@ -182,26 +201,38 @@ export function AccountLinkageSection({
             )}
           </div>
 
-          {/* Account Manager Selection - with search */}
+          {/* Account Manager - Read-only display (derived from account) */}
           <div className="space-y-2">
-            <Label htmlFor="telkom_contact_id" className="text-sm font-medium flex items-center gap-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
               <User className="w-4 h-4" />
               Account Manager
             </Label>
-            <SearchableSelect
-              value={telkomContactId?.toString() ?? null}
-              onValueChange={(value) => onTelkomContactChange(value ? parseInt(value, 10) : null)}
-              items={amItems}
-              placeholder="Pilih Account Manager"
-              searchPlaceholder="Cari nama atau email..."
-              emptyText="Tidak ada Account Manager ditemukan"
-              isLoading={isLoadingManagers}
-              error={!!errors?.telkomContactId}
-              onAddNew={() => setCreateAMModalOpen(true)}
-              addNewLabel="Tambah AM Baru"
-            />
-            {errors?.telkomContactId && (
-              <p className="text-xs text-red-500">{errors.telkomContactId}</p>
+            {isLoadingManagers && accountId ? (
+              <div className="h-10 bg-muted/50 rounded-md animate-pulse" />
+            ) : linkedAM ? (
+              <div className="flex items-center gap-3 p-3 bg-blue-50/70 border border-blue-200 rounded-lg">
+                <Link2 className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-blue-900 truncate">
+                    {linkedAM.name}
+                  </p>
+                  {linkedAM.title && (
+                    <p className="text-xs text-blue-700 truncate">{linkedAM.title}</p>
+                  )}
+                </div>
+              </div>
+            ) : accountId ? (
+              <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <Info className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-orange-700">
+                  Akun ini belum memiliki Account Manager. Silakan assign AM di halaman detail akun.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-muted/50 border border-border rounded-lg">
+                <User className="w-4 h-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Pilih akun untuk melihat Account Manager</p>
+              </div>
             )}
           </div>
         </div>
@@ -212,13 +243,6 @@ export function AccountLinkageSection({
         open={createAccountModalOpen}
         onOpenChange={setCreateAccountModalOpen}
         onSuccess={handleAccountCreated}
-      />
-
-      {/* Create Account Manager Modal */}
-      <CreateAccountManagerModal
-        open={createAMModalOpen}
-        onOpenChange={setCreateAMModalOpen}
-        onSuccess={handleAMCreated}
       />
     </>
   );
