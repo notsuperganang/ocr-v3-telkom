@@ -574,3 +574,34 @@ export interface AccountContractsResponse {
   page: number;
   per_page: number;
 }
+
+export interface SegmentDistribution {
+  segment_id: number;
+  segment_name: string;
+  account_count: number;
+  percentage: number;
+}
+
+export interface OfficerDistribution {
+  officer_id: number;
+  officer_username: string;
+  officer_full_name: string | null;
+  account_count: number;
+  percentage: number;
+}
+
+export interface MonthlyGrowth {
+  month: string;
+  count: number;
+}
+
+export interface AccountStatsSummary {
+  total_accounts: number;
+  active_accounts: number;
+  inactive_accounts: number;
+  accounts_this_month: number;
+  accounts_last_month: number;
+  segment_distribution: SegmentDistribution[];
+  officer_distribution: OfficerDistribution[];
+  monthly_growth: MonthlyGrowth[];
+}
