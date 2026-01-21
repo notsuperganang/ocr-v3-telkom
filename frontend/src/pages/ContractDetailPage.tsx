@@ -1,7 +1,7 @@
 // Contract Detail Page with Telkom branding and smooth animations
 import * as React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import type { LucideIcon } from 'lucide-react';
