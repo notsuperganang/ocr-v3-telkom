@@ -177,8 +177,8 @@ function SegmentPieChart({ data }: { data: SegmentDistribution[] }) {
       <Card className={`${designTokens.radius.xl} ${designTokens.shadow.sm} ${designTokens.border} ${designTokens.surface.base} h-full overflow-hidden transition-all duration-200 group-hover:shadow-[0_18px_48px_-32px_rgba(215,25,32,0.55)]`}>
         <CardContent className="p-3 h-full flex flex-col">
           <h3 className="text-base font-semibold mb-1">Distribusi Segment</h3>
-          <div className="flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="flex-1 min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <PieChart>
               <Pie
                 data={chartData}
