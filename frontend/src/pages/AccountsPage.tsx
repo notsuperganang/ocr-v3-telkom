@@ -78,6 +78,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 
 export function AccountsPage() {
   const { isManager, isStaff } = useAuth();
@@ -355,11 +356,20 @@ export function AccountsPage() {
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Manajemen Account</h1>
-            <p className="text-muted-foreground">
-              Kelola data customer dan account Telkom
-            </p>
+          <div className="flex items-center gap-4">
+            <div
+              className={twMerge(
+                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner'
+              )}
+            >
+              <Building2 className="size-7 text-[#d71920]" aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Manajemen Account</h1>
+              <p className="text-muted-foreground">
+                Kelola data customer dan account Telkom
+              </p>
+            </div>
           </div>
           {(isManager || isStaff) && (
             <Button onClick={() => setCreateDialogOpen(true)}>
