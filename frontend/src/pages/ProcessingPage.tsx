@@ -48,7 +48,6 @@ export function ProcessingPage() {
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
 
   useEffect(() => {
     if (jobId) {
@@ -78,23 +77,10 @@ export function ProcessingPage() {
     }
   };
 
-  const handleConfirm = async () => {
+  // Navigate to review page for detailed review and confirmation with account linkage
+  const handleReview = () => {
     if (!jobId) return;
-
-    try {
-      setIsConfirming(true);
-      await apiService.confirmJob(parseInt(jobId));
-
-      // Navigate to contracts page after successful confirmation
-      navigate('/contracts', {
-        state: { message: 'Data berhasil dikonfirmasi dan disimpan sebagai kontrak' }
-      });
-
-    } catch (err: any) {
-      setError(err.message || 'Gagal mengkonfirmasi data');
-    } finally {
-      setIsConfirming(false);
-    }
+    navigate(`/review/${jobId}`);
   };
 
   const getStatusBadge = (status: string) => {
@@ -331,21 +317,11 @@ export function ProcessingPage() {
             {/* Action Buttons */}
             <div className="flex gap-3 mt-6 pt-4 border-t">
               <Button
-                onClick={handleConfirm}
-                disabled={isConfirming}
+                onClick={handleReview}
                 className="flex items-center gap-2"
               >
-                {isConfirming ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Mengkonfirmasi...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Konfirmasi Data
-                  </>
-                )}
+                <FileText className="w-4 h-4" />
+                Review & Konfirmasi
               </Button>
 
               <Button
