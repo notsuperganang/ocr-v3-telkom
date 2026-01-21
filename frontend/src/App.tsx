@@ -18,6 +18,7 @@ import { SegmentsPage } from './pages/SegmentsPage';
 import { WitelsPage } from './pages/WitelsPage';
 import { AccountManagersPage } from './pages/AccountManagersPage';
 import { AccountsPage } from './pages/AccountsPage';
+import { AccountHistoryPage } from './pages/AccountHistoryPage';
 import { Toaster } from './components/ui/toaster';
 
 // Create a client
@@ -57,6 +58,7 @@ function App() {
                       <Route path="/witels" element={<WitelsPage />} />
                       <Route path="/account-managers" element={<AccountManagersPage />} />
                       <Route path="/accounts" element={<AccountsPage />} />
+                      <Route path="/account-history" element={<AccountHistoryPage />} />
                       <Route path="/processing/:jobId" element={<ProcessingPage />} />
                       <Route path="/review/:jobId" element={<ReviewPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
