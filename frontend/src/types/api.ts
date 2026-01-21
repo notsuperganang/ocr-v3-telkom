@@ -553,3 +553,24 @@ export interface AccountListResponse {
   per_page: number;
   total_pages: number;
 }
+
+export interface AccountContractBrief {
+  id: number;
+  contract_year: number;
+  contract_number: string | null;
+  customer_name: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  payment_method: string | null;
+  total_contract_value: string;
+  created_at: string;
+}
+
+export interface AccountContractsResponse {
+  account_id: number;
+  account_name: string;
+  contracts: AccountContractBrief[];
+  total: number;
+  page: number;
+  per_page: number;
+}
