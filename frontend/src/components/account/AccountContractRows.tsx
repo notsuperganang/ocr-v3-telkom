@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { FileText, Eye, Edit2, Loader2 } from 'lucide-react';
 import { TableCell } from '../ui/table';
 import { Button } from '../ui/button';

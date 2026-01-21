@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../ui/badge';
 import type { AccountResponse } from '../../types/api';
 import { AccountContractRows } from './AccountContractRows';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'motion/react';
 
 interface AccountHistoryTableProps {
   accounts: AccountResponse[];

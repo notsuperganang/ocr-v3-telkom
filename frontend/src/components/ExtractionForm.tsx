@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { ErrorSummaryOverlay, type ErrorItem } from '@/components/ui/error-summary-overlay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { CustomerInfoSection } from '@/components/form/CustomerInfoSection';
 import { MainServicesSection } from '@/components/form/MainServicesSection';
