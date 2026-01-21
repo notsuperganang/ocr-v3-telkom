@@ -15,6 +15,7 @@ import {
   Eye,
   FileJson,
   FileText,
+  FolderOpen,
   ListFilter,
   RefreshCw,
   Search,
@@ -2229,13 +2230,23 @@ export function ContractsPage() {
       <header className="flex flex-col gap-6">
         <Breadcrumbs />
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold text-foreground">
-              Telkom Contracts
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Pantau performa ekstraksi dan kelola kontrak secara terpusat.
-            </p>
+          <div className="flex items-center gap-4">
+            <div
+              className={twMerge(
+                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner',
+                designTokens.focusRing
+              )}
+            >
+              <FolderOpen className="size-7 text-[#d71920]" aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-semibold text-foreground">
+                Telkom Contracts
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Pantau performa ekstraksi dan kelola kontrak secara terpusat.
+              </p>
+            </div>
           </div>
           <Button
             size="lg"
