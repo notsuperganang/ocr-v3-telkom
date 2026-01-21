@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.api.dependencies import get_db_and_user
 from app.models.database import Account, Segment, Witel, AccountManager, User, Contract
@@ -136,6 +136,49 @@ class AccountListResponse(BaseModel):
     page: int
     per_page: int
     total_pages: int
+
+
+# === Statistics Schemas ===
+
+class MonthlyGrowth(BaseModel):
+    """Monthly account growth data for sparkline"""
+    month: str  # "2025-01"
+    count: int  # Total accounts at end of month
+
+
+class SegmentDistribution(BaseModel):
+    """Account distribution by segment"""
+    segment_id: int
+    segment_name: str
+    account_count: int
+    percentage: float
+
+
+class OfficerDistribution(BaseModel):
+    """Account distribution by assigned officer"""
+    officer_id: int
+    officer_username: str
+    officer_full_name: Optional[str]
+    account_count: int
+    percentage: float
+
+
+class AccountStatsSummary(BaseModel):
+    """Account statistics summary for KPI dashboard"""
+    total_accounts: int
+    active_accounts: int
+    inactive_accounts: int
+    accounts_this_month: int
+    accounts_last_month: int
+
+    # Segment distribution
+    segment_distribution: List[SegmentDistribution]
+
+    # Officer distribution
+    officer_distribution: List[OfficerDistribution]
+
+    # Monthly growth data for sparkline (last 6 months)
+    monthly_growth: List[MonthlyGrowth]
 
 
 # === Helper Functions ===
@@ -619,4 +662,105 @@ async def get_account_contracts(
         total=total,
         page=page,
         per_page=per_page
+    )
+
+
+@router.get("/stats/summary", response_model=AccountStatsSummary)
+async def get_account_stats_summary(
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """
+    Get aggregated account statistics for KPI dashboard.
+    Returns total counts, growth metrics, segment distribution, officer distribution, and monthly growth.
+    """
+    db, _ = db_and_user
+
+    # 1. Total counts
+    total_query = db.query(Account)
+    total_accounts = total_query.count()
+    active_accounts = total_query.filter(Account.is_active == True).count()
+    inactive_accounts = total_accounts - active_accounts
+
+    # 2. Growth metrics (this month vs last month)
+    now = datetime.now()
+    first_day_this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    first_day_last_month = (first_day_this_month - timedelta(days=1)).replace(day=1)
+
+    accounts_this_month = db.query(Account).filter(
+        Account.created_at >= first_day_this_month
+    ).count()
+
+    accounts_last_month = db.query(Account).filter(
+        Account.created_at >= first_day_last_month,
+        Account.created_at < first_day_this_month
+    ).count()
+
+    # 3. Segment distribution
+    segment_stats = db.query(
+        Segment.id,
+        Segment.name,
+        func.count(Account.id).label('count')
+    ).join(Account, Account.segment_id == Segment.id)\
+     .group_by(Segment.id, Segment.name)\
+     .all()
+
+    segment_distribution = [
+        SegmentDistribution(
+            segment_id=seg_id,
+            segment_name=seg_name,
+            account_count=count,
+            percentage=round((count / total_accounts * 100), 2) if total_accounts > 0 else 0
+        )
+        for seg_id, seg_name, count in segment_stats
+    ]
+
+    # 4. Officer distribution (assigned_officer_id)
+    officer_stats = db.query(
+        User.id,
+        User.username,
+        User.full_name,
+        func.count(Account.id).label('count')
+    ).join(Account, Account.assigned_officer_id == User.id)\
+     .group_by(User.id, User.username, User.full_name)\
+     .order_by(desc('count'))\
+     .all()
+
+    officer_distribution = [
+        OfficerDistribution(
+            officer_id=officer_id,
+            officer_username=username,
+            officer_full_name=full_name,
+            account_count=count,
+            percentage=round((count / total_accounts * 100), 2) if total_accounts > 0 else 0
+        )
+        for officer_id, username, full_name, count in officer_stats
+    ]
+
+    # 5. Monthly growth (last 6 months for sparkline)
+    monthly_growth_data = []
+    for i in range(5, -1, -1):  # Last 6 months
+        month_date = now - timedelta(days=30 * i)
+        first_day = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_day = (first_day + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+
+        count = db.query(Account).filter(
+            Account.created_at <= last_day
+        ).count()
+
+        monthly_growth_data.append(
+            MonthlyGrowth(
+                month=first_day.strftime("%Y-%m"),
+                count=count
+            )
+        )
+
+    return AccountStatsSummary(
+        total_accounts=total_accounts,
+        active_accounts=active_accounts,
+        inactive_accounts=inactive_accounts,
+        accounts_this_month=accounts_this_month,
+        accounts_last_month=accounts_last_month,
+        segment_distribution=segment_distribution,
+        officer_distribution=officer_distribution,
+        monthly_growth=monthly_growth_data
     )
