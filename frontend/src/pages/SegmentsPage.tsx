@@ -57,7 +57,7 @@ import {
   type SegmentCreateInput,
   type SegmentUpdateInput,
 } from '@/lib/masterDataValidation';
-import { Layers, Plus, Search, MoreHorizontal, Edit, XCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Target, Plus, Search, MoreHorizontal, Edit, XCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
@@ -311,7 +311,7 @@ export function SegmentsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5" />
+              <Target className="h-5 w-5" />
               Daftar Segment
             </CardTitle>
             <CardDescription>
