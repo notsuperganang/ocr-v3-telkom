@@ -11,7 +11,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import Account, Segment, Witel, AccountManager, User
+from app.models.database import Account, Segment, Witel, AccountManager, User, Contract
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
@@ -77,6 +77,32 @@ class UserBrief(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AccountContractBrief(BaseModel):
+    """Brief contract information for account history"""
+    id: int
+    contract_year: int
+    contract_number: Optional[str]
+    customer_name: Optional[str]
+    period_start: Optional[str]
+    period_end: Optional[str]
+    payment_method: Optional[str]
+    total_contract_value: str  # Decimal converted to string for JSON
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AccountContractsResponse(BaseModel):
+    """Response for account contracts listing"""
+    account_id: int
+    account_name: str
+    contracts: List[AccountContractBrief]
+    total: int
+    page: int
+    per_page: int
 
 
 class AccountResponse(BaseModel):
@@ -160,7 +186,8 @@ async def list_accounts(
         joinedload(Account.witel),
         joinedload(Account.account_manager),
         joinedload(Account.assigned_officer),
-        joinedload(Account.creator)
+        joinedload(Account.creator),
+        joinedload(Account.contracts)  # Load contracts for counting
     )
 
     if active_only:
@@ -199,7 +226,10 @@ async def list_accounts(
     total_pages = (total + per_page - 1) // per_page
 
     return AccountListResponse(
-        accounts=[build_account_response(acc) for acc in accounts],
+        accounts=[
+            build_account_response(acc, contract_count=len(acc.contracts) if acc.contracts else 0)
+            for acc in accounts
+        ],
         total=total,
         page=page,
         per_page=per_page,
@@ -517,3 +547,76 @@ async def activate_account(
     db.refresh(account)
 
     return build_account_response(account)
+
+
+@router.get("/{account_id}/contracts", response_model=AccountContractsResponse)
+async def get_account_contracts(
+    account_id: int,
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query("contract_year", description="Sort by field (contract_year, created_at, total_contract_value)"),
+    sort_order: str = Query("desc", description="Sort order (asc, desc)"),
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """
+    Fetch contracts for a specific account with pagination and sorting.
+    Returns contract history ordered by year (descending by default).
+    """
+    db, _ = db_and_user
+
+    # Verify account exists
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Account not found"
+        )
+
+    # Build query
+    query = db.query(Contract).filter(Contract.account_id == account_id)
+
+    # Apply sorting
+    if sort_by == "contract_year":
+        order_col = Contract.contract_year
+    elif sort_by == "created_at":
+        order_col = Contract.created_at
+    elif sort_by == "total_contract_value":
+        order_col = Contract.total_contract_value
+    else:
+        # Default to contract_year if invalid sort_by
+        order_col = Contract.contract_year
+
+    if sort_order == "desc":
+        query = query.order_by(desc(order_col))
+    else:
+        query = query.order_by(order_col)
+
+    # Get total count
+    total = query.count()
+
+    # Paginate
+    contracts = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    # Build response
+    contract_briefs = []
+    for contract in contracts:
+        contract_briefs.append(AccountContractBrief(
+            id=contract.id,
+            contract_year=contract.contract_year,
+            contract_number=contract.contract_number,
+            customer_name=contract.customer_name,
+            period_start=contract.period_start.isoformat() if contract.period_start else None,
+            period_end=contract.period_end.isoformat() if contract.period_end else None,
+            payment_method=contract.payment_method,
+            total_contract_value=str(contract.total_contract_value) if contract.total_contract_value else "0",
+            created_at=contract.created_at
+        ))
+
+    return AccountContractsResponse(
+        account_id=account.id,
+        account_name=account.name,
+        contracts=contract_briefs,
+        total=total,
+        page=page,
+        per_page=per_page
+    )
