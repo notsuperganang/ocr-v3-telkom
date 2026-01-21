@@ -20,7 +20,8 @@ import {
   Layers,
   MapPin,
   UserCog,
-  Building2
+  Building2,
+  Target
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -48,6 +49,11 @@ const navigationLinks: Links[] = [
     label: 'Kontrak',
     href: '/contracts',
     icon: <FolderOpen className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: 'Overview Akun',
+    href: '/account-history',
+    icon: <Layers className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   },
 ];
 
@@ -150,7 +156,7 @@ export function Layout({ children }: LayoutProps) {
     {
       label: 'Segment',
       href: '/segments',
-      icon: <Layers className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      icon: <Target className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
     {
       label: 'Witel',
