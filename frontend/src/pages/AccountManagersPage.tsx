@@ -58,6 +58,7 @@ import {
   type AccountManagerUpdateInput,
 } from '@/lib/masterDataValidation';
 import { UserCog, Plus, Search, MoreHorizontal, Edit, XCircle, CheckCircle, Loader2, ChevronLeft, ChevronRight, Mail, Phone } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 
@@ -271,11 +272,20 @@ export function AccountManagersPage() {
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Manajemen Account Manager</h1>
-            <p className="text-muted-foreground">
-              Kelola data Account Manager Telkom
-            </p>
+          <div className="flex items-center gap-4">
+            <div
+              className={twMerge(
+                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner'
+              )}
+            >
+              <UserCog className="size-7 text-[#d71920]" aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Manajemen Account Manager</h1>
+              <p className="text-muted-foreground">
+                Kelola data Account Manager Telkom
+              </p>
+            </div>
           </div>
           {(isManager || isStaff) && (
             <Button onClick={() => setCreateDialogOpen(true)}>
