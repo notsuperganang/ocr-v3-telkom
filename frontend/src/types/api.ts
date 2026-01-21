@@ -579,6 +579,7 @@ export interface SegmentDistribution {
   segment_id: number;
   segment_name: string;
   account_count: number;
+  contract_count: number;
   percentage: number;
 }
 
@@ -587,6 +588,7 @@ export interface OfficerDistribution {
   officer_username: string;
   officer_full_name: string | null;
   account_count: number;
+  contract_count: number;
   percentage: number;
 }
 

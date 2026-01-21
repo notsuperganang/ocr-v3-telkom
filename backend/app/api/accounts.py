@@ -151,6 +151,7 @@ class SegmentDistribution(BaseModel):
     segment_id: int
     segment_name: str
     account_count: int
+    contract_count: int
     percentage: float
 
 
@@ -160,6 +161,7 @@ class OfficerDistribution(BaseModel):
     officer_username: str
     officer_full_name: Optional[str]
     account_count: int
+    contract_count: int
     percentage: float
 
 
@@ -695,12 +697,15 @@ async def get_account_stats_summary(
         Account.created_at < first_day_this_month
     ).count()
 
-    # 3. Segment distribution
+    # 3. Segment distribution (active accounts only)
     segment_stats = db.query(
         Segment.id,
         Segment.name,
-        func.count(Account.id).label('count')
+        func.count(func.distinct(Account.id)).label('account_count'),
+        func.count(Contract.id).label('contract_count')
     ).join(Account, Account.segment_id == Segment.id)\
+     .outerjoin(Contract, Contract.account_id == Account.id)\
+     .filter(Account.is_active == True)\
      .group_by(Segment.id, Segment.name)\
      .all()
 
@@ -708,21 +713,25 @@ async def get_account_stats_summary(
         SegmentDistribution(
             segment_id=seg_id,
             segment_name=seg_name,
-            account_count=count,
-            percentage=round((count / total_accounts * 100), 2) if total_accounts > 0 else 0
+            account_count=account_count,
+            contract_count=contract_count or 0,
+            percentage=round((account_count / active_accounts * 100), 2) if active_accounts > 0 else 0
         )
-        for seg_id, seg_name, count in segment_stats
+        for seg_id, seg_name, account_count, contract_count in segment_stats
     ]
 
-    # 4. Officer distribution (assigned_officer_id)
+    # 4. Officer distribution (assigned_officer_id, active accounts only)
     officer_stats = db.query(
         User.id,
         User.username,
         User.full_name,
-        func.count(Account.id).label('count')
+        func.count(func.distinct(Account.id)).label('account_count'),
+        func.count(Contract.id).label('contract_count')
     ).join(Account, Account.assigned_officer_id == User.id)\
+     .outerjoin(Contract, Contract.account_id == Account.id)\
+     .filter(Account.is_active == True)\
      .group_by(User.id, User.username, User.full_name)\
-     .order_by(desc('count'))\
+     .order_by(desc('account_count'))\
      .all()
 
     officer_distribution = [
@@ -730,10 +739,11 @@ async def get_account_stats_summary(
             officer_id=officer_id,
             officer_username=username,
             officer_full_name=full_name,
-            account_count=count,
-            percentage=round((count / total_accounts * 100), 2) if total_accounts > 0 else 0
+            account_count=account_count,
+            contract_count=contract_count or 0,
+            percentage=round((account_count / active_accounts * 100), 2) if active_accounts > 0 else 0
         )
-        for officer_id, username, full_name, count in officer_stats
+        for officer_id, username, full_name, account_count, contract_count in officer_stats
     ]
 
     # 5. Monthly growth (last 6 months for sparkline)

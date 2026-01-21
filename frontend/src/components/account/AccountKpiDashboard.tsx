@@ -160,6 +160,7 @@ function SegmentPieChart({ data }: { data: SegmentDistribution[] }) {
   const chartData = data.map((item, index) => ({
     name: item.segment_name,
     value: item.account_count,
+    contractCount: item.contract_count,
     color: COLORS[index % COLORS.length],
     percentage: item.percentage,
   }));
@@ -196,7 +197,9 @@ function SegmentPieChart({ data }: { data: SegmentDistribution[] }) {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number) => `${value.toLocaleString('id-ID')} akun`}
+                formatter={(value: number, _name: string, props: any) =>
+                  `${value.toLocaleString('id-ID')} akun, ${props.payload.contractCount.toLocaleString('id-ID')} kontrak`
+                }
               />
             </PieChart>
           </ResponsiveContainer>
@@ -222,6 +225,7 @@ function OfficerDistributionChart({ data }: { data: OfficerDistribution[] }) {
   const chartData = data.slice(0, 8).map(item => ({
     name: item.officer_full_name || item.officer_username,
     value: item.account_count,
+    contractCount: item.contract_count,
   }));
 
   return (
@@ -242,7 +246,9 @@ function OfficerDistributionChart({ data }: { data: OfficerDistribution[] }) {
               <XAxis type="number" stroke="#6b7280" />
               <YAxis dataKey="name" type="category" width={100} stroke="#6b7280" />
               <Tooltip
-                formatter={(value: number) => `${value} akun`}
+                formatter={(value: number, _name: string, props: any) =>
+                  `${value} akun, ${props.payload.contractCount} kontrak`
+                }
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: '1px solid #e5e7eb',
