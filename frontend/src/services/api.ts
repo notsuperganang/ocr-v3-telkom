@@ -46,7 +46,8 @@ import type {
   AccountCreate,
   AccountUpdate,
   AccountListResponse,
-  AccountContractsResponse
+  AccountContractsResponse,
+  AccountStatsSummary
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -700,6 +701,10 @@ class ApiClient {
       per_page: perPage.toString(),
     });
     return this.request<AccountContractsResponse>(`/api/accounts/${accountId}/contracts?${params}`);
+  }
+
+  async getAccountStats(): Promise<AccountStatsSummary> {
+    return this.request<AccountStatsSummary>('/api/accounts/stats/summary');
   }
 }
 
