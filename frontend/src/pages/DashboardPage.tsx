@@ -25,8 +25,10 @@ import {
   AlertCircle,
   CheckCircle2,
   AlertTriangle,
-  Circle
+  Circle,
+  BarChart3
 } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 import { useTerminUpcoming, useRecurringAll, useFinancialSummary } from '@/hooks/useContracts';
 import { cn } from '@/lib/utils';
 import { STATUS_INFO, STATUS_ORDER } from '@/lib/termin-utils';
@@ -691,14 +693,24 @@ export function DashboardPage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm text-muted-foreground mb-1">
-            Beranda {'>'} Dashboard
+        <div className="flex items-center gap-4">
+          <div
+            className={twMerge(
+              'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner',
+              designTokens.focusRing
+            )}
+          >
+            <BarChart3 className="size-7 text-[#d71920]" aria-hidden="true" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Ringkasan aktivitas pemrosesan kontrak
-          </p>
+          <div>
+            <div className="text-sm text-muted-foreground mb-1">
+              Beranda {'>'} Dashboard
+            </div>
+            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Ringkasan aktivitas pemrosesan kontrak
+            </p>
+          </div>
         </div>
         <Button
           onClick={() => navigate('/upload')}
