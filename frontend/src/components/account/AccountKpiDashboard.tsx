@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Building2, TrendingUp, TrendingDown } from 'lucide-react';
 import { apiClient } from '@/services/api';
@@ -51,8 +52,8 @@ function createSparklinePath(data: number[]): string {
     .join(" ");
 }
 
-// Total Accounts KPI Card
-function TotalAccountsKpiCard({ stats }: { stats: AccountStatsSummary }) {
+// Total Accounts KPI Card - Memoized to prevent unnecessary re-renders
+const TotalAccountsKpiCard = memo(({ stats }: { stats: AccountStatsSummary }) => {
   const growthCount = stats.accounts_this_month;
   const trend = growthCount > 0 ? 'up' : growthCount < 0 ? 'down' : 'neutral';
 
@@ -115,7 +116,7 @@ function TotalAccountsKpiCard({ stats }: { stats: AccountStatsSummary }) {
       </Card>
     </motion.div>
   );
-}
+});
 
 // Custom label for pie chart
 const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
@@ -143,8 +144,8 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
   );
 };
 
-// Segment Pie Chart Component
-function SegmentPieChart({ data }: { data: SegmentDistribution[] }) {
+// Segment Pie Chart Component - Memoized for performance
+const SegmentPieChart = memo(({ data }: { data: SegmentDistribution[] }) => {
   // Color palette for segments (matching DashboardPage)
   const COLORS = [
     '#e11d48', // Rose-600
@@ -218,10 +219,10 @@ function SegmentPieChart({ data }: { data: SegmentDistribution[] }) {
       </Card>
     </motion.div>
   );
-}
+});
 
-// Officer Distribution Chart Component
-function OfficerDistributionChart({ data }: { data: OfficerDistribution[] }) {
+// Officer Distribution Chart Component - Memoized for performance
+const OfficerDistributionChart = memo(({ data }: { data: OfficerDistribution[] }) => {
   const chartData = data.slice(0, 8).map(item => ({
     name: item.officer_full_name || item.officer_username,
     value: item.account_count,
@@ -262,10 +263,10 @@ function OfficerDistributionChart({ data }: { data: OfficerDistribution[] }) {
       </Card>
     </motion.div>
   );
-}
+});
 
-// Dashboard Skeleton
-function DashboardSkeleton() {
+// Dashboard Skeleton - Memoized
+const DashboardSkeleton = memo(() => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <div className="space-y-6">
@@ -275,7 +276,7 @@ function DashboardSkeleton() {
       <div className="h-full min-h-[500px] rounded-xl bg-muted/50 animate-pulse" />
     </div>
   );
-}
+});
 
 // Main Dashboard Component
 export function AccountKpiDashboard() {
