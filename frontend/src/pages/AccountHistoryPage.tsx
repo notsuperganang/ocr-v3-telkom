@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
 import { apiService } from '@/services/api';
 import { AccountHistoryTable } from '@/components/account/AccountHistoryTable';
+import { AccountKpiDashboard } from '@/components/account/AccountKpiDashboard';
 import type { SegmentResponse, WitelResponse } from '@/types/api';
 import {
   Layers,
@@ -24,6 +25,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -192,8 +194,18 @@ export function AccountHistoryPage() {
               </p>
             </div>
           </div>
+          <Button
+            onClick={() => navigate('/accounts')}
+            className="bg-[#d71920] hover:bg-[#b81419] text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Buat Akun Baru
+          </Button>
         </div>
       </header>
+
+      {/* KPI Dashboard */}
+      <AccountKpiDashboard />
 
       {/* Filters Card */}
       <motion.section
