@@ -45,7 +45,8 @@ import type {
   AccountResponse,
   AccountCreate,
   AccountUpdate,
-  AccountListResponse
+  AccountListResponse,
+  AccountContractsResponse
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -687,6 +688,18 @@ class ApiClient {
     return this.request<AccountResponse>(`/api/accounts/${id}/activate`, {
       method: 'POST',
     });
+  }
+
+  async getAccountContracts(
+    accountId: number,
+    page: number = 1,
+    perPage: number = 20
+  ): Promise<AccountContractsResponse> {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      per_page: perPage.toString(),
+    });
+    return this.request<AccountContractsResponse>(`/api/accounts/${accountId}/contracts?${params}`);
   }
 }
 
