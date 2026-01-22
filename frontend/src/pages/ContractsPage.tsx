@@ -63,7 +63,7 @@ type PaymentMethod = "OTC" | "Termin" | "Recurring"
 type ContractStatus = "confirmed" | "awaiting_review"
 type FilterStatus = "all" | ContractStatus
 type FilterPaymentMethod = "all" | PaymentMethod
-type SortableColumn = "fileName" | "customerName" | "date" | "value"
+type SortableColumn = "fileName" | "customerName" | "contractYear" | "value"
 type SortDirection = "ascending" | "descending"
 
 interface ContractRecord {
@@ -76,7 +76,7 @@ interface ContractRecord {
   periodEnd?: string | null
   paymentMethod: PaymentMethod | null
   totalContractValue?: string | null
-  date: string
+  contractYear?: number | null
   status: ContractStatus
 }
 
@@ -159,7 +159,7 @@ const tableColumns = [
   { id: "period", label: "Periode", sortable: false, filterable: true },
   { id: "method", label: "Metode", sortable: false, filterable: true },
   { id: "value", label: "Nilai Kontrak", sortable: true, filterable: false },
-  { id: "date", label: "Tanggal", sortable: true, filterable: false },
+  { id: "contractYear", label: "Tahun", sortable: true, filterable: false },
   { id: "status", label: "Status", sortable: false, filterable: true },
   { id: "actions", label: "Aksi", sortable: false, filterable: false },
 ] as const
@@ -350,7 +350,7 @@ function toContractRecord(item: UnifiedContractItem): ContractRecord {
     periodEnd: item.contract_end_date ?? undefined,
     paymentMethod: mapPaymentMethod(item.payment_method),
     totalContractValue: item.total_contract_value ?? undefined,
-    date: item.confirmed_at ?? item.created_at,
+    contractYear: item.contract_year ?? undefined,
     status: item.status,
   }
 }
@@ -1302,15 +1302,17 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                     )}
                     {visibleColumns.has("assignedOfficer") && (
                       <TableCell>
-                        {record.item.account?.assigned_officer ? (
-                          <span className="text-sm font-medium text-foreground">
-                            {record.item.account.assigned_officer.full_name || record.item.account.assigned_officer.username}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm italic">
-                            —
-                          </span>
-                        )}
+                        <div className="px-2">
+                          {record.item.account?.assigned_officer ? (
+                            <span className="font-semibold text-sm text-foreground">
+                              {record.item.account.assigned_officer.full_name || record.item.account.assigned_officer.username}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm italic">
+                              —
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                     {/* {visibleColumns.has("contractNumber") && (
@@ -1363,11 +1365,13 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                         )}
                       </TableCell>
                     )}
-                    {visibleColumns.has("date") && (
+                    {visibleColumns.has("contractYear") && (
                       <TableCell>
-                        <span className="text-sm font-medium text-foreground tabular-nums">
-                          {formatDate(record.date)}
-                        </span>
+                        <div className="px-2">
+                          <span className="font-semibold text-sm text-foreground tabular-nums">
+                            {record.contractYear ?? "—"}
+                          </span>
+                        </div>
                       </TableCell>
                     )}
                     {visibleColumns.has("status") && (
@@ -1692,10 +1696,10 @@ function applySorting(
     const { column, direction } = sortState
     const multiplier = direction === "ascending" ? 1 : -1
 
-    if (column === "date") {
-      return (
-        (new Date(a.date).getTime() - new Date(b.date).getTime()) * multiplier
-      )
+    if (column === "contractYear") {
+      const yearA = a.contractYear ?? 0
+      const yearB = b.contractYear ?? 0
+      return (yearA - yearB) * multiplier
     }
 
     if (column === "value") {
@@ -1735,7 +1739,7 @@ export function ContractsPage() {
   const [periodFilter, setPeriodFilter] = React.useState<{ start: string | null; end: string | null }>({ start: null, end: null })
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [sortState, setSortState] = React.useState<SortState | null>({
-    column: "date",
+    column: "contractYear",
     direction: "descending",
   })
   const [page, setPage] = React.useState(1)
