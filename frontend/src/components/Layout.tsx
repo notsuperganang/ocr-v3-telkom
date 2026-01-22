@@ -154,7 +154,7 @@ export function Layout({ children }: LayoutProps) {
   // Create master data links (staff & manager only)
   const masterDataLinks: Links[] = [
     {
-      label: 'Segment',
+      label: 'Segmen',
       href: '/segments',
       icon: <Target className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
@@ -164,12 +164,12 @@ export function Layout({ children }: LayoutProps) {
       icon: <MapPin className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
     {
-      label: 'Account Manager',
+      label: 'Manajer Akun',
       href: '/account-managers',
       icon: <UserCog className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
     {
-      label: 'Account',
+      label: 'Akun',
       href: '/accounts',
       icon: <Building2 className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
