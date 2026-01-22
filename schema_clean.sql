@@ -1,6 +1,32 @@
 CREATE TABLE public.alembic_version (
     version_num character varying(32) NOT NULL
 );
+CREATE TABLE public.account_managers (
+    id integer NOT NULL,
+    name character varying(255) NOT NULL,
+    title character varying(255),
+    email character varying(255),
+    phone character varying(50),
+    is_active boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE public.accounts (
+    id integer NOT NULL,
+    account_number character varying(50),
+    name character varying(500) NOT NULL,
+    nipnas character varying(50),
+    bus_area character varying(50),
+    segment_id integer,
+    witel_id integer,
+    account_manager_id integer,
+    assigned_officer_id integer,
+    is_active boolean NOT NULL,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by_id integer
+);
 CREATE TABLE public.contract_recurring_payments (
     id bigint NOT NULL,
     contract_id integer NOT NULL,
@@ -10,17 +36,13 @@ CREATE TABLE public.contract_recurring_payments (
     period_month integer NOT NULL,
     original_amount numeric(18,2) NOT NULL,
     amount numeric(18,2) NOT NULL,
-    status text DEFAULT 'PENDING'::text NOT NULL,
+    status character varying(20) NOT NULL,
     paid_at timestamp with time zone,
     notes text,
-    created_by text,
-    updated_by text,
+    created_by_id integer,
+    updated_by_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ck_contract_recurring_payments_cycle_number CHECK ((cycle_number >= 1)),
-    CONSTRAINT ck_contract_recurring_payments_period_month CHECK (((period_month >= 1) AND (period_month <= 12))),
-    CONSTRAINT ck_contract_recurring_payments_period_year CHECK (((period_year >= 2000) AND (period_year <= 2100))),
-    CONSTRAINT ck_contract_recurring_payments_status CHECK ((status = ANY (ARRAY['PENDING'::text, 'DUE'::text, 'OVERDUE'::text, 'PAID'::text, 'CANCELLED'::text])))
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE TABLE public.contract_term_payments (
     id bigint NOT NULL,
@@ -31,40 +53,36 @@ CREATE TABLE public.contract_term_payments (
     period_month integer NOT NULL,
     original_amount numeric(18,2) NOT NULL,
     amount numeric(18,2) NOT NULL,
-    status text DEFAULT 'PENDING'::text NOT NULL,
+    status character varying(20) NOT NULL,
     paid_at timestamp with time zone,
     notes text,
-    created_by text,
-    updated_by text,
+    created_by_id integer,
+    updated_by_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ck_contract_term_payments_period_month CHECK (((period_month >= 1) AND (period_month <= 12))),
-    CONSTRAINT ck_contract_term_payments_period_year CHECK (((period_year >= 2000) AND (period_year <= 2100))),
-    CONSTRAINT ck_contract_term_payments_status CHECK ((status = ANY (ARRAY['PENDING'::text, 'DUE'::text, 'OVERDUE'::text, 'PAID'::text, 'CANCELLED'::text]))),
-    CONSTRAINT ck_contract_term_payments_termin_number CHECK ((termin_number >= 1))
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE TABLE public.contracts (
     id integer NOT NULL,
     source_job_id integer NOT NULL,
     file_id integer NOT NULL,
+    account_id integer,
+    contract_year integer NOT NULL,
+    telkom_contact_id integer,
     final_data jsonb NOT NULL,
     version integer,
-    confirmed_by character varying,
-    confirmed_at timestamp with time zone DEFAULT now(),
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
+    contract_number character varying(100),
     customer_name character varying(500),
     customer_npwp character varying(50),
     period_start date,
     period_end date,
-    service_connectivity integer DEFAULT 0 NOT NULL,
-    service_non_connectivity integer DEFAULT 0 NOT NULL,
-    service_bundling integer DEFAULT 0 NOT NULL,
+    service_connectivity integer,
+    service_non_connectivity integer,
+    service_bundling integer,
     payment_method character varying(20),
     termin_count integer,
-    installation_cost numeric(18,2) DEFAULT '0'::numeric NOT NULL,
-    annual_subscription_cost numeric(18,2) DEFAULT '0'::numeric NOT NULL,
-    total_contract_value numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    installation_cost numeric(18,2),
+    annual_subscription_cost numeric(18,2),
+    total_contract_value numeric(18,2),
     customer_address text,
     rep_name text,
     rep_title text,
@@ -83,12 +101,15 @@ CREATE TABLE public.contracts (
     termin_total_amount numeric(18,2),
     payment_raw_text text,
     termin_payments_raw jsonb,
+    recurring_monthly_amount numeric(18,2) NOT NULL,
+    recurring_month_count integer,
+    recurring_total_amount numeric(18,2) NOT NULL,
     extraction_timestamp timestamp with time zone,
     contract_processing_time_sec double precision,
-    recurring_monthly_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
-    recurring_month_count integer,
-    recurring_total_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
-    contract_number character varying(100)
+    confirmed_by_id integer NOT NULL,
+    confirmed_at timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
 );
 CREATE TABLE public.export_history (
     id integer NOT NULL,
@@ -128,6 +149,34 @@ CREATE TABLE public.processing_jobs (
     processing_time_seconds double precision,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    reviewed_by character varying,
+    reviewed_by_id integer,
     reviewed_at timestamp with time zone
+);
+CREATE TABLE public.segments (
+    id integer NOT NULL,
+    name character varying(100) NOT NULL,
+    code character varying(50),
+    is_active boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE TABLE public.users (
+    id integer NOT NULL,
+    username character varying(50) NOT NULL,
+    email character varying(255) NOT NULL,
+    password_hash character varying(255) NOT NULL,
+    full_name character varying(255),
+    role public.userrole NOT NULL,
+    is_active boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_login_at timestamp with time zone
+);
+CREATE TABLE public.witels (
+    id integer NOT NULL,
+    code character varying(20) NOT NULL,
+    name character varying(100) NOT NULL,
+    is_active boolean NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
