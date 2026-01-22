@@ -35,11 +35,9 @@ import {
   FileText,
   Trash2,
   Eye,
-  Calendar,
   Building2,
   FileX,
   Loader2,
-  User,
 } from 'lucide-react';
 import type { UnifiedContractListResponse } from '@/types/api';
 import {
@@ -129,7 +127,7 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                 <TableHead className="font-semibold">Periode Kontrak</TableHead>
                 <TableHead className="font-semibold">Metode Pembayaran</TableHead>
                 <TableHead className="font-semibold">Dikonfirmasi Oleh</TableHead>
-                <TableHead className="font-semibold">Tanggal</TableHead>
+                <TableHead className="font-semibold">Tahun</TableHead>
                 <TableHead className="font-semibold">Status</TableHead>
                 <TableHead className="w-[100px] font-semibold">Aksi</TableHead>
               </TableRow>
@@ -197,49 +195,24 @@ export function ContractsTable({ data, isLoading, onPageChange }: ContractsTable
                 </TableCell>
 
                 {/* Confirmed By */}
-                <TableCell>
+                <TableCell className="text-center">
                   {item.status === 'confirmed' && item.confirmed_by ? (
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">
-                        {item.confirmed_by}
-                      </span>
-                    </div>
+                    <span className="text-sm">
+                      {item.confirmed_by}
+                    </span>
                   ) : (
                     <span className="text-muted-foreground text-sm italic">-</span>
                   )}
                 </TableCell>
 
-                {/* Confirmed/Created Date */}
-                <TableCell>
-                  {item.status === 'confirmed' && item.confirmed_at ? (
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <div className="text-sm">
-                        <div>
-                          {format(new Date(item.confirmed_at), 'dd MMM yyyy', {
-                            locale: id,
-                          })}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(new Date(item.confirmed_at), 'HH:mm')}
-                        </div>
-                      </div>
-                    </div>
+                {/* Contract Year */}
+                <TableCell className="text-center">
+                  {item.contract_year ? (
+                    <span className="text-sm">
+                      {item.contract_year}
+                    </span>
                   ) : (
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <div className="text-sm">
-                        <div>
-                          {format(new Date(item.created_at), 'dd MMM yyyy', {
-                            locale: id,
-                          })}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(new Date(item.created_at), 'HH:mm')}
-                        </div>
-                      </div>
-                    </div>
+                    <span className="text-muted-foreground text-sm italic">-</span>
                   )}
                 </TableCell>
 
