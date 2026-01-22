@@ -143,6 +143,7 @@ class UnifiedContractItem(BaseModel):
     contract_end_date: Optional[str] = None
     payment_method: Optional[str] = None
     total_contract_value: Optional[str] = None  # String representation of Decimal
+    contract_year: Optional[int] = None
     account: Optional[AccountBrief] = None
     confirmed_by: Optional[str] = None
     confirmed_at: Optional[datetime] = None
@@ -228,10 +229,14 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
     contract_end_date = None
     payment_method = None
     total_contract_value = None
+    contract_year = None
 
     try:
         # Extract contract number from root level
         contract_number = data.get('nomor_kontrak')
+
+        # Extract contract year from root level
+        contract_year = data.get('contract_year')
 
         if 'informasi_pelanggan' in data:
             customer_name = data['informasi_pelanggan'].get('nama_pelanggan')
@@ -293,6 +298,7 @@ def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
         'contract_end_date': contract_end_date,
         'payment_method': payment_method,
         'total_contract_value': total_contract_value,
+        'contract_year': contract_year,
     }
 
 def _format_payment_method(payment_method: Optional[str]) -> str:
@@ -538,6 +544,7 @@ async def list_all_contract_items(
             contract_end_date=contract.period_end.isoformat() if contract.period_end else None,
             payment_method=_format_payment_method(contract.payment_method),
             total_contract_value=str(contract.total_contract_value) if contract.total_contract_value else None,
+            contract_year=contract.contract_year,
             account=account_brief,
             confirmed_by=_get_user_display_name(contract.confirmer),
             confirmed_at=contract.confirmed_at,
@@ -590,6 +597,7 @@ async def list_all_contract_items(
             contract_end_date=display_data.get('contract_end_date'),
             payment_method=_format_payment_method(display_data.get('payment_method')),
             total_contract_value=display_data.get('total_contract_value'),
+            contract_year=display_data.get('contract_year'),
             confirmed_by=None,
             confirmed_at=None,
             created_at=job.created_at,
