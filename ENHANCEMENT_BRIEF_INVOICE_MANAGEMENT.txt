@@ -2056,21 +2056,6 @@ Logging:
 - File uploads
 - Errors and exceptions
 
-12.8 FUTURE ENHANCEMENTS (Phase 2)
---------------------------------------------------------------------------------
-
-Potential features:
-1. Automated email reminders for due invoices
-2. Integration with accounting system (e.g., SAP)
-3. Payment gateway integration for online payments
-4. WhatsApp notifications
-5. Mobile app for on-the-go invoice management
-6. Advanced reporting and analytics
-7. Multi-currency support
-8. Recurring invoice auto-generation scheduling
-9. Invoice approval workflow
-10. Integration with e-Faktur system
-
 ================================================================================
 END OF ENHANCEMENT BRIEF
 ================================================================================
