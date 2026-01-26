@@ -47,7 +47,21 @@ import type {
   AccountUpdate,
   AccountListResponse,
   AccountContractsResponse,
-  AccountStatsSummary
+  AccountStatsSummary,
+  // Invoice types
+  InvoiceListResponse,
+  InvoiceFilters,
+  InvoiceDetailResponse,
+  AddPaymentRequest,
+  AddPaymentResponse,
+  UploadDocumentResponse,
+  UpdateInvoiceStatusRequest,
+  UpdateInvoiceStatusResponse,
+  SendInvoiceRequest,
+  SendInvoiceResponse,
+  InvoiceDocument,
+  InvoiceType,
+  DocumentType,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -705,6 +719,157 @@ class ApiClient {
 
   async getAccountStats(): Promise<AccountStatsSummary> {
     return this.request<AccountStatsSummary>('/api/accounts/stats/summary');
+  }
+
+  // =====================
+  // Invoice Management API
+  // =====================
+
+  async getInvoices(filters: InvoiceFilters): Promise<InvoiceListResponse> {
+    const params = new URLSearchParams({
+      year: filters.year.toString(),
+      month: filters.month.toString(),
+    });
+    
+    if (filters.status) {
+      const statuses = Array.isArray(filters.status) ? filters.status.join(',') : filters.status;
+      params.append('status', statuses);
+    }
+    if (filters.witel_id !== undefined) params.append('witel_id', filters.witel_id.toString());
+    if (filters.segment) params.append('segment', filters.segment);
+    if (filters.customer_name) params.append('customer_name', filters.customer_name);
+    if (filters.contract_number) params.append('contract_number', filters.contract_number);
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+
+    return this.request<InvoiceListResponse>(`/api/invoices?${params.toString()}`);
+  }
+
+  async getInvoiceDetail(invoiceType: InvoiceType, id: string): Promise<InvoiceDetailResponse> {
+    const type = invoiceType.toLowerCase();
+    return this.request<InvoiceDetailResponse>(`/api/invoices/${type}/${id}`);
+  }
+
+  async addPayment(
+    invoiceType: InvoiceType,
+    id: string,
+    data: AddPaymentRequest
+  ): Promise<AddPaymentResponse> {
+    const type = invoiceType.toLowerCase();
+    return this.request<AddPaymentResponse>(`/api/invoices/${type}/${id}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadInvoiceDocument(
+    invoiceType: InvoiceType,
+    id: string,
+    file: File,
+    documentType: DocumentType,
+    paymentTransactionId?: string,
+    notes?: string
+  ): Promise<UploadDocumentResponse> {
+    const type = invoiceType.toLowerCase();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', documentType);
+    if (paymentTransactionId) formData.append('payment_transaction_id', paymentTransactionId);
+    if (notes) formData.append('notes', notes);
+
+    const url = `${API_BASE_URL}/api/invoices/${type}/${id}/documents`;
+    
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(errorData.detail || 'An error occurred');
+    }
+
+    return response.json();
+  }
+
+  async getInvoiceDocuments(
+    invoiceType: InvoiceType,
+    id: string,
+    documentType?: DocumentType
+  ): Promise<{ documents: InvoiceDocument[] }> {
+    const type = invoiceType.toLowerCase();
+    const params = new URLSearchParams();
+    if (documentType) params.append('document_type', documentType);
+    
+    const query = params.toString();
+    return this.request<{ documents: InvoiceDocument[] }>(
+      `/api/invoices/${type}/${id}/documents${query ? `?${query}` : ''}`
+    );
+  }
+
+  async updateInvoiceStatus(
+    invoiceType: InvoiceType,
+    id: string,
+    data: UpdateInvoiceStatusRequest
+  ): Promise<UpdateInvoiceStatusResponse> {
+    const type = invoiceType.toLowerCase();
+    return this.request<UpdateInvoiceStatusResponse>(`/api/invoices/${type}/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async sendInvoice(
+    invoiceType: InvoiceType,
+    id: string,
+    data: SendInvoiceRequest
+  ): Promise<SendInvoiceResponse> {
+    const type = invoiceType.toLowerCase();
+    return this.request<SendInvoiceResponse>(`/api/invoices/${type}/${id}/send`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async exportInvoices(
+    filters: InvoiceFilters,
+    format: 'xlsx' | 'csv' = 'xlsx'
+  ): Promise<Blob> {
+    const params = new URLSearchParams({
+      year: filters.year.toString(),
+      month: filters.month.toString(),
+      format,
+    });
+    
+    if (filters.status) {
+      const statuses = Array.isArray(filters.status) ? filters.status.join(',') : filters.status;
+      params.append('status', statuses);
+    }
+    if (filters.witel_id !== undefined) params.append('witel_id', filters.witel_id.toString());
+    if (filters.segment) params.append('segment', filters.segment);
+
+    const url = `${API_BASE_URL}/api/invoices/export?${params.toString()}`;
+    
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error('Failed to export invoices');
+    }
+
+    return response.blob();
   }
 }
 
