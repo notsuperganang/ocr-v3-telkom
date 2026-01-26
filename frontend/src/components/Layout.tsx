@@ -42,11 +42,6 @@ const navigationLinks: Links[] = [
     icon: <BarChart3 className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   },
   {
-    label: 'Upload',
-    href: '/upload',
-    icon: <Upload className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
     label: 'Kontrak',
     href: '/contracts',
     icon: <FolderOpen className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
@@ -60,6 +55,11 @@ const navigationLinks: Links[] = [
     label: 'Overview Akun',
     href: '/account-history',
     icon: <Layers className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: 'Upload',
+    href: '/upload',
+    icon: <Upload className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   },
 ];
 
@@ -170,7 +170,7 @@ export function Layout({ children }: LayoutProps) {
       icon: <MapPin className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
     {
-      label: 'Manajer Akun',
+      label: 'Akun Manajer',
       href: '/account-managers',
       icon: <UserCog className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
     },
