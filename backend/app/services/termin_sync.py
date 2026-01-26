@@ -12,7 +12,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.database import Contract, ContractTermPayment, User
+from app.models.database import Contract, ContractTermPayment, User, Account
+from app.services.invoice_service import generate_invoice_number, calculate_due_date
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,16 @@ def sync_contract_terms_from_final_data(
         raise ValueError("Contract must have an ID (call db.flush() before sync)")
 
     logger.info(f"Syncing termin payments for contract {contract.id}")
+
+    # Get account_number for invoice generation
+    account_number = None
+    if contract.account_id:
+        account = db.query(Account).filter(Account.id == contract.account_id).first()
+        if account:
+            account_number = account.account_number
+            logger.debug(f"Contract {contract.id}: Using account_number {account_number} for invoice generation")
+        else:
+            logger.warning(f"Contract {contract.id}: account_id={contract.account_id} but Account not found")
 
     # Extract payment method data from final_data
     final_data = contract.final_data or {}
@@ -307,6 +318,22 @@ def sync_contract_terms_from_final_data(
 
         else:
             # CREATE new term
+
+            # Generate invoice number (may return None if no account)
+            invoice_number = None
+            if account_number:
+                try:
+                    invoice_number = generate_invoice_number(
+                        db, account_number, new_data["period_year"], new_data["period_month"]
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to generate invoice number for termin {new_data['termin_number']}: {e}"
+                    )
+
+            # Calculate due date (15th of billing month)
+            due_date = calculate_due_date(new_data["period_year"], new_data["period_month"])
+
             new_term = ContractTermPayment(
                 contract_id=contract.id,
                 termin_number=new_data["termin_number"],
@@ -320,12 +347,19 @@ def sync_contract_terms_from_final_data(
                 notes=None,
                 created_by_id=acting_user.id if acting_user else None,
                 updated_by_id=acting_user.id if acting_user else None,
+                # Invoice management fields
+                invoice_number=invoice_number,
+                invoice_status="DRAFT",
+                due_date=due_date,
+                # NOTE: base_amount, ppn_amount, pph_amount, net_payable_amount
+                # are auto-calculated by database trigger when amount is set
             )
             db.add(new_term)
 
             logger.debug(
                 f"Created new termin {termin_number} for contract {contract.id}: "
-                f"amount={new_data['amount']}, period={new_data['period_label']}"
+                f"amount={new_data['amount']}, period={new_data['period_label']}, "
+                f"invoice_number={invoice_number}"
             )
             created_count += 1
 
