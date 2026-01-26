@@ -21,7 +21,8 @@ import {
   MapPin,
   UserCog,
   Building2,
-  Target
+  Target,
+  Receipt
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -49,6 +50,11 @@ const navigationLinks: Links[] = [
     label: 'Kontrak',
     href: '/contracts',
     icon: <FolderOpen className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: 'Invoice',
+    href: '/invoices',
+    icon: <Receipt className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   },
   {
     label: 'Overview Akun',

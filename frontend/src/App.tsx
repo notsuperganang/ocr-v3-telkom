@@ -23,6 +23,8 @@ const WitelsPage = lazy(() => import('./pages/WitelsPage').then(m => ({ default:
 const AccountManagersPage = lazy(() => import('./pages/AccountManagersPage').then(m => ({ default: m.AccountManagersPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then(m => ({ default: m.AccountsPage })));
 const AccountHistoryPage = lazy(() => import('./pages/AccountHistoryPage').then(m => ({ default: m.AccountHistoryPage })));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
+const InvoiceDetailPage = lazy(() => import('./pages/InvoiceDetailPage'));
 
 // Loading fallback component
 const PageLoader = () => (
@@ -78,6 +80,8 @@ function App() {
                           <Route path="/account-managers" element={<AccountManagersPage />} />
                           <Route path="/accounts" element={<AccountsPage />} />
                           <Route path="/account-history" element={<AccountHistoryPage />} />
+                          <Route path="/invoices" element={<InvoicesPage />} />
+                          <Route path="/invoices/:type/:id" element={<InvoiceDetailPage />} />
                           <Route path="/processing/:jobId" element={<ProcessingPage />} />
                           <Route path="/review/:jobId" element={<ReviewPage />} />
                           <Route path="*" element={<Navigate to="/" replace />} />
