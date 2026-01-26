@@ -129,15 +129,6 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("id-ID").format(value)
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "—"
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value))
-}
-
 function getMonthName(month: number): string {
   const months = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -276,27 +267,6 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     >
       <span className={cn("size-1.5 rounded-full", style.dot)} aria-hidden="true" />
       {style.label}
-    </Badge>
-  )
-}
-
-interface InvoiceTypeBadgeProps {
-  type: "TERM" | "RECURRING"
-}
-
-const InvoiceTypeBadge: React.FC<InvoiceTypeBadgeProps> = ({ type }) => {
-  const isTermin = type === "TERM"
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "font-medium",
-        isTermin
-          ? "bg-indigo-100 text-indigo-700 border-indigo-200"
-          : "bg-violet-100 text-violet-700 border-violet-200"
-      )}
-    >
-      {isTermin ? "Termin" : "Recurring"}
     </Badge>
   )
 }
@@ -635,42 +605,54 @@ export default function InvoicesPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="relative overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
+              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#d71920]/60 to-transparent opacity-70" />
+              {isLoading && (
+                <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-gradient-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
+              )}
               <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="whitespace-nowrap">No. Invoice</TableHead>
-                    <TableHead className="whitespace-nowrap">Tipe</TableHead>
-                    <TableHead className="whitespace-nowrap">Pelanggan</TableHead>
-                    <TableHead className="whitespace-nowrap">No. Kontrak</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Total</TableHead>
-                    <TableHead className="whitespace-nowrap text-right">Dibayar</TableHead>
-                    <TableHead className="whitespace-nowrap">Progress</TableHead>
-                    <TableHead className="whitespace-nowrap">Status</TableHead>
-                    <TableHead className="whitespace-nowrap">Jatuh Tempo</TableHead>
-                    <TableHead className="whitespace-nowrap text-center">Aksi</TableHead>
+                <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+                  <TableRow className="hover:bg-transparent border-b border-border/70">
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">No. Invoice</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Bus Area</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">No. Akun</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Pelanggan</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">NIPNAS</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Segmen</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Witel</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Total</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">AM</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Petugas</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Status</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Progress</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Catatan</TableHead>
+                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody className="bg-background/60">
                   {isLoading ? (
                     // Loading skeleton
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
                         <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
-                        <TableCell><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
-                        <TableCell><Skeleton className="h-2 w-24" /></TableCell>
-                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                        <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-2 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                         <TableCell><Skeleton className="h-8 w-8 mx-auto" /></TableCell>
                       </TableRow>
                     ))
                   ) : data?.data.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="h-32 text-center">
+                      <TableCell colSpan={14} className="h-32 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <FileText className="size-10 text-muted-foreground/50" />
                           <p className="text-muted-foreground">
@@ -683,26 +665,41 @@ export default function InvoicesPage() {
                     data?.data.map((invoice) => (
                       <TableRow
                         key={`${invoice.invoice_type}-${invoice.id}`}
-                        className="cursor-pointer transition-colors hover:bg-muted/50"
+                        className="group border-b border-border/40 bg-background/70 transition-all duration-200 hover:bg-primary/5 even:bg-muted/30 cursor-pointer"
                         onClick={() => handleRowClick(invoice)}
                       >
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium text-foreground">
                           {invoice.invoice_number || "—"}
                         </TableCell>
-                        <TableCell>
-                          <InvoiceTypeBadge type={invoice.invoice_type} />
+                        <TableCell className="text-sm text-muted-foreground">
+                          {invoice.bus_area || "—"}
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate">
+                        <TableCell className="text-sm font-medium text-foreground">
+                          {invoice.account_number || "—"}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate font-medium text-foreground">
                           {invoice.customer_name || "—"}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {invoice.contract_number || "—"}
+                        <TableCell className="text-sm text-muted-foreground">
+                          {invoice.nipnas || "—"}
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-sm text-muted-foreground">
+                          {invoice.segment_name || "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {invoice.witel_name || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-foreground">
                           {formatCurrency(invoice.amount || "0", { compact: false })}
                         </TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {formatCurrency(invoice.paid_amount || "0", { compact: false })}
+                        <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">
+                          {invoice.account_manager_name || "—"}
+                        </TableCell>
+                        <TableCell className="max-w-[150px] truncate text-sm font-medium text-foreground">
+                          {invoice.assigned_officer_name || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={invoice.invoice_status} />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -715,16 +712,14 @@ export default function InvoicesPage() {
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <StatusBadge status={invoice.invoice_status} />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatDate(invoice.due_date)}
+                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground italic">
+                          {invoice.account_notes || "—"}
                         </TableCell>
                         <TableCell className="text-center">
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => {
                               e.stopPropagation()
                               handleRowClick(invoice)

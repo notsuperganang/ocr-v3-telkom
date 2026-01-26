@@ -656,7 +656,14 @@ def get_invoices_by_period(
             pph23_paid,
             sent_date,
             created_at,
-            updated_at
+            updated_at,
+            account_number,
+            bus_area,
+            nipnas,
+            segment_name,
+            account_manager_name,
+            assigned_officer_name,
+            account_notes
         FROM v_invoices
         WHERE {where_sql}
         ORDER BY due_date DESC NULLS LAST, invoice_number ASC
