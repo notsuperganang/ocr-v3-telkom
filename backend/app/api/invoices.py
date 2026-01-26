@@ -58,6 +58,7 @@ class InvoiceListItem(BaseModel):
     account_manager_name: Optional[str] = None
     assigned_officer_name: Optional[str] = None
     account_notes: Optional[str] = None
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True
