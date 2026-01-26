@@ -679,7 +679,10 @@ def get_invoices_by_period(
             COALESCE(SUM(amount), 0) as total_amount,
             COALESCE(SUM(paid_amount), 0) as total_paid,
             COALESCE(SUM(net_payable_amount - COALESCE(paid_amount, 0)), 0) as total_outstanding,
-            COUNT(*) FILTER (WHERE invoice_status = 'OVERDUE') as overdue_count
+            COUNT(*) FILTER (
+                WHERE status = 'OVERDUE'
+                AND (net_payable_amount - COALESCE(paid_amount, 0)) > 0
+            ) as overdue_count
         FROM v_invoices
         WHERE {where_sql}
     """)

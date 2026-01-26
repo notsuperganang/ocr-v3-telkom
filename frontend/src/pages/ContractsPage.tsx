@@ -2245,7 +2245,7 @@ export function ContractsPage() {
             </div>
             <div>
               <h1 className="text-3xl font-semibold text-foreground">
-                Telkom Contracts
+                Managemen Kontrak
               </h1>
               <p className="text-sm text-muted-foreground">
                 Pantau performa ekstraksi dan kelola kontrak secara terpusat.

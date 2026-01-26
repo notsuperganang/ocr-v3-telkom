@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import {
   AlertTriangle,
   ArrowDownRight,
-  ArrowUpRight,
   Calendar,
   ChevronDown,
   ChevronLeft,
@@ -12,6 +11,7 @@ import {
   Eye,
   FileText,
   ListFilter,
+  Receipt,
   RefreshCw,
   Search,
   Wallet,
@@ -184,8 +184,6 @@ interface KpiCardProps {
   value: string
   subtitle?: string
   icon: React.ReactNode
-  trend?: "up" | "down" | "neutral"
-  trendValue?: string
   loading?: boolean
   variant?: "default" | "danger"
 }
@@ -195,8 +193,6 @@ const KpiCard: React.FC<KpiCardProps> = ({
   value,
   subtitle,
   icon,
-  trend,
-  trendValue,
   loading,
   variant = "default",
 }) => {
@@ -217,38 +213,48 @@ const KpiCard: React.FC<KpiCardProps> = ({
           variant === "danger" && "border-red-200 bg-red-50/50"
         )}
       >
-        <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2">
-          <div className="flex flex-col gap-1">
-            <CardDescription className="text-sm font-medium">{title}</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <CardDescription className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              {title}
+            </CardDescription>
             {loading ? (
-              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-8 w-40" />
             ) : (
-              <CardTitle className={cn("text-2xl font-bold", variant === "danger" && "text-red-600")}>
-                {value}
+              <CardTitle className="flex items-baseline gap-2 text-3xl font-semibold">
+                <span className={cn(
+                  "font-bold tabular-nums",
+                  variant === "danger" ? "text-red-600" : "text-[#d71920]"
+                )}>
+                  {value}
+                </span>
               </CardTitle>
             )}
           </div>
-          <div className={cn(
-            "rounded-lg p-2",
-            variant === "danger" ? "bg-red-100" : "bg-muted/50"
-          )}>
-            {icon}
+          <div
+            className={cn(
+              "flex size-12 items-center justify-center rounded-2xl border shadow-inner",
+              variant === "danger"
+                ? "border-red-200 bg-gradient-to-br from-red-500/10 to-transparent"
+                : "border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent",
+              designTokens.focusRing
+            )}
+          >
+            <div className={variant === "danger" ? "text-red-600" : "text-[#d71920]"}>
+              {icon}
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
-          {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
-          )}
-          {trend && trendValue && (
-            <div className={cn(
-              "mt-2 flex items-center gap-1 text-xs font-medium",
-              trend === "up" && "text-emerald-600",
-              trend === "down" && "text-red-600",
-              trend === "neutral" && "text-muted-foreground"
-            )}>
-              {trend === "up" && <ArrowUpRight className="size-3" />}
-              {trend === "down" && <ArrowDownRight className="size-3" />}
-              <span>{trendValue}</span>
+        <CardContent className="space-y-4">
+          {loading ? (
+            <Skeleton className="h-10 w-full" />
+          ) : (
+            <div className="space-y-2 border-t border-border/40 pt-3">
+              {subtitle && (
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">{subtitle}</span>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -451,12 +457,24 @@ export default function InvoicesPage() {
     <div className="flex flex-col gap-8 p-6 lg:p-8">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-6">
           <Breadcrumbs />
-          <h1 className="text-3xl font-bold tracking-tight">Invoice Management</h1>
-          <p className="text-muted-foreground">
-            Kelola invoice termin dan recurring untuk periode {getMonthName(month)} {year}
-          </p>
+          <div className="flex items-center gap-4">
+            <div
+              className={twMerge(
+                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner',
+                designTokens.focusRing
+              )}
+            >
+              <Receipt className="size-7 text-[#d71920]" aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-semibold text-foreground">Invoice Management</h1>
+              <p className="text-sm text-muted-foreground">
+                Kelola invoice termin dan recurring untuk periode {getMonthName(month)} {year}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -491,14 +509,14 @@ export default function InvoicesPage() {
         />
         <KpiCard
           title="Outstanding"
-          value={isLoading ? "..." : formatCurrency(data?.summary.outstanding_amount || "0")}
+          value={isLoading ? "..." : formatCurrency(data?.summary.total_outstanding || "0")}
           subtitle="Belum dibayar"
           icon={<Wallet className="size-5 text-foreground/80" />}
           loading={isLoading}
         />
         <KpiCard
           title="Dibayar"
-          value={isLoading ? "..." : formatCurrency(data?.summary.paid_amount || "0")}
+          value={isLoading ? "..." : formatCurrency(data?.summary.total_paid || "0")}
           subtitle="Pembayaran diterima"
           icon={<ArrowDownRight className="size-5 text-emerald-600" />}
           loading={isLoading}

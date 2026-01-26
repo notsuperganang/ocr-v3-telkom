@@ -688,8 +688,8 @@ export interface Invoice {
 export interface InvoiceSummary {
   total_invoices: number;
   total_amount: string;
-  outstanding_amount: string;
-  paid_amount: string;
+  total_paid: string;
+  total_outstanding: string;
   overdue_count: number;
 }
 
