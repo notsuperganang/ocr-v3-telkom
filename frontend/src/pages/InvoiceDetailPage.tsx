@@ -277,7 +277,7 @@ export default function InvoiceDetailPage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/invoices")}
+              onClick={() => navigate(-1)}
               className="shrink-0"
             >
               <ArrowLeft className="size-5" />

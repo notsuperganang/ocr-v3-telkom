@@ -305,24 +305,43 @@ export default function InvoicesPage() {
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth() + 1
 
-  // Filter state from URL params
-  const [year, setYear] = React.useState(() => {
+  // Initialize URL params if not present
+  React.useEffect(() => {
+    const hasYearParam = searchParams.has("year")
+    const hasMonthParam = searchParams.has("month")
+    
+    if (!hasYearParam || !hasMonthParam) {
+      const params = new URLSearchParams(searchParams)
+      if (!hasYearParam) params.set("year", currentYear.toString())
+      if (!hasMonthParam) params.set("month", currentMonth.toString())
+      setSearchParams(params, { replace: true })
+    }
+  }, []) // Only run on mount
+
+  // Derive all filter state directly from URL params (single source of truth)
+  const year = React.useMemo(() => {
     const y = searchParams.get("year")
     return y ? parseInt(y, 10) : currentYear
-  })
-  const [month, setMonth] = React.useState(() => {
+  }, [searchParams, currentYear])
+
+  const month = React.useMemo(() => {
     const m = searchParams.get("month")
     return m ? parseInt(m, 10) : currentMonth
-  })
-  const [statusFilter, setStatusFilter] = React.useState<InvoiceStatus[]>(() => {
+  }, [searchParams, currentMonth])
+
+  const statusFilter = React.useMemo<InvoiceStatus[]>(() => {
     const s = searchParams.get("status")
     return s ? (s.split(",") as InvoiceStatus[]) : []
-  })
-  const [searchQuery, setSearchQuery] = React.useState(searchParams.get("search") || "")
-  const [page, setPage] = React.useState(() => {
+  }, [searchParams])
+
+  const searchQuery = React.useMemo(() => {
+    return searchParams.get("search") || ""
+  }, [searchParams])
+
+  const page = React.useMemo(() => {
     const p = searchParams.get("page")
     return p ? parseInt(p, 10) : 1
-  })
+  }, [searchParams])
 
   const debouncedSearch = useDebouncedValue(searchQuery, 300)
 
@@ -336,16 +355,20 @@ export default function InvoicesPage() {
     limit: 50,
   }), [year, month, statusFilter, debouncedSearch, page])
 
-  // Update URL when filters change
-  React.useEffect(() => {
-    const params = new URLSearchParams()
-    params.set("year", year.toString())
-    params.set("month", month.toString())
-    if (statusFilter.length > 0) params.set("status", statusFilter.join(","))
-    if (searchQuery) params.set("search", searchQuery)
-    if (page > 1) params.set("page", page.toString())
+  // Helper to update URL params
+  const updateSearchParams = React.useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams)
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) {
+        params.delete(key)
+      } else {
+        params.set(key, value)
+      }
+    })
+    
     setSearchParams(params, { replace: true })
-  }, [year, month, statusFilter, searchQuery, page, setSearchParams])
+  }, [searchParams, setSearchParams])
 
   // Fetch data
   const { data, isLoading, isError, refetch } = useInvoices(filters)
@@ -375,6 +398,39 @@ export default function InvoicesPage() {
     navigate(`/invoices/${invoice.invoice_type.toLowerCase()}/${invoice.id}`)
   }
 
+  // Filter update handlers
+  const handleYearChange = React.useCallback((newYear: string) => {
+    updateSearchParams({ year: newYear, page: null })
+  }, [updateSearchParams])
+
+  const handleMonthChange = React.useCallback((newMonth: string) => {
+    updateSearchParams({ month: newMonth, page: null })
+  }, [updateSearchParams])
+
+  const handleSearchChange = React.useCallback((query: string) => {
+    updateSearchParams({ search: query || null, page: null })
+  }, [updateSearchParams])
+
+  const toggleStatus = React.useCallback((status: InvoiceStatus) => {
+    const currentStatuses = statusFilter
+    const newStatuses = currentStatuses.includes(status)
+      ? currentStatuses.filter((s) => s !== status)
+      : [...currentStatuses, status]
+    
+    updateSearchParams({
+      status: newStatuses.length > 0 ? newStatuses.join(",") : null,
+      page: null,
+    })
+  }, [statusFilter, updateSearchParams])
+
+  const clearStatusFilter = React.useCallback(() => {
+    updateSearchParams({ status: null, page: null })
+  }, [updateSearchParams])
+
+  const handlePageChange = React.useCallback((newPage: number) => {
+    updateSearchParams({ page: newPage.toString() })
+  }, [updateSearchParams])
+
   // Status filter options
   const statusOptions: { value: InvoiceStatus; label: string }[] = [
     { value: "DRAFT", label: "Draft" },
@@ -385,13 +441,6 @@ export default function InvoicesPage() {
     { value: "OVERDUE", label: "Jatuh Tempo" },
     { value: "CANCELLED", label: "Dibatalkan" },
   ]
-
-  const toggleStatus = (status: InvoiceStatus) => {
-    setStatusFilter((prev) =>
-      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
-    )
-    setPage(1)
-  }
 
   // Pagination
   const totalPages = data?.pagination.total_pages || 1
@@ -474,10 +523,7 @@ export default function InvoicesPage() {
                 <Calendar className="size-4 text-muted-foreground" />
                 <Select
                   value={month.toString()}
-                  onValueChange={(v) => {
-                    setMonth(parseInt(v, 10))
-                    setPage(1)
-                  }}
+                  onValueChange={handleMonthChange}
                 >
                   <SelectTrigger className="w-[140px]">
                     <SelectValue placeholder="Bulan" />
@@ -492,10 +538,7 @@ export default function InvoicesPage() {
                 </Select>
                 <Select
                   value={year.toString()}
-                  onValueChange={(v) => {
-                    setYear(parseInt(v, 10))
-                    setPage(1)
-                  }}
+                  onValueChange={handleYearChange}
                 >
                   <SelectTrigger className="w-[100px]">
                     <SelectValue placeholder="Tahun" />
@@ -539,7 +582,7 @@ export default function InvoicesPage() {
                   {statusFilter.length > 0 && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setStatusFilter([])}>
+                      <DropdownMenuItem onClick={clearStatusFilter}>
                         Reset Filter
                       </DropdownMenuItem>
                     </>
@@ -554,10 +597,7 @@ export default function InvoicesPage() {
               <Input
                 placeholder="Cari pelanggan, nomor invoice..."
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setPage(1)
-                }}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
               />
             </div>
@@ -694,7 +734,7 @@ export default function InvoicesPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPage((p) => p - 1)}
+                  onClick={() => handlePageChange(page - 1)}
                   disabled={!canPrev}
                 >
                   <ChevronLeft className="size-4" />
@@ -703,7 +743,7 @@ export default function InvoicesPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => handlePageChange(page + 1)}
                   disabled={!canNext}
                 >
                   Next
