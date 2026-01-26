@@ -778,7 +778,7 @@ export default function InvoicesPage() {
                           </div>
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground italic">
-                          {invoice.account_notes || "—"}
+                          {invoice.notes || "—"}
                         </TableCell>
                       </TableRow>
                     ))
