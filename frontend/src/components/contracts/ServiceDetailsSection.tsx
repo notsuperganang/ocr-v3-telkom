@@ -128,7 +128,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
             </div>
             <div className="flex flex-wrap gap-3 sm:justify-end relative z-10">
               <div className="flex flex-col items-start rounded-2xl border border-white/80 bg-white px-4 py-3 shadow-sm">
-                <span className="text-[0.55rem] font-semibold uppercase tracking-[0.25em] text-rose-400">Net Kontrak</span>
+                <span className="text-[0.55rem] font-semibold uppercase tracking-[0.25em] text-rose-400">DPP</span>
                 <span className="mt-1 text-base font-semibold text-slate-900">{formatIDR(breakdown.totals.overallContractValue.net)}</span>
               </div>
               <div className="flex flex-col items-start rounded-2xl border border-white/80 bg-white px-4 py-3 shadow-sm">
@@ -192,7 +192,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                     Instalasi
                   </p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.installation.net)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.installation.net)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.installation.vat)}</span></div>
                     <div className="flex justify-between border-t border-dashed border-slate-200 pt-1"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.installation.total)}</span></div>
                   </div>
@@ -204,7 +204,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                     Bulanan
                   </p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.monthly.net)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.monthly.net)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.monthly.vat)}</span></div>
                     <div className="flex justify-between border-t border-dashed border-slate-200 pt-1"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.monthly.total)}</span></div>
                   </div>
@@ -216,7 +216,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                     Tahunan
                   </p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.yearly.net)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.yearly.net)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.yearly.vat)}</span></div>
                     <div className="flex justify-between border-t border-dashed border-slate-200 pt-1"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.yearly.total)}</span></div>
                   </div>
@@ -228,7 +228,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                     Nilai Kontrak
                   </p>
                   <div className="space-y-1 text-xs">
-                    <div className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.overallContractValue.net)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.overallContractValue.net)}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.overallContractValue.vat)}</span></div>
                     <div className="flex justify-between border-t-2 border-dashed border-rose-300 pt-1"><span className="font-bold text-rose-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.overallContractValue.total)}</span></div>
                   </div>
@@ -238,7 +238,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
               <div className="rounded-xl border border-rose-100/70 bg-white/80 p-4 text-xs leading-relaxed text-slate-600">
                 <p className="font-semibold text-slate-800">Catatan PPN:</p>
                 <p className="mt-1">
-                  Semua angka merupakan harga final <strong>sudah termasuk PPN 11%</strong> (reverse calculation ke Net + PPN). Nilai Kontrak = Instalasi + Langganan Tahunan.
+                  Semua angka merupakan harga final <strong>sudah termasuk PPN 11%</strong> (reverse calculation ke DPP + PPN). Nilai Kontrak = Instalasi + Langganan Tahunan.
                 </p>
               </div>
             </motion.div>
@@ -324,10 +324,10 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                 <div className="rounded-xl border border-white/70 bg-white/90 p-4 shadow-sm">
                   <p className="mb-2 flex items-center gap-2 text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-slate-400">
                     <span className="rounded-full bg-rose-50 p-1 text-rose-500"><DollarSign className="h-3.5 w-3.5" /></span>
-                    Breakdown Net/PPN
+                    Breakdown DPP/PPN
                   </p>
                   <ul className="space-y-2 text-xs">
-                    <li className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.overallContractValue.net)}</span></li>
+                    <li className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.overallContractValue.net)}</span></li>
                     <li className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.overallContractValue.vat)}</span></li>
                     <li className="flex justify-between border-t border-dashed border-slate-200 pt-1"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.overallContractValue.total)}</span></li>
                   </ul>
@@ -350,7 +350,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                     Bulanan (Gross)
                   </p>
                   <ul className="space-y-2 text-xs">
-                    <li className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.monthly.net)}</span></li>
+                    <li className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.monthly.net)}</span></li>
                     <li className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.monthly.vat)}</span></li>
                     <li className="flex justify-between border-t border-dashed border-slate-200 pt-1"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.monthly.total)}</span></li>
                   </ul>
@@ -361,7 +361,7 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                     Tahunan (Gross)
                   </p>
                   <ul className="space-y-2 text-xs">
-                    <li className="flex justify-between"><span className="text-slate-500">Net</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.yearly.net)}</span></li>
+                    <li className="flex justify-between"><span className="text-slate-500">DPP</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.yearly.net)}</span></li>
                     <li className="flex justify-between"><span className="text-slate-500">PPN</span><span className="font-medium text-slate-700">{formatIDR(breakdown.totals.yearly.vat)}</span></li>
                     <li className="flex justify-between border-t border-dashed border-slate-200 pt-1"><span className="font-semibold text-slate-700">Total</span><span className="font-bold text-rose-700">{formatIDR(breakdown.totals.yearly.total)}</span></li>
                   </ul>

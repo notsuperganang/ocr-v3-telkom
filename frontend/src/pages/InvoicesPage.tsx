@@ -462,7 +462,7 @@ export default function InvoicesPage() {
               <Receipt className="size-7 text-[#d71920]" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-3xl font-semibold text-foreground">Invoice Management</h1>
+              <h1 className="text-3xl font-semibold text-foreground">Manajemen Invoice</h1>
               <p className="text-sm text-muted-foreground">
                 Kelola invoice termin dan recurring untuk periode {getMonthName(month)} {year}
               </p>
