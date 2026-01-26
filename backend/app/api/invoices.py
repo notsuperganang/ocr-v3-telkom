@@ -50,6 +50,14 @@ class InvoiceListItem(BaseModel):
     sent_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # New account-related fields
+    account_number: Optional[str] = None
+    bus_area: Optional[str] = None
+    nipnas: Optional[str] = None
+    segment_name: Optional[str] = None
+    account_manager_name: Optional[str] = None
+    assigned_officer_name: Optional[str] = None
+    account_notes: Optional[str] = None
 
     class Config:
         from_attributes = True

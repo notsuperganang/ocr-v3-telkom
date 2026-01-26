@@ -683,6 +683,14 @@ export interface Invoice {
   segment: string | null;
   contract_start_date: string | null;
   contract_end_date: string | null;
+  // Account Info (new fields)
+  account_number: string | null;
+  bus_area: string | null;
+  nipnas: string | null;
+  segment_name: string | null;
+  account_manager_name: string | null;
+  assigned_officer_name: string | null;
+  account_notes: string | null;
 }
 
 export interface InvoiceSummary {
