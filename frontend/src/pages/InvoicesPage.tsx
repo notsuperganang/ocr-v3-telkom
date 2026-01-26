@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  Eye,
   FileText,
   ListFilter,
   Receipt,
@@ -310,6 +309,10 @@ export default function InvoicesPage() {
     return s ? (s.split(",") as InvoiceStatus[]) : []
   }, [searchParams])
 
+  const officerFilter = React.useMemo(() => {
+    return searchParams.get("officer") || ""
+  }, [searchParams])
+
   const searchQuery = React.useMemo(() => {
     return searchParams.get("search") || ""
   }, [searchParams])
@@ -349,6 +352,18 @@ export default function InvoicesPage() {
   // Fetch data
   const { data, isLoading, isError, refetch } = useInvoices(filters)
   const exportMutation = useExportInvoices()
+
+  // Generate unique officer options from invoice data
+  const officerOptions = React.useMemo(() => {
+    if (!data?.data) return []
+    const officers = new Set<string>()
+    data.data.forEach((invoice) => {
+      if (invoice.assigned_officer_name) {
+        officers.add(invoice.assigned_officer_name)
+      }
+    })
+    return Array.from(officers).sort()
+  }, [data])
 
   // Generate year options (last 5 years + next year)
   const yearOptions = React.useMemo(() => {
@@ -401,6 +416,14 @@ export default function InvoicesPage() {
 
   const clearStatusFilter = React.useCallback(() => {
     updateSearchParams({ status: null, page: null })
+  }, [updateSearchParams])
+
+  const handleOfficerChange = React.useCallback((officer: string) => {
+    updateSearchParams({ officer: officer || null, page: null })
+  }, [updateSearchParams])
+
+  const clearOfficerFilter = React.useCallback(() => {
+    updateSearchParams({ officer: null, page: null })
   }, [updateSearchParams])
 
   const handlePageChange = React.useCallback((newPage: number) => {
@@ -513,7 +536,7 @@ export default function InvoicesPage() {
                   value={month.toString()}
                   onValueChange={handleMonthChange}
                 >
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[140px] hover:bg-accent hover:text-accent-foreground">
                     <SelectValue placeholder="Bulan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -528,7 +551,7 @@ export default function InvoicesPage() {
                   value={year.toString()}
                   onValueChange={handleYearChange}
                 >
-                  <SelectTrigger className="w-[100px]">
+                  <SelectTrigger className="w-[100px] hover:bg-accent hover:text-accent-foreground">
                     <SelectValue placeholder="Tahun" />
                   </SelectTrigger>
                   <SelectContent>
@@ -577,6 +600,47 @@ export default function InvoicesPage() {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {/* Officer Filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <ListFilter className="size-4" />
+                    Petugas
+                    {officerFilter && (
+                      <Badge variant="secondary" className="ml-1 rounded-full px-1.5 text-xs">
+                        1
+                      </Badge>
+                    )}
+                    <ChevronDown className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>Filter Petugas</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleOfficerChange("")}>
+                    Semua Petugas
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {officerOptions.map((officer) => (
+                    <DropdownMenuCheckboxItem
+                      key={officer}
+                      checked={officerFilter === officer}
+                      onCheckedChange={() => handleOfficerChange(officer)}
+                    >
+                      {officer}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  {officerFilter && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={clearOfficerFilter}>
+                        Reset Filter
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Search */}
@@ -594,9 +658,9 @@ export default function InvoicesPage() {
       </Card>
 
       {/* Invoice Table */}
-      <Card className={cn(designTokens.radius.xl, designTokens.border, designTokens.surface.base)}>
-        <CardContent className="p-0">
-          {isError ? (
+      {isError ? (
+        <Card className={cn(designTokens.radius.xl, designTokens.border, designTokens.surface.base)}>
+          <CardContent className="p-0">
             <div className="flex flex-col items-center justify-center gap-4 py-16">
               <AlertTriangle className="size-12 text-red-500" />
               <p className="text-muted-foreground">Gagal memuat data invoice</p>
@@ -604,13 +668,16 @@ export default function InvoicesPage() {
                 Coba Lagi
               </Button>
             </div>
-          ) : (
-            <div className="relative overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
-              <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#d71920]/60 to-transparent opacity-70" />
-              {isLoading && (
-                <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-gradient-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
-              )}
-              <Table>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-border/60 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.5)]">
+          <div className="relative">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#d71920]/60 to-transparent opacity-70" />
+            {isLoading && (
+              <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-gradient-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
+            )}
+            <Table className={designTokens.radius.xl}>
                 <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
                   <TableRow className="hover:bg-transparent border-b border-border/70">
                     <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">No. Invoice</TableHead>
@@ -626,7 +693,6 @@ export default function InvoicesPage() {
                     <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Status</TableHead>
                     <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Progress</TableHead>
                     <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold">Catatan</TableHead>
-                    <TableHead className="whitespace-nowrap text-xs uppercase tracking-wide text-[#d71920] font-bold text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="bg-background/60">
@@ -647,12 +713,11 @@ export default function InvoicesPage() {
                         <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                         <TableCell><Skeleton className="h-2 w-24" /></TableCell>
                         <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                        <TableCell><Skeleton className="h-8 w-8 mx-auto" /></TableCell>
                       </TableRow>
                     ))
                   ) : data?.data.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={14} className="h-32 text-center">
+                      <TableCell colSpan={13} className="h-32 text-center">
                         <div className="flex flex-col items-center gap-2">
                           <FileText className="size-10 text-muted-foreground/50" />
                           <p className="text-muted-foreground">
@@ -689,7 +754,7 @@ export default function InvoicesPage() {
                         <TableCell className="text-sm text-muted-foreground">
                           {invoice.witel_name || "—"}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-foreground">
+                        <TableCell className="font-medium text-foreground">
                           {formatCurrency(invoice.amount || "0", { compact: false })}
                         </TableCell>
                         <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">
@@ -715,58 +780,64 @@ export default function InvoicesPage() {
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground italic">
                           {invoice.account_notes || "—"}
                         </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleRowClick(invoice)
-                            }}
-                          >
-                            <Eye className="size-4" />
-                            <span className="sr-only">Lihat Detail</span>
-                          </Button>
-                        </TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
-            </div>
-          )}
+          </div>
 
           {/* Pagination */}
-          {!isError && data && data.pagination.total_pages > 1 && (
-            <div className="flex items-center justify-between border-t border-border/70 px-4 py-3">
-              <p className="text-sm text-muted-foreground">
-                Halaman {page} dari {totalPages} ({data.pagination.total} invoice)
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(page - 1)}
-                  disabled={!canPrev}
-                >
-                  <ChevronLeft className="size-4" />
-                  Prev
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(page + 1)}
-                  disabled={!canNext}
-                >
-                  Next
-                  <ChevronRight className="size-4" />
-                </Button>
+            {data && data.pagination.total_pages > 1 && (
+              <div className="flex flex-col items-start gap-4 bg-card/90 p-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between border-t border-border/60">
+                <div>
+                  {data.pagination.total === 0 ? (
+                    "Tidak ada invoice"
+                  ) : (
+                    <>
+                      Menampilkan{" "}
+                      <span className="font-semibold text-foreground">
+                        {(page - 1) * 50 + 1}-{Math.min(page * 50, data.pagination.total)}
+                      </span>{" "}
+                      dari{" "}
+                      <span className="font-semibold text-foreground">
+                        {data.pagination.total}
+                      </span>{" "}
+                      invoice
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={!canPrev}
+                    className={designTokens.focusRing}
+                    aria-label="Halaman sebelumnya"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                    Prev
+                  </Button>
+                  <span className="tabular-nums text-sm text-foreground">
+                    {totalPages === 0 ? 0 : page} / {Math.max(totalPages, 1)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={!canNext}
+                    className={designTokens.focusRing}
+                    aria-label="Halaman selanjutnya"
+                  >
+                    Next
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+        </div>
+      )}
     </div>
   )
 }
