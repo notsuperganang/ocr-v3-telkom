@@ -170,6 +170,28 @@ def _validate_payment_amount(
         )
 
 
+def calculate_due_date(period_year: int, period_month: int) -> datetime:
+    """
+    Calculate invoice due date as the 15th of the billing month.
+
+    This follows typical Indonesian billing cycles where invoices are
+    due on the 15th of the billing period month.
+
+    Args:
+        period_year: Billing year (e.g., 2025)
+        period_month: Billing month (1-12)
+
+    Returns:
+        Datetime with timezone set to UTC
+
+    Example:
+        >>> calculate_due_date(2025, 3)
+        datetime(2025, 3, 15, 0, 0, 0, tzinfo=timezone.utc)
+    """
+    due = date(period_year, period_month, 15)
+    return datetime.combine(due, datetime.min.time(), tzinfo=timezone.utc)
+
+
 # === Main Service Functions ===
 
 def get_invoice_detail(
