@@ -663,7 +663,8 @@ def get_invoices_by_period(
             segment_name,
             account_manager_name,
             assigned_officer_name,
-            account_notes
+            account_notes,
+            notes
         FROM v_invoices
         WHERE {where_sql}
         ORDER BY due_date DESC NULLS LAST, invoice_number ASC
