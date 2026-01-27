@@ -84,7 +84,7 @@ export const InvoiceInfoCard: React.FC<InvoiceInfoCardProps> = ({
     },
     {
       label: "Periode",
-      value: formatPeriod(invoice?.billing_month, invoice?.billing_year),
+      value: formatPeriod(invoice?.period_month, invoice?.period_year),
       helper: "Periode penagihan",
       icon: Clock,
     },
