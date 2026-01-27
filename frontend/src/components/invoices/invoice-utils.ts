@@ -121,7 +121,8 @@ export function formatDateTime(value: string | null | undefined): string {
 }
 
 export function formatPeriod(month: number | null | undefined, year: number | null | undefined): string {
-  if (!month || !year) return "—"
+  // Return empty string instead of "—" to hide the chip when no period data
+  if (!month || !year) return ""
   const date = new Date(year, month - 1, 1)
   return new Intl.DateTimeFormat("id-ID", {
     month: "long",
