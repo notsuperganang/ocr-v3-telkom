@@ -281,14 +281,19 @@ def get_invoice_detail(
             "customer_name": invoice_view["customer_name"],
             "contract_number": invoice_view["contract_number"],
             "customer_npwp": invoice_view["npwp"],
+            "npwp": invoice_view["npwp"],  # Alias for frontend compatibility
             "customer_address": invoice_view["customer_address"],
             "account_number": invoice_view["account_number"],
             "witel_name": invoice_view["witel_name"],
             "witel_id": invoice_view["witel_id"],
             "segment_name": invoice_view["segment_name"],
+            "segment": invoice_view["segment_name"],  # Legacy segment field
             "segment_id": invoice_view["segment_id"],
             "account_manager_name": invoice_view["account_manager_name"],
             "assigned_officer_name": invoice_view["assigned_officer_name"],
+            # Contract period dates
+            "contract_start_date": invoice_view.get("contract_start_date"),
+            "contract_end_date": invoice_view.get("contract_end_date"),
         }
     except KeyError as e:
         logger.error(f"KeyError when building invoice_data: {e}")

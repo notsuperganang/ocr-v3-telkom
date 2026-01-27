@@ -168,14 +168,20 @@ class InvoiceDetail(BaseModel):
     customer_name: Optional[str] = None
     contract_number: Optional[str] = None
     customer_npwp: Optional[str] = None
+    npwp: Optional[str] = None  # Alias for customer_npwp (for frontend compatibility)
     customer_address: Optional[str] = None
     account_number: Optional[str] = None
     witel_name: Optional[str] = None
     witel_id: Optional[int] = None
     segment_name: Optional[str] = None
+    segment: Optional[str] = None  # Legacy segment field
     segment_id: Optional[int] = None
     account_manager_name: Optional[str] = None
     assigned_officer_name: Optional[str] = None
+    
+    # Contract period info
+    contract_start_date: Optional[date] = None
+    contract_end_date: Optional[date] = None
 
     class Config:
         from_attributes = True
