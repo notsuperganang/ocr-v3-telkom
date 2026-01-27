@@ -91,6 +91,9 @@ class InvoiceListResponse(BaseModel):
 class PaymentTransactionBrief(BaseModel):
     """Payment transaction in invoice detail."""
     id: int
+    invoice_type: Optional[str] = None
+    term_payment_id: Optional[int] = None
+    recurring_payment_id: Optional[int] = None
     payment_date: Optional[datetime] = None
     amount: Optional[Decimal] = None
     payment_method: Optional[str] = None
@@ -98,8 +101,9 @@ class PaymentTransactionBrief(BaseModel):
     ppn_included: bool = False
     pph23_included: bool = False
     notes: Optional[str] = None
-    created_by_id: Optional[int] = None
+    created_by: Optional[str] = None
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -108,13 +112,16 @@ class PaymentTransactionBrief(BaseModel):
 class InvoiceDocumentBrief(BaseModel):
     """Document in invoice detail."""
     id: int
+    invoice_type: Optional[str] = None
+    term_payment_id: Optional[int] = None
+    recurring_payment_id: Optional[int] = None
     document_type: str
     file_name: str
     file_path: str
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
     payment_transaction_id: Optional[int] = None
-    uploaded_by_id: Optional[int] = None
+    uploaded_by: Optional[str] = None
     uploaded_at: Optional[datetime] = None
     notes: Optional[str] = None
 

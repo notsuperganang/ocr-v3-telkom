@@ -1,7 +1,7 @@
 // Payment History Card Component
 import * as React from "react"
 import { motion } from "motion/react"
-import { Clock, Plus, History, CreditCard, Hash, Calendar, Edit2, Trash2 } from "lucide-react"
+import { Clock, Plus, History, CreditCard, Hash, Calendar, Edit2, Trash2, User } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { formatCurrency } from "@/lib/utils"
 import type { Invoice, PaymentTransaction } from "@/types/api"
-import { formatDateTime } from "./invoice-utils"
+import { formatDateTime, formatDate } from "./invoice-utils"
 import {
   Skeleton,
   TaxStatus,
@@ -80,7 +80,9 @@ const PaymentCard: React.FC<PaymentCardProps> = ({ payment, index, invoice, onRe
             </span>
             <div>
               <span className="font-semibold text-slate-900">Pembayaran #{index}</span>
-              <p className="text-xs text-slate-500">{formatDateTime(payment.payment_date)}</p>
+              <p className="text-xs text-slate-500">
+                Tanggal Bayar: {formatDate(payment.payment_date)}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -116,6 +118,13 @@ const PaymentCard: React.FC<PaymentCardProps> = ({ payment, index, invoice, onRe
               {payment.payment_method || "—"}
             </span>
           </div>
+          <div className="flex items-center gap-2">
+            <User className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-slate-500">Dibuat oleh:</span>
+            <span className="font-medium text-slate-700">
+              {payment.created_by || "—"}
+            </span>
+          </div>
           {payment.reference_number && (
             <div className="flex items-center gap-2">
               <Hash className="h-3.5 w-3.5 text-slate-400" />
@@ -125,6 +134,13 @@ const PaymentCard: React.FC<PaymentCardProps> = ({ payment, index, invoice, onRe
               </span>
             </div>
           )}
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-slate-500">Dicatat:</span>
+            <span className="font-medium text-slate-700">
+              {formatDateTime(payment.created_at)}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-4 pt-2 border-t border-slate-100">
