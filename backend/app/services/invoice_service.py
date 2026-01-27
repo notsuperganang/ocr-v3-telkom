@@ -25,6 +25,7 @@ from app.models.database import (
     Contract,
     Account,
 )
+from app.services.termin_status import compute_termin_status
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +449,16 @@ def add_payment(
     )
 
     # Note: invoice_status is auto-updated by database trigger
+    # Flush to ensure trigger runs and invoice_status is updated
+    db.flush()
+
+    # Sync time-based status after trigger updates invoice_status
+    sync_invoice_status(
+        db=db,
+        invoice_type=invoice_type,
+        invoice_id=invoice_id,
+        acting_user=acting_user
+    )
 
     return payment
 
@@ -563,6 +574,16 @@ def edit_payment(
     )
 
     # Note: invoice_status is auto-updated by database trigger
+    # Flush to ensure trigger runs
+    db.flush()
+
+    # Sync time-based status after trigger updates invoice_status
+    sync_invoice_status(
+        db=db,
+        invoice_type=invoice_type,
+        invoice_id=invoice_id,
+        acting_user=acting_user
+    )
 
     return payment
 
@@ -656,6 +677,16 @@ def delete_payment(
     )
 
     # Note: invoice_status is auto-updated by database trigger
+    # Flush to ensure trigger runs
+    db.flush()
+
+    # Sync time-based status after trigger updates invoice_status
+    sync_invoice_status(
+        db=db,
+        invoice_type=invoice_type,
+        invoice_id=invoice_id,
+        acting_user=acting_user
+    )
 
     return deleted_info
 
@@ -756,6 +787,17 @@ async def upload_document(
         logger.info(
             f"BUPOT PPh 23 uploaded for invoice {invoice_type}/{invoice_id}. "
             f"Set pph23_paid=True. Database trigger will update invoice_status."
+        )
+        
+        # Flush to ensure trigger runs and invoice_status is updated
+        db.flush()
+        
+        # Sync time-based status after trigger updates invoice_status
+        sync_invoice_status(
+            db=db,
+            invoice_type=invoice_type,
+            invoice_id=invoice_id,
+            acting_user=acting_user
         )
 
     logger.info(
@@ -1214,6 +1256,17 @@ def delete_document(
                 f"Last BUPOT PPh 23 deleted for invoice {invoice_type}/{invoice_id}. "
                 f"Set pph23_paid=False. Database trigger will update invoice_status."
             )
+            
+            # Flush to ensure trigger runs
+            db.flush()
+            
+            # Sync time-based status after trigger updates invoice_status
+            sync_invoice_status(
+                db=db,
+                invoice_type=invoice_type,
+                invoice_id=invoice_id,
+                acting_user=acting_user
+            )
 
     # Delete file from storage
     file_path = Path(document.file_path)
@@ -1244,3 +1297,63 @@ def delete_document(
         "new_invoice_status": invoice.invoice_status,
         "pph23_paid": invoice.pph23_paid,
     }
+
+
+# === Status Synchronization Functions ===
+
+def sync_invoice_status(
+    db: Session,
+    invoice_type: str,
+    invoice_id: int,
+    acting_user: User,
+) -> None:
+    """
+    Synchronize time-based status column with invoice_status after database trigger runs.
+    
+    This function should be called AFTER db.flush() to ensure the trigger has updated
+    invoice_status based on payments. It then syncs the status column accordingly:
+    
+    - For FINAL states (PAID, CANCELLED): Force status to match invoice_status
+    - For ACTIVE states (DRAFT, SENT, PARTIALLY_PAID): Recalculate time-based status
+    
+    Args:
+        db: Database session
+        invoice_type: "term" or "recurring"
+        invoice_id: Invoice ID
+        acting_user: User performing the action
+    """
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        logger.warning(f"Cannot sync status: Invoice not found {invoice_type}/{invoice_id}")
+        return
+
+    # CRITICAL: Refresh to get trigger-updated invoice_status from database
+    # Without this, we read stale value from SQLAlchemy's identity map
+    db.refresh(invoice)
+
+    current_invoice_status = invoice.invoice_status
+    
+    # For final states ONLY, force status to match invoice_status
+    if current_invoice_status in ["PAID", "CANCELLED"]:
+        invoice.status = current_invoice_status
+        invoice.updated_by_id = acting_user.id if acting_user else None
+        logger.info(
+            f"Synced status to {current_invoice_status} for invoice {invoice_type}/{invoice_id}"
+        )
+        return
+    
+    # For all other states (DRAFT, SENT, PARTIALLY_PAID, PAID_PENDING_PPH23), 
+    # recalculate time-based status based on period
+    if current_invoice_status in ["DRAFT", "SENT", "PARTIALLY_PAID", "PAID_PENDING_PPH23"]:
+        time_based_status = compute_termin_status(invoice.period_year, invoice.period_month)
+        invoice.status = time_based_status
+        invoice.updated_by_id = acting_user.id if acting_user else None
+        logger.info(
+            f"Recalculated time-based status to {time_based_status} for invoice "
+            f"{invoice_type}/{invoice_id} (invoice_status={current_invoice_status})"
+        )
+        return
+    
+    logger.warning(
+        f"Unknown invoice_status {current_invoice_status} for invoice {invoice_type}/{invoice_id}"
+    )
