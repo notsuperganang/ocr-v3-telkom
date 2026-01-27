@@ -103,18 +103,18 @@ export const InfoRow: React.FC<InfoRowProps> = ({
 }) => (
   <div className={cn("flex items-start gap-3", className)}>
     {Icon && (
-      <span className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100">
+      <span className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100 flex-shrink-0">
         <Icon className="h-3.5 w-3.5" />
       </span>
     )}
-    <div className="flex-1 space-y-0.5">
+    <div className="flex-1 min-w-0 space-y-0.5">
       <p className="text-[0.65rem] font-semibold uppercase tracking-[0.25em] text-rose-400">
         {label}
       </p>
       <p
         className={cn(
           "text-sm font-medium text-slate-900",
-          monospace && "font-mono tracking-wide break-all"
+          monospace ? "font-mono tracking-wide break-all" : "break-words"
         )}
       >
         {value}
