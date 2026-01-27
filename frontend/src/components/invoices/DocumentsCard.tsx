@@ -214,7 +214,7 @@ export const DocumentsCard: React.FC<DocumentsCardProps> = ({
       transition={{ delay: 0.3 }}
     >
       <Card className="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-3">
+        <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-6">
           <div className="flex flex-row items-start justify-between">
             <SectionHeader
               icon={FolderOpen}
@@ -233,7 +233,7 @@ export const DocumentsCard: React.FC<DocumentsCardProps> = ({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="bg-white p-3 space-y-3">
+        <CardContent className="bg-white p-6 space-y-3">
           {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-16 w-full" />

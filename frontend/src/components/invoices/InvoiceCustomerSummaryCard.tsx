@@ -287,7 +287,7 @@ export const InvoiceCustomerSummaryCard: React.FC<InvoiceCustomerSummaryCardProp
       className={className}
     >
       <Card className="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
-        <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-3">
+        <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-6">
           <SectionHeader
             icon={FileText}
             tag="Ringkasan"
@@ -296,7 +296,7 @@ export const InvoiceCustomerSummaryCard: React.FC<InvoiceCustomerSummaryCardProp
             rightIcon={Users}
           />
         </CardHeader>
-        <CardContent className="space-y-3 bg-white p-3">
+        <CardContent className="space-y-3 bg-white p-6">
           {isLoading ? (
             <LoadingSkeleton />
           ) : data ? (
