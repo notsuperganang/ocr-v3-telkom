@@ -88,13 +88,14 @@ export default function UploadDocumentModal({
   const uploadMutation = useUploadInvoiceDocument()
   const [file, setFile] = React.useState<File | null>(null)
   const [dragActive, setDragActive] = React.useState(false)
+  const [selectedPayment, setSelectedPayment] = React.useState<string>("NONE")
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
     defaultValues: {
-      document_type: undefined,
-      payment_transaction_id: "",
+      document_type: "BUKTI_BAYAR",
+      payment_transaction_id: undefined,
       notes: "",
     },
   })
@@ -103,11 +104,12 @@ export default function UploadDocumentModal({
   React.useEffect(() => {
     if (open) {
       form.reset({
-        document_type: undefined,
-        payment_transaction_id: "",
+        document_type: "BUKTI_BAYAR",
+        payment_transaction_id: undefined,
         notes: "",
       })
       setFile(null)
+      setSelectedPayment("NONE")
     }
   }, [open, form])
 
@@ -213,7 +215,7 @@ export default function UploadDocumentModal({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipe Dokumen *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || "BUKTI_BAYAR"}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih tipe dokumen" />
@@ -236,35 +238,32 @@ export default function UploadDocumentModal({
 
             {/* Link to Payment (optional) */}
             {payments.length > 0 && (
-              <FormField
-                control={form.control}
-                name="payment_transaction_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tautkan ke Pembayaran</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Tidak ditautkan" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="">Tidak ditautkan</SelectItem>
-                        {payments.map((payment, index) => (
-                          <SelectItem key={payment.id} value={payment.id}>
-                            Pembayaran #{index + 1} - Rp{" "}
-                            {parseFloat(payment.amount).toLocaleString("id-ID")}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Opsional: Tautkan dokumen ke pembayaran tertentu
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>Tautkan ke Pembayaran</FormLabel>
+                <Select 
+                  key={open ? "open" : "closed"}
+                  value={selectedPayment} 
+                  onValueChange={(value) => {
+                    setSelectedPayment(value)
+                    form.setValue("payment_transaction_id", value === "NONE" ? undefined : value)
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tidak ditautkan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">Tidak ditautkan</SelectItem>
+                    {payments.map((payment, index) => (
+                      <SelectItem key={String(payment.id)} value={String(payment.id)}>
+                        {`Pembayaran #${index + 1} - Rp ${parseFloat(payment.amount).toLocaleString("id-ID")}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Opsional: Tautkan dokumen ke pembayaran tertentu
+                </FormDescription>
+              </FormItem>
             )}
 
             {/* File Upload */}
@@ -285,12 +284,17 @@ export default function UploadDocumentModal({
               >
                 {file ? (
                   <div className="flex w-full items-center gap-3">
-                    <div className="rounded-lg bg-emerald-100 p-2">
+                    <div className="rounded-lg bg-emerald-100 p-2 shrink-0">
                       <FileUp className="size-5 text-emerald-600" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p 
+                        className="font-medium text-sm text-emerald-900 break-all line-clamp-2" 
+                        title={file.name}
+                      >
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-emerald-700 mt-0.5">
                         {formatFileSize(file.size)}
                       </p>
                     </div>
@@ -299,7 +303,7 @@ export default function UploadDocumentModal({
                       variant="ghost"
                       size="icon"
                       onClick={removeFile}
-                      className="shrink-0"
+                      className="shrink-0 hover:bg-emerald-100 self-start"
                     >
                       <X className="size-4" />
                       <span className="sr-only">Hapus file</span>
