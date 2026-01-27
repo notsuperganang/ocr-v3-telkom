@@ -43,12 +43,15 @@ PATCH_RECURRING_STATUS = 'app.services.termin_status.update_recurring_statuses'
 class TestCalculateDueDate:
     """Test calculate_due_date helper function"""
 
-    def test_due_date_is_15th_of_month(self):
-        """Due date should be 15th of the billing month"""
+    def test_due_date_is_last_day_of_month(self):
+        """Due date should be last day of the billing month"""
         result = calculate_due_date(2025, 3)
-        assert result.day == 15
+        assert result.day == 31  # March has 31 days
         assert result.month == 3
         assert result.year == 2025
+        assert result.hour == 23
+        assert result.minute == 59
+        assert result.second == 59
 
     def test_due_date_has_utc_timezone(self):
         """Due date should have UTC timezone"""
@@ -56,21 +59,28 @@ class TestCalculateDueDate:
         assert result.tzinfo == timezone.utc
 
     def test_due_date_january(self):
-        """Test due date for January"""
+        """Test due date for January (31 days)"""
         result = calculate_due_date(2025, 1)
-        assert result == datetime(2025, 1, 15, 0, 0, 0, tzinfo=timezone.utc)
+        assert result == datetime(2025, 1, 31, 23, 59, 59, tzinfo=timezone.utc)
 
     def test_due_date_december(self):
-        """Test due date for December"""
+        """Test due date for December (31 days)"""
         result = calculate_due_date(2025, 12)
-        assert result == datetime(2025, 12, 15, 0, 0, 0, tzinfo=timezone.utc)
+        assert result == datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
 
     def test_due_date_february_leap_year(self):
-        """Test due date for February in leap year (15th always valid)"""
+        """Test due date for February in leap year (29 days)"""
         result = calculate_due_date(2024, 2)  # 2024 is leap year
-        assert result.day == 15
+        assert result.day == 29
         assert result.month == 2
         assert result.year == 2024
+
+    def test_due_date_february_non_leap_year(self):
+        """Test due date for February in non-leap year (28 days)"""
+        result = calculate_due_date(2025, 2)  # 2025 is not a leap year
+        assert result.day == 28
+        assert result.month == 2
+        assert result.year == 2025
 
     def test_due_date_february_non_leap_year(self):
         """Test due date for February in non-leap year"""
@@ -282,12 +292,12 @@ class TestTerminSyncInvoiceFields:
         # Verify invoice fields for first term
         term1 = added_terms[0]
         assert term1.invoice_status == "DRAFT"
-        assert term1.due_date == datetime(2025, 3, 15, 0, 0, 0, tzinfo=timezone.utc)
+        assert term1.due_date == datetime(2025, 3, 31, 23, 59, 59, tzinfo=timezone.utc)
 
         # Verify invoice fields for second term
         term2 = added_terms[1]
         assert term2.invoice_status == "DRAFT"
-        assert term2.due_date == datetime(2025, 6, 15, 0, 0, 0, tzinfo=timezone.utc)
+        assert term2.due_date == datetime(2025, 6, 30, 23, 59, 59, tzinfo=timezone.utc)
 
     def test_invoice_number_none_without_account(self):
         """Invoice number should be None when contract has no account"""
@@ -371,7 +381,7 @@ class TestTerminSyncInvoiceFields:
         existing_term.termin_number = 1
         existing_term.invoice_number = "4997096-000001-202503"
         existing_term.invoice_status = "SENT"  # Already sent
-        existing_term.due_date = datetime(2025, 3, 15, 0, 0, 0, tzinfo=timezone.utc)
+        existing_term.due_date = datetime(2025, 3, 31, 23, 59, 59, tzinfo=timezone.utc)
 
         # Mock to return existing term
         db.query.return_value.filter.return_value.all.return_value = [existing_term]
@@ -450,11 +460,15 @@ class TestRecurringSyncInvoiceFields:
         added_payments = [call[0][0] for call in db.add.call_args_list]
 
         # Verify invoice fields
-        for payment in added_payments:
+        for i, payment in enumerate(added_payments):
             assert payment.invoice_status == "DRAFT"
             assert payment.due_date is not None
-            # Due date should be 15th of billing month
-            assert payment.due_date.day == 15
+            # Due date should be last day of billing month
+            expected_days = [31, 28, 31]  # Jan (31), Feb (28), Mar (31) for non-leap year
+            assert payment.due_date.day == expected_days[i]
+            assert payment.due_date.hour == 23
+            assert payment.due_date.minute == 59
+            assert payment.due_date.second == 59
 
     def test_invoice_number_none_without_account(self):
         """Invoice number should be None when contract has no account"""
@@ -480,7 +494,7 @@ class TestRecurringSyncInvoiceFields:
             assert payment.due_date is not None
 
     def test_due_date_correct_for_each_billing_month(self):
-        """Due date should be 15th of each billing month"""
+        """Due date should be last day of each billing month"""
         db = self._create_mock_db()
         contract = self._create_mock_recurring_contract(account_id=None)
         user = self._create_mock_user()
@@ -544,7 +558,7 @@ class TestRecurringSyncInvoiceFields:
         existing_payment.period_month = 1
         existing_payment.invoice_number = "4997096-000001-202501"
         existing_payment.invoice_status = "SENT"  # Already sent
-        existing_payment.due_date = datetime(2025, 1, 15, 0, 0, 0, tzinfo=timezone.utc)
+        existing_payment.due_date = datetime(2025, 1, 31, 23, 59, 59, tzinfo=timezone.utc)
 
         # Mock to return existing payment
         db.query.return_value.filter.return_value.all.return_value = [existing_payment]
