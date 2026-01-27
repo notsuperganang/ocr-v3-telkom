@@ -1,7 +1,7 @@
 // Payment Breakdown Card Component
 import * as React from "react"
 import { motion } from "motion/react"
-import { Calculator, TrendingUp, Wallet } from "lucide-react"
+import { Calculator, TrendingUp, Wallet, DollarSign } from "lucide-react"
 
 import {
   Card,
@@ -9,14 +9,11 @@ import {
   CardHeader,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { formatCurrency } from "@/lib/utils"
 import type { Invoice } from "@/types/api"
 import {
   Skeleton,
   TaxStatus,
-  SectionHeader,
-  InfoCardItem,
   cardVariants,
 } from "./InvoiceUIComponents"
 
@@ -34,20 +31,23 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> = ({
       variants={cardVariants}
       initial="initial"
       animate="animate"
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -2 }}
       transition={{ delay: 0.2 }}
     >
-      <Card className="overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
-        <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
-          <SectionHeader
-            icon={Calculator}
-            tag="Pembayaran"
-            title="Rincian Pembayaran"
-            description="Perhitungan PPh 23 Withholding - Pelanggan membayar Net Payable"
-            rightIcon={Wallet}
-          />
+      <Card className="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
+        <CardHeader className="relative border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-6">
+          <div className="space-y-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">
+              <Calculator className="h-3.5 w-3.5" />
+              Pembayaran
+            </span>
+            <h3 className="text-xl font-semibold text-slate-900">Rincian Pembayaran</h3>
+            <p className="text-sm text-slate-500 max-w-2xl">
+              Perhitungan PPh 23 Withholding - Pelanggan membayar Net Payable
+            </p>
+          </div>
         </CardHeader>
-        <CardContent className="bg-white p-5">
+        <CardContent className="bg-white p-6 space-y-6">
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-6 w-full" />
@@ -56,136 +56,147 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> = ({
               <Skeleton className="h-8 w-full" />
             </div>
           ) : (
-            <div className="space-y-5">
-              {/* Amount breakdown */}
-              <motion.div
-                whileHover={{ y: -2 }}
-                transition={{ duration: 0.2 }}
-                className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 space-y-3"
-              >
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <Calculator className="h-4 w-4 text-slate-500" />
-                  Perhitungan Nilai
-                </div>
-
-                <div className="space-y-2">
-                  <InfoCardItem
-                    label="Base Amount (DPP)"
-                    value={formatCurrency(invoice?.base_amount || "0", { compact: false })}
-                  />
-                  <InfoCardItem
-                    label="PPN 11%"
-                    value={formatCurrency(invoice?.ppn_amount || "0", { compact: false })}
-                  />
-                  <Separator className="my-2" />
-                  <InfoCardItem
-                    label="Total Invoice"
-                    value={
-                      <span className="font-bold">
+            <>
+              {/* Amount Breakdown - Grid Layout */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Tax Calculation Card */}
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="rounded-xl border border-white/70 bg-white/90 p-4 shadow-sm"
+                >
+                  <p className="mb-3 flex items-center gap-2 text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-slate-400">
+                    <span className="rounded-full bg-rose-50 p-1 text-rose-500">
+                      <Calculator className="h-3.5 w-3.5" />
+                    </span>
+                    Perhitungan Pajak
+                  </p>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">DPP</span>
+                      <span className="font-medium text-slate-700">
+                        {formatCurrency(invoice?.base_amount || "0", { compact: false })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">PPN 11%</span>
+                      <span className="font-medium text-slate-700">
+                        {formatCurrency(invoice?.ppn_amount || "0", { compact: false })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-t border-dashed border-slate-200 pt-2">
+                      <span className="font-semibold text-slate-700">Total Invoice</span>
+                      <span className="font-bold text-slate-900">
                         {formatCurrency(invoice?.amount || "0", { compact: false })}
                       </span>
-                    }
-                    className="font-medium"
-                  />
-                  <InfoCardItem
-                    label="PPh 23 (2% dipotong)"
-                    value={
-                      <span className="text-red-600">
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">PPh 23 (2%)</span>
+                      <span className="font-medium text-red-600">
                         - {formatCurrency(invoice?.pph_amount || "0", { compact: false })}
                       </span>
-                    }
-                  />
-                </div>
-              </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
 
-              {/* Net Payable highlight */}
-              <motion.div
-                whileHover={{ scale: 1.01 }}
-                transition={{ type: "spring", stiffness: 200 }}
-                className="rounded-2xl border-2 border-rose-200 bg-gradient-to-r from-rose-50 to-white p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">
-                      Net Payable
+                {/* Net Payable Highlight */}
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                  className="rounded-xl border-2 border-rose-300 bg-gradient-to-br from-white via-white to-rose-50 p-4 shadow-md"
+                >
+                  <p className="mb-3 flex items-center gap-2 text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-rose-500">
+                    <span className="rounded-full bg-rose-100 p-1 text-rose-600">
+                      <DollarSign className="h-3.5 w-3.5" />
+                    </span>
+                    Net Payable
+                  </p>
+                  <div className="space-y-3">
+                    <p className="text-3xl font-bold text-rose-700">
+                      {formatCurrency(invoice?.net_payable_amount || "0", { compact: false })}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Jumlah yang dibayar pelanggan
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Jumlah yang dibayar pelanggan (Total Invoice - PPh 23)
                     </p>
                   </div>
-                  <p className="text-2xl font-bold text-rose-600">
-                    {formatCurrency(invoice?.net_payable_amount || "0", { compact: false })}
-                  </p>
-                </div>
-              </motion.div>
+                </motion.div>
+              </div>
 
-              {/* Payment Status */}
+              {/* Payment Progress Section */}
               <motion.div
-                whileHover={{ y: -2 }}
-                transition={{ duration: 0.2 }}
-                className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 space-y-3"
+                whileHover={{ y: -4 }}
+                className="rounded-xl border border-emerald-100/70 bg-gradient-to-br from-white via-white to-emerald-50 p-5 shadow-sm"
               >
-                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                  <TrendingUp className="h-4 w-4" />
+                <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                  <span className="rounded-full bg-white/70 p-2 shadow-inner shadow-emerald-100">
+                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  </span>
                   Status Pembayaran
                 </div>
 
-                <div className="space-y-2">
-                  <InfoCardItem
-                    label="Sudah Dibayar"
-                    value={
-                      <span className="text-emerald-600 font-bold">
-                        {formatCurrency(invoice?.paid_amount || "0", { compact: false })}
-                      </span>
-                    }
-                  />
-                  <InfoCardItem
-                    label="Outstanding"
-                    value={
-                      <span className="text-orange-600 font-bold">
-                        {formatCurrency(invoice?.outstanding_amount || "0", { compact: false })}
-                      </span>
-                    }
-                  />
+                {/* Payment Amounts Grid */}
+                <div className="grid gap-4 mb-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50/60 px-3 py-2">
+                    <p className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-emerald-400 mb-1">
+                      Sudah Dibayar
+                    </p>
+                    <p className="text-lg font-bold text-emerald-600">
+                      {formatCurrency(invoice?.paid_amount || "0", { compact: false })}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-dashed border-orange-200 bg-orange-50/60 px-3 py-2">
+                    <p className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] text-orange-400 mb-1">
+                      Outstanding
+                    </p>
+                    <p className="text-lg font-bold text-orange-600">
+                      {formatCurrency(invoice?.outstanding_amount || "0", { compact: false })}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Progress Pembayaran</span>
-                    <span className="font-semibold">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-500">Progress Pembayaran</span>
+                    <span className="font-bold text-emerald-700">
                       {Math.round(invoice?.payment_progress_pct || 0)}%
                     </span>
                   </div>
                   <Progress
                     value={invoice?.payment_progress_pct || 0}
-                    className="h-3"
+                    className="h-2.5"
                   />
                 </div>
               </motion.div>
 
-              {/* Tax Status */}
-              <motion.div
-                whileHover={{ y: -2 }}
-                transition={{ duration: 0.2 }}
-                className="rounded-2xl border border-slate-100 bg-white p-4"
-              >
-                <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-3">
-                  <Wallet className="h-4 w-4" />
-                  Status Pajak
-                </div>
-                <div className="flex items-center gap-6">
-                  <TaxStatus label="PPN" paid={invoice?.ppn_paid || false} />
-                  <TaxStatus label="PPh 23" paid={invoice?.pph23_paid || false} />
-                </div>
-              </motion.div>
+              {/* Tax Status & Info Section */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Tax Status */}
+                <motion.div
+                  whileHover={{ y: -4 }}
+                  className="rounded-xl border border-white/70 bg-white/90 p-4 shadow-sm"
+                >
+                  <p className="mb-3 flex items-center gap-2 text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-slate-400">
+                    <span className="rounded-full bg-rose-50 p-1 text-rose-500">
+                      <Wallet className="h-3.5 w-3.5" />
+                    </span>
+                    Status Pajak
+                  </p>
+                  <div className="flex items-center gap-6">
+                    <TaxStatus label="PPN" paid={invoice?.ppn_paid || false} />
+                    <TaxStatus label="PPh 23" paid={invoice?.pph23_paid || false} />
+                  </div>
+                </motion.div>
 
-              {/* Info note */}
-              <p className="text-xs text-muted-foreground italic px-1">
-                * PPh 23 (2%) dipotong oleh pelanggan dan disetor langsung ke kantor pajak.
-                Customer membayar Net Payable = Total Invoice - PPh 23.
-              </p>
-            </div>
+                {/* Info Note */}
+                <div className="rounded-xl border border-rose-100/70 bg-white/80 p-4 text-xs leading-relaxed text-slate-600">
+                  <p className="font-semibold text-slate-800 mb-1">Catatan:</p>
+                  <p>
+                    PPh 23 (2%) dipotong oleh pelanggan dan disetor langsung ke kantor pajak.
+                    Customer membayar Net Payable.
+                  </p>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
