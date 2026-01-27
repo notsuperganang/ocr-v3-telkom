@@ -626,3 +626,225 @@ async def update_invoice_amount(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update amount: {str(e)}"
         )
+
+
+@router.put("/payments/{payment_id}", response_model=PaymentResponse)
+async def edit_payment(
+    payment_id: int,
+    payment_data: PaymentCreateRequest,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Edit existing payment transaction.
+
+    Updates payment details and recalculates invoice totals.
+    Validates that new amount doesn't exceed remaining outstanding.
+    """
+    db, current_user = db_and_user
+
+    try:
+        payment = invoice_service.edit_payment(
+            db=db,
+            payment_id=payment_id,
+            payment_data=payment_data.model_dump(),
+            acting_user=current_user,
+        )
+
+        db.commit()
+        db.refresh(payment)
+
+        # Determine invoice type and ID from payment
+        if payment.term_payment_id:
+            invoice_type = "term"
+            invoice_id = payment.term_payment_id
+        else:
+            invoice_type = "recurring"
+            invoice_id = payment.recurring_payment_id
+
+        # Get updated invoice data
+        invoice = invoice_service._get_invoice_by_id(db, invoice_type, invoice_id)
+
+        paid_amount = invoice_service._parse_decimal_amount(invoice.paid_amount)
+        net_payable = invoice_service._parse_decimal_amount(invoice.net_payable_amount)
+        outstanding = net_payable - paid_amount
+
+        return PaymentResponse(
+            success=True,
+            payment_id=payment.id,
+            invoice_updated=InvoiceUpdatedInfo(
+                paid_amount=paid_amount,
+                outstanding_amount=outstanding,
+                invoice_status=invoice.invoice_status,
+                payment_due_status=invoice.status,
+            )
+        )
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to edit payment: {str(e)}"
+        )
+
+
+@router.delete("/payments/{payment_id}")
+async def delete_payment(
+    payment_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Delete payment transaction.
+
+    Removes payment and recalculates invoice totals.
+    """
+    db, current_user = db_and_user
+
+    try:
+        deleted_info = invoice_service.delete_payment(
+            db=db,
+            payment_id=payment_id,
+            acting_user=current_user,
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "deleted_payment": {
+                "payment_id": deleted_info["payment_id"],
+                "amount": str(deleted_info["amount"]),
+            },
+            "invoice_updated": {
+                "paid_amount": str(deleted_info["new_paid_amount"]),
+                "invoice_status": deleted_info["new_invoice_status"],
+            }
+        }
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete payment: {str(e)}"
+        )
+
+
+@router.delete("/documents/{document_id}")
+async def delete_document(
+    document_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Delete invoice document.
+
+    Removes document from database and deletes file from storage.
+    If deleting the last BUPOT PPh 23, updates invoice pph23_paid status.
+    """
+    db, current_user = db_and_user
+
+    try:
+        result = invoice_service.delete_document(
+            db=db,
+            document_id=document_id,
+            acting_user=current_user,
+        )
+
+        db.commit()
+
+        return {
+            "success": True,
+            "deleted_document": result["document"],
+            "invoice_updated": {
+                "invoice_type": result["invoice_type"],
+                "invoice_id": result["invoice_id"],
+                "invoice_status": result["new_invoice_status"],
+                "pph23_paid": result["pph23_paid"],
+            }
+        }
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete document: {str(e)}"
+        )
+
+
+@router.patch("/{invoice_type}/{invoice_id}/notes")
+async def update_invoice_notes(
+    invoice_type: str,
+    invoice_id: int,
+    notes: str = Form(None, description="Invoice notes (empty to clear)"),
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Update invoice notes.
+
+    Allows setting or clearing invoice notes.
+    """
+    db, current_user = db_and_user
+
+    validate_invoice_type(invoice_type)
+
+    try:
+        invoice_service.update_invoice_notes(
+            db=db,
+            invoice_type=invoice_type,
+            invoice_id=invoice_id,
+            notes=notes,
+            acting_user=current_user,
+        )
+
+        db.commit()
+
+        invoice = invoice_service._get_invoice_by_id(db, invoice_type, invoice_id)
+
+        return {
+            "success": True,
+            "invoice": {
+                "id": invoice.id,
+                "notes": invoice.notes,
+            }
+        }
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update notes: {str(e)}"
+        )
