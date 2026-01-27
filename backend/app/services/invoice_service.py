@@ -7,6 +7,7 @@ Following functional service pattern (no session creation, no commits).
 
 import logging
 import uuid
+import calendar
 from datetime import datetime, date, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -174,24 +175,27 @@ def _validate_payment_amount(
 
 def calculate_due_date(period_year: int, period_month: int) -> datetime:
     """
-    Calculate invoice due date as the 15th of the billing month.
+    Calculate invoice due date as the last day of the billing month.
 
-    This follows typical Indonesian billing cycles where invoices are
-    due on the 15th of the billing period month.
+    Invoices become overdue on the 1st of the following month.
+    For example, a March invoice is due on March 31st and becomes overdue on April 1st.
 
     Args:
         period_year: Billing year (e.g., 2025)
         period_month: Billing month (1-12)
 
     Returns:
-        Datetime with timezone set to UTC
+        Datetime with timezone set to UTC (last day of month at 23:59:59)
 
     Example:
         >>> calculate_due_date(2025, 3)
-        datetime(2025, 3, 15, 0, 0, 0, tzinfo=timezone.utc)
+        datetime(2025, 3, 31, 23, 59, 59, tzinfo=timezone.utc)
     """
-    due = date(period_year, period_month, 15)
-    return datetime.combine(due, datetime.min.time(), tzinfo=timezone.utc)
+    # Get the last day of the month
+    last_day = calendar.monthrange(period_year, period_month)[1]
+    due = date(period_year, period_month, last_day)
+    # Set to end of day (23:59:59) so it becomes overdue at 00:00:00 of next month
+    return datetime.combine(due, datetime.max.time().replace(microsecond=0), tzinfo=timezone.utc)
 
 
 # === Main Service Functions ===
