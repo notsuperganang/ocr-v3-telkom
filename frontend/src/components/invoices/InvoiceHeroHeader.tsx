@@ -62,12 +62,13 @@ export const InvoiceHeroHeader: React.FC<InvoiceHeroHeaderProps> = ({
     </nav>
   )
 
-  // Hero chips data
+  // Hero chips data - filter out empty values
+  const periodValue = formatPeriod(invoice?.period_month, invoice?.period_year)
   const heroChips = [
     { label: "Tipe", value: invoiceType === "TERM" ? "Termin" : "Recurring" },
     ...(invoice?.account_number ? [{ label: "Akun", value: invoice.account_number }] : []),
     ...(invoice?.witel_name ? [{ label: "Witel", value: invoice.witel_name }] : []),
-    { label: "Periode", value: formatPeriod(invoice?.billing_month, invoice?.billing_year) },
+    ...(periodValue ? [{ label: "Periode", value: periodValue }] : []),
   ]
 
   return (
@@ -148,15 +149,17 @@ export const InvoiceHeroHeader: React.FC<InvoiceHeroHeaderProps> = ({
             )}
 
             {/* Date info row */}
-            {!isLoading && (
+            {!isLoading && (invoice?.due_date || invoice?.sent_date || invoice?.assigned_officer_name) && (
               <div className="mt-3 flex items-center gap-4 text-sm text-slate-600 overflow-x-auto">
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <Calendar className="w-4 h-4 text-slate-400" />
-                  <span>Jatuh Tempo:</span>
-                  <span className="font-semibold text-slate-800">
-                    {formatDate(invoice?.due_date)}
-                  </span>
-                </div>
+                {invoice?.due_date && (
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <Calendar className="w-4 h-4 text-slate-400" />
+                    <span>Jatuh Tempo:</span>
+                    <span className="font-semibold text-slate-800">
+                      {formatDate(invoice.due_date)}
+                    </span>
+                  </div>
+                )}
                 {invoice?.sent_date && (
                   <div className="flex items-center gap-2 whitespace-nowrap">
                     <Send className="w-4 h-4 text-slate-400" />
