@@ -654,8 +654,8 @@ export interface Invoice {
   payment_due_status: PaymentDueStatus;
   original_payment_date: string | null;
   due_date: string | null;
-  billing_month: number | null;
-  billing_year: number | null;
+  period_month: number | null;
+  period_year: number | null;
   original_amount: string | null;
   amount: string | null;
   base_amount: string | null;
