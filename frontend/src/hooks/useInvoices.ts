@@ -5,7 +5,6 @@ import type {
   InvoiceType,
   AddPaymentRequest,
   UpdateInvoiceStatusRequest,
-  SendInvoiceRequest,
   DocumentType,
 } from '@/types/api';
 
@@ -169,12 +168,10 @@ export function useSendInvoice() {
     mutationFn: ({
       invoiceType,
       id,
-      data,
     }: {
       invoiceType: InvoiceType;
       id: string;
-      data: SendInvoiceRequest;
-    }) => apiService.sendInvoice(invoiceType, id, data),
+    }) => apiService.sendInvoice(invoiceType, id),
     onSuccess: (_, variables) => {
       // Invalidate invoice detail
       queryClient.invalidateQueries({
@@ -187,6 +184,112 @@ export function useSendInvoice() {
     },
     onError: (error) => {
       console.error('Failed to send invoice:', error);
+    },
+  });
+}
+
+// Hook for editing payment
+export function useEditPayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      paymentId,
+      data,
+    }: {
+      paymentId: number;
+      data: AddPaymentRequest;
+    }) => apiService.editPayment(paymentId, data),
+    onSuccess: () => {
+      // Invalidate all invoice details and lists to refresh data
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.details(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.lists(),
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to edit payment:', error);
+    },
+  });
+}
+
+// Hook for deleting payment
+export function useDeletePayment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (paymentId: number) => apiService.deletePayment(paymentId),
+    onSuccess: () => {
+      // Invalidate all invoice details and lists to refresh data
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.details(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.lists(),
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to delete payment:', error);
+    },
+  });
+}
+
+// Hook for deleting document
+export function useDeleteDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (documentId: number) => apiService.deleteDocument(documentId),
+    onSuccess: (data) => {
+      // Invalidate invoice detail to refresh with updated status
+      const invoiceType = data.invoice_updated.invoice_type.toUpperCase() as InvoiceType;
+      const invoiceId = data.invoice_updated.invoice_id.toString();
+      
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.detail(invoiceType, invoiceId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.documents(invoiceType, invoiceId),
+      });
+      // Also invalidate list to update summary
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.lists(),
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to delete document:', error);
+    },
+  });
+}
+
+// Hook for updating invoice notes
+export function useUpdateInvoiceNotes() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceType,
+      id,
+      notes,
+    }: {
+      invoiceType: InvoiceType;
+      id: string;
+      notes: string;
+    }) => apiService.updateInvoiceNotes(invoiceType, id, notes),
+    onSuccess: (_, variables) => {
+      // Invalidate invoice detail to refresh with updated notes
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.detail(variables.invoiceType, variables.id),
+      });
+      // Also invalidate list to update notes in list view
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.lists(),
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to update notes:', error);
     },
   });
 }
