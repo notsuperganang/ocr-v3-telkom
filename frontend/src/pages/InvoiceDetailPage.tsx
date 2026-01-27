@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { motion } from "motion/react"
 
 import { useInvoiceDetail, useUpdateInvoiceStatus } from "@/hooks/useInvoices"
-import type { InvoiceType } from "@/types/api"
+import type { Invoice, InvoiceType } from "@/types/api"
 
 import { Button } from "@/components/ui/button"
 
@@ -16,15 +16,16 @@ import UploadDocumentModal from "@/components/UploadDocumentModal"
 // Import modular invoice components
 import {
   InvoiceHeroHeader,
-  InvoiceInfoCard,
-  CustomerInfoCard,
+  InvoiceCustomerSummaryCard,
   PaymentBreakdownCard,
   PaymentHistoryCard,
   DocumentsCard,
   ActionsCard,
   telkomColors,
   staggerContainer,
+  formatPeriod,
 } from "@/components/invoices"
+import type { InvoiceCustomerData } from "@/components/invoices"
 
 // Animation variants for page
 const pageVariants = {
@@ -32,6 +33,40 @@ const pageVariants = {
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -20 },
 }
+
+/**
+ * Maps the Invoice API response to the unified InvoiceCustomerData structure
+ */
+const mapInvoiceToSummaryData = (
+  invoice: Invoice,
+  invoiceType: InvoiceType
+): InvoiceCustomerData => ({
+  // Section A: Invoice Info
+  invoiceNumber: invoice.invoice_number,
+  status: invoice.invoice_status,
+  period: formatPeriod(invoice.period_month, invoice.period_year),
+  periodMonth: invoice.period_month ?? undefined,
+  periodYear: invoice.period_year ?? undefined,
+  dueDate: invoice.due_date,
+  invoiceType: invoiceType,
+
+  // Section B: Customer Info
+  customerName: invoice.customer_name,
+  npwp: invoice.npwp,
+  accountNumber: invoice.account_number,
+  witel: invoice.witel_name,
+  segment: invoice.segment_name || invoice.segment,
+  address: invoice.customer_address,
+  nipnas: invoice.nipnas,
+  busArea: invoice.bus_area,
+
+  // Section C: Business/Contract Context
+  contractNumber: invoice.contract_number,
+  contractPeriodStart: invoice.contract_start_date,
+  contractPeriodEnd: invoice.contract_end_date,
+  accountManager: invoice.account_manager_name,
+  pic: invoice.assigned_officer_name,
+})
 
 // Main Page Component
 export default function InvoiceDetailPage() {
@@ -124,15 +159,11 @@ export default function InvoiceDetailPage() {
       >
         {/* Left Column - Main Content (2/3) */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          {/* Invoice & Customer Info - Side by side on large screens */}
-          <div className="grid gap-6 xl:grid-cols-2">
-            <InvoiceInfoCard
-              invoice={invoice}
-              invoiceType={invoiceType}
-              isLoading={isLoading}
-            />
-            <CustomerInfoCard invoice={invoice} isLoading={isLoading} />
-          </div>
+          {/* Unified Invoice & Customer Summary Card */}
+          <InvoiceCustomerSummaryCard
+            data={invoice ? mapInvoiceToSummaryData(invoice, invoiceType) : undefined}
+            isLoading={isLoading}
+          />
 
           {/* Payment Breakdown */}
           <PaymentBreakdownCard invoice={invoice} isLoading={isLoading} />
