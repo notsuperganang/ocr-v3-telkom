@@ -103,11 +103,11 @@ export const PaymentHistoryCard: React.FC<PaymentHistoryCardProps> = ({
       variants={cardVariants}
       initial="initial"
       animate="animate"
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -2 }}
       transition={{ delay: 0.25 }}
     >
-      <Card className="overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
-        <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+      <Card className="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
+        <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-3">
           <div className="flex flex-row items-start justify-between">
             <SectionHeader
               icon={History}
@@ -126,7 +126,7 @@ export const PaymentHistoryCard: React.FC<PaymentHistoryCardProps> = ({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="bg-white p-5">
+        <CardContent className="bg-white p-3">
           {isLoading ? (
             <div className="space-y-4">
               <Skeleton className="h-32 w-full" />
@@ -139,7 +139,7 @@ export const PaymentHistoryCard: React.FC<PaymentHistoryCardProps> = ({
               description="Klik tombol 'Tambah Pembayaran' untuk mencatat pembayaran baru"
             />
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {payments.map((payment, index) => (
                 <PaymentCard key={payment.id} payment={payment} index={index + 1} />
               ))}
