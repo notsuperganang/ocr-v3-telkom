@@ -64,8 +64,29 @@ export const InvoiceHeroHeader: React.FC<InvoiceHeroHeaderProps> = ({
 
   // Hero chips data - filter out empty values
   const periodValue = formatPeriod(invoice?.period_month, invoice?.period_year)
+  
+  // Build the sequence chip value (termin/cycle number)
+  const getSequenceChip = () => {
+    if (invoiceType === "TERM") {
+      const terminNum = invoice?.termin_number
+      if (terminNum) {
+        return { label: "Termin", value: `Ke-${terminNum}` }
+      }
+      return null
+    } else {
+      const cycleNum = invoice?.cycle_number
+      if (cycleNum) {
+        return { label: "Bulan", value: `Ke-${cycleNum}` }
+      }
+      return null
+    }
+  }
+  
+  const sequenceChip = getSequenceChip()
+  
   const heroChips = [
     { label: "Tipe", value: invoiceType === "TERM" ? "Termin" : "Recurring" },
+    ...(sequenceChip ? [sequenceChip] : []),
     ...(invoice?.account_number ? [{ label: "Akun", value: invoice.account_number }] : []),
     ...(invoice?.witel_name ? [{ label: "Witel", value: invoice.witel_name }] : []),
     ...(periodValue ? [{ label: "Periode", value: periodValue }] : []),
