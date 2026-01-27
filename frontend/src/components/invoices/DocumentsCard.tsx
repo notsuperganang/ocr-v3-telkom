@@ -9,7 +9,10 @@ import {
   Clock,
   Minus,
   FolderOpen,
+  Trash2,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   Card,
@@ -17,6 +20,17 @@ import {
   CardHeader,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import type { Invoice, InvoiceDocument, DocumentType } from "@/types/api"
 import { formatDateTime, documentTypeLabels } from "./invoice-utils"
 import {
@@ -25,6 +39,7 @@ import {
   EmptyState,
   cardVariants,
 } from "./InvoiceUIComponents"
+import { useDeleteDocument } from "@/hooks/useInvoices"
 
 interface DocumentsCardProps {
   invoice: Invoice | undefined
@@ -36,32 +51,85 @@ interface DocumentsCardProps {
 // Document Card sub-component
 interface DocumentCardProps {
   document: InvoiceDocument
+  onDelete: (documentId: number) => void
+  isDeleting: boolean
 }
 
-const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => (
-  <motion.div
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    whileHover={{ y: -2, scale: 1.01 }}
-    className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/50 p-3 transition-shadow hover:shadow-md"
-  >
-    <div className="rounded-xl bg-rose-50 p-2.5">
-      <FileText className="size-5 text-rose-500" />
-    </div>
-    <div className="flex-1 min-w-0">
-      <p className="font-medium text-sm truncate text-slate-900">{document.file_name}</p>
-      <p className="text-xs text-slate-500">
-        {documentTypeLabels[document.document_type]} • {formatDateTime(document.uploaded_at)}
-      </p>
-    </div>
-    <Button variant="ghost" size="icon" asChild className="hover:bg-rose-50">
-      <a href={document.file_path} target="_blank" rel="noopener noreferrer">
-        <Download className="size-4 text-slate-600" />
-        <span className="sr-only">Download</span>
-      </a>
-    </Button>
-  </motion.div>
-)
+const DocumentCard: React.FC<DocumentCardProps> = ({ document, onDelete, isDeleting }) => {
+  const [isAlertOpen, setIsAlertOpen] = React.useState(false)
+
+  const handleDelete = () => {
+    onDelete(Number(document.id))
+    setIsAlertOpen(false)
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ y: -2, scale: 1.01 }}
+      className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50/50 p-3 transition-shadow hover:shadow-md"
+    >
+      <div className="rounded-xl bg-rose-50 p-2.5">
+        <FileText className="size-5 text-rose-500" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate text-slate-900">{document.file_name}</p>
+        <p className="text-xs text-slate-500">
+          {documentTypeLabels[document.document_type]} • {formatDateTime(document.uploaded_at)}
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" asChild className="hover:bg-rose-50">
+          <a href={document.file_path} target="_blank" rel="noopener noreferrer">
+            <Download className="size-4 text-slate-600" />
+            <span className="sr-only">Download</span>
+          </a>
+        </Button>
+        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hover:bg-red-50 hover:text-red-600"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Trash2 className="size-4 text-slate-600" />
+              )}
+              <span className="sr-only">Hapus</span>
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hapus Dokumen?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Apakah Anda yakin ingin menghapus dokumen <strong>{document.file_name}</strong>?
+                Tindakan ini tidak dapat dibatalkan dan file akan dihapus dari server.
+                {document.document_type === "BUPOT_PPH23" && (
+                  <span className="block mt-2 text-amber-600">
+                    ⚠️ Menghapus BUPOT PPh 23 dapat mengubah status invoice.
+                  </span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Hapus
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </motion.div>
+  )
+}
 
 // Document Checklist sub-component
 interface DocumentChecklistProps {
@@ -102,6 +170,21 @@ export const DocumentsCard: React.FC<DocumentsCardProps> = ({
   isLoading,
   onUploadDocument,
 }) => {
+  const deleteDocumentMutation = useDeleteDocument()
+  const [deletingDocumentId, setDeletingDocumentId] = React.useState<number | null>(null)
+
+  const handleDeleteDocument = async (documentId: number) => {
+    setDeletingDocumentId(documentId)
+    try {
+      await deleteDocumentMutation.mutateAsync(documentId)
+      toast.success("Dokumen berhasil dihapus")
+    } catch (error) {
+      toast.error("Gagal menghapus dokumen")
+    } finally {
+      setDeletingDocumentId(null)
+    }
+  }
+
   // Check which documents are uploaded
   const hasDocument = (type: DocumentType) =>
     documents.some((d) => d.document_type === type)
@@ -186,7 +269,12 @@ export const DocumentsCard: React.FC<DocumentsCardProps> = ({
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {documents.map((doc) => (
-                      <DocumentCard key={doc.id} document={doc} />
+                      <DocumentCard
+                        key={doc.id}
+                        document={doc}
+                        onDelete={handleDeleteDocument}
+                        isDeleting={deletingDocumentId === Number(doc.id)}
+                      />
                     ))}
                   </div>
                 </div>
