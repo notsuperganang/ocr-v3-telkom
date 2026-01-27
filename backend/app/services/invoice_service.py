@@ -423,7 +423,7 @@ def add_payment(
         payment_method=payment_data.get("payment_method"),
         reference_number=payment_data.get("reference_number"),
         ppn_included=payment_data.get("ppn_included", False),
-        pph23_included=payment_data.get("pph23_included", False),
+        pph23_included=False,  # PPh 23 status is set by BUPOT upload, never by payment
         notes=payment_data.get("notes"),
         created_by_id=acting_user.id if acting_user else None,
     )
@@ -437,8 +437,7 @@ def add_payment(
     # Update tax flags if payment includes them
     if payment_data.get("ppn_included"):
         invoice.ppn_paid = True
-    if payment_data.get("pph23_included"):
-        invoice.pph23_paid = True
+    # PPh 23 paid status is ONLY set when BUPOT document is uploaded (not here)
 
     # Update audit field
     invoice.updated_by_id = acting_user.id if acting_user else None
@@ -451,6 +450,214 @@ def add_payment(
     # Note: invoice_status is auto-updated by database trigger
 
     return payment
+
+
+def edit_payment(
+    db: Session,
+    payment_id: int,
+    payment_data: Dict[str, Any],
+    acting_user: User,
+) -> PaymentTransaction:
+    """
+    Edit existing payment transaction and recalculate invoice totals.
+
+    Business rules:
+    - Find payment transaction by ID
+    - Calculate difference between old and new amounts
+    - Update invoice.paid_amount accordingly
+    - Update tax flags if needed
+    - Auto-update invoice_status via database trigger
+
+    Does NOT commit. Caller must commit.
+
+    Args:
+        db: Database session
+        payment_id: Payment transaction ID
+        payment_data: Updated payment details (payment_date, amount, payment_method, etc.)
+        acting_user: User performing the action
+
+    Returns:
+        Updated PaymentTransaction
+
+    Raises:
+        ValueError: If payment not found or validation fails
+    """
+    # Get payment transaction
+    payment = db.query(PaymentTransaction).filter(PaymentTransaction.id == payment_id).first()
+    if not payment:
+        raise ValueError(f"Payment transaction not found: {payment_id}")
+
+    # Determine invoice type and ID
+    if payment.term_payment_id:
+        invoice_type = "term"
+        invoice_id = payment.term_payment_id
+    elif payment.recurring_payment_id:
+        invoice_type = "recurring"
+        invoice_id = payment.recurring_payment_id
+    else:
+        raise ValueError(f"Payment {payment_id} has no invoice reference")
+
+    # Get invoice
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
+
+    # Get old amount before update
+    old_amount = _parse_decimal_amount(payment.amount, "old_payment_amount")
+
+    # Parse and validate new payment amount
+    new_amount = _parse_decimal_amount(payment_data.get("amount"), "new_payment_amount")
+
+    # Adjust validation: outstanding = net_payable - (paid_amount - old_amount)
+    # Because we're replacing old payment with new one
+    current_paid = _parse_decimal_amount(invoice.paid_amount, "current_paid")
+    net_payable = _parse_decimal_amount(invoice.net_payable_amount, "net_payable")
+    adjusted_paid = current_paid - old_amount
+
+    if new_amount > (net_payable - adjusted_paid):
+        raise ValueError(
+            f"Payment amount {new_amount} exceeds remaining outstanding "
+            f"{net_payable - adjusted_paid}"
+        )
+
+    if new_amount <= 0:
+        raise ValueError("Payment amount must be greater than 0")
+
+    # Parse payment date
+    payment_date = payment_data.get("payment_date")
+    if isinstance(payment_date, str):
+        payment_date = datetime.fromisoformat(payment_date.replace('Z', '+00:00'))
+    elif isinstance(payment_date, date) and not isinstance(payment_date, datetime):
+        payment_date = datetime.combine(payment_date, datetime.min.time())
+
+    # Update payment transaction fields
+    payment.payment_date = payment_date
+    payment.amount = new_amount
+    payment.payment_method = payment_data.get("payment_method")
+    payment.reference_number = payment_data.get("reference_number")
+    payment.ppn_included = payment_data.get("ppn_included", False)
+    payment.pph23_included = False  # PPh 23 status is set by BUPOT upload, never by payment
+    payment.notes = payment_data.get("notes")
+
+    # Recalculate invoice paid_amount
+    amount_difference = new_amount - old_amount
+    invoice.paid_amount = current_paid + amount_difference
+
+    # Recalculate tax flags based on ALL payments
+    # Get all payments for this invoice
+    all_payments = db.query(PaymentTransaction).filter(
+        ((PaymentTransaction.term_payment_id == invoice_id) if invoice_type == "term"
+         else (PaymentTransaction.recurring_payment_id == invoice_id))
+    ).all()
+
+    invoice.ppn_paid = any(p.ppn_included for p in all_payments)
+    # PPh 23 paid status is ONLY set when BUPOT document is uploaded (not from payments)
+
+    # Update audit field
+    invoice.updated_by_id = acting_user.id if acting_user else None
+
+    logger.info(
+        f"Edited payment {payment_id} for invoice {invoice_type}/{invoice_id}. "
+        f"Amount changed from {old_amount} to {new_amount}. "
+        f"New paid_amount: {invoice.paid_amount}"
+    )
+
+    # Note: invoice_status is auto-updated by database trigger
+
+    return payment
+
+
+def delete_payment(
+    db: Session,
+    payment_id: int,
+    acting_user: User,
+) -> Dict[str, Any]:
+    """
+    Delete payment transaction and recalculate invoice totals.
+
+    Business rules:
+    - Find payment transaction by ID
+    - Subtract payment amount from invoice.paid_amount
+    - Recalculate tax flags based on remaining payments
+    - Delete associated documents (optional, based on business rules)
+    - Delete payment transaction
+    - Auto-update invoice_status via database trigger
+
+    Does NOT commit. Caller must commit.
+
+    Args:
+        db: Database session
+        payment_id: Payment transaction ID
+        acting_user: User performing the action
+
+    Returns:
+        Dict with deleted payment info and updated invoice totals
+
+    Raises:
+        ValueError: If payment not found
+    """
+    # Get payment transaction
+    payment = db.query(PaymentTransaction).filter(PaymentTransaction.id == payment_id).first()
+    if not payment:
+        raise ValueError(f"Payment transaction not found: {payment_id}")
+
+    # Determine invoice type and ID
+    if payment.term_payment_id:
+        invoice_type = "term"
+        invoice_id = payment.term_payment_id
+    elif payment.recurring_payment_id:
+        invoice_type = "recurring"
+        invoice_id = payment.recurring_payment_id
+    else:
+        raise ValueError(f"Payment {payment_id} has no invoice reference")
+
+    # Get invoice
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
+
+    # Get payment amount before deletion
+    payment_amount = _parse_decimal_amount(payment.amount, "payment_amount")
+
+    # Update invoice paid_amount
+    current_paid = _parse_decimal_amount(invoice.paid_amount, "current_paid")
+    invoice.paid_amount = current_paid - payment_amount
+
+    # Recalculate tax flags based on remaining payments
+    remaining_payments = db.query(PaymentTransaction).filter(
+        PaymentTransaction.id != payment_id,
+        ((PaymentTransaction.term_payment_id == invoice_id) if invoice_type == "term"
+         else (PaymentTransaction.recurring_payment_id == invoice_id))
+    ).all()
+
+    invoice.ppn_paid = any(p.ppn_included for p in remaining_payments)
+    # PPh 23 paid status is ONLY set when BUPOT document is uploaded (not from payments)
+
+    # Update audit field
+    invoice.updated_by_id = acting_user.id if acting_user else None
+
+    # Store info for response
+    deleted_info = {
+        "payment_id": payment_id,
+        "amount": payment_amount,
+        "payment_date": payment.payment_date,
+        "invoice_type": invoice_type,
+        "invoice_id": invoice_id,
+        "new_paid_amount": invoice.paid_amount,
+        "new_invoice_status": invoice.invoice_status,
+    }
+
+    # Delete payment transaction
+    db.delete(payment)
+
+    logger.info(
+        f"Deleted payment {payment_id} (amount: {payment_amount}) from invoice {invoice_type}/{invoice_id}. "
+        f"New paid_amount: {invoice.paid_amount}"
+    )
+
+    # Note: invoice_status is auto-updated by database trigger
+
+    return deleted_info
 
 
 async def upload_document(
@@ -541,6 +748,15 @@ async def upload_document(
     )
 
     db.add(document)
+
+    # Special handling for BUPOT PPh 23: Set invoice pph23_paid flag
+    if document_type == "BUPOT_PPH23":
+        invoice.pph23_paid = True
+        invoice.updated_by_id = acting_user.id if acting_user else None
+        logger.info(
+            f"BUPOT PPh 23 uploaded for invoice {invoice_type}/{invoice_id}. "
+            f"Set pph23_paid=True. Database trigger will update invoice_status."
+        )
 
     logger.info(
         f"Uploaded document {file.filename} ({file_size} bytes) for invoice {invoice_type}/{invoice_id}"
@@ -889,3 +1105,142 @@ def update_invoice_amount(
     invoice.updated_by_id = acting_user.id if acting_user else None
 
     logger.info(f"Updated amount for invoice {invoice_type}/{invoice_id} to {new_amount}")
+
+
+def update_invoice_notes(
+    db: Session,
+    invoice_type: str,
+    invoice_id: int,
+    notes: Optional[str],
+    acting_user: User,
+) -> None:
+    """
+    Update invoice notes.
+
+    Does NOT commit. Caller must commit.
+
+    Args:
+        db: Database session
+        invoice_type: "term" or "recurring"
+        invoice_id: Invoice ID
+        notes: New notes text (can be None or empty to clear)
+        acting_user: User performing the action
+
+    Raises:
+        ValueError: If invoice not found
+    """
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
+
+    # Update notes
+    invoice.notes = notes if notes else None
+    invoice.updated_by_id = acting_user.id if acting_user else None
+
+    logger.info(f"Updated notes for invoice {invoice_type}/{invoice_id} by user {acting_user.id if acting_user else 'unknown'}")
+
+
+
+def delete_document(
+    db: Session,
+    document_id: int,
+    acting_user: User,
+) -> Dict[str, Any]:
+    """
+    Delete an invoice document and its file from storage.
+
+    Updates pph23_paid flag if BUPOT_PPH23 document is deleted and no other BUPOT exists.
+    Does NOT commit. Caller must commit.
+
+    Args:
+        db: Database session
+        document_id: Document ID to delete
+        acting_user: User performing the action
+
+    Returns:
+        Dictionary with deleted document info and updated invoice status
+
+    Raises:
+        ValueError: If document not found
+    """
+    import os
+
+    # Find the document
+    document = db.query(InvoiceDocument).filter(InvoiceDocument.id == document_id).first()
+    if not document:
+        raise ValueError(f"Document not found: {document_id}")
+
+    # Store document info for return
+    document_info = {
+        "document_id": document.id,
+        "document_type": document.document_type,
+        "file_name": document.file_name,
+        "file_path": document.file_path,
+    }
+
+    # Determine invoice type and ID
+    if document.term_payment_id:
+        invoice_type = "term"
+        invoice_id = document.term_payment_id
+    elif document.recurring_payment_id:
+        invoice_type = "recurring"
+        invoice_id = document.recurring_payment_id
+    else:
+        raise ValueError(f"Document {document_id} is not linked to any invoice")
+
+    # Get the invoice
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
+
+    # Special handling for BUPOT_PPH23: check if this is the last one
+    if document.document_type == "BUPOT_PPH23":
+        # Count other BUPOT_PPH23 documents for this invoice
+        other_bupot_count = db.query(InvoiceDocument).filter(
+            InvoiceDocument.id != document_id,
+            InvoiceDocument.document_type == "BUPOT_PPH23",
+            (
+                InvoiceDocument.term_payment_id == invoice_id
+                if invoice_type == "term"
+                else InvoiceDocument.recurring_payment_id == invoice_id
+            ),
+        ).count()
+
+        # If no other BUPOT exists, reset pph23_paid flag
+        if other_bupot_count == 0:
+            invoice.pph23_paid = False
+            invoice.updated_by_id = acting_user.id if acting_user else None
+            logger.info(
+                f"Last BUPOT PPh 23 deleted for invoice {invoice_type}/{invoice_id}. "
+                f"Set pph23_paid=False. Database trigger will update invoice_status."
+            )
+
+    # Delete file from storage
+    file_path = Path(document.file_path)
+    if file_path.exists():
+        try:
+            os.remove(file_path)
+            logger.info(f"Deleted file from storage: {file_path}")
+        except OSError as e:
+            logger.warning(f"Failed to delete file {file_path}: {e}")
+            # Continue with database deletion even if file deletion fails
+
+    # Delete document record from database
+    db.delete(document)
+
+    logger.info(
+        f"Deleted document {document_id} ({document_info['file_name']}) "
+        f"for invoice {invoice_type}/{invoice_id} by user {acting_user.id if acting_user else 'unknown'}"
+    )
+
+    # Get updated invoice status
+    db.flush()  # Ensure triggers run
+    db.refresh(invoice)
+
+    return {
+        "document": document_info,
+        "invoice_type": invoice_type,
+        "invoice_id": invoice_id,
+        "new_invoice_status": invoice.invoice_status,
+        "pph23_paid": invoice.pph23_paid,
+    }
