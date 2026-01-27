@@ -23,6 +23,7 @@ from app.models.database import (
     InvoiceDocument,
     User,
     Contract,
+    Account,
 )
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,7 @@ def get_invoice_detail(
 ) -> Optional[Dict[str, Any]]:
     """
     Get single invoice with transactions and documents.
+    Uses v_invoices view for efficient data retrieval with all joined fields.
 
     Args:
         db: Database session
@@ -211,107 +213,141 @@ def get_invoice_detail(
         Dictionary with invoice, payments, documents, and contract info
         None if invoice not found
     """
-    model = _get_invoice_model(invoice_type)
+    # Query v_invoices view for invoice data with all joined fields
+    invoice_type_db = _get_invoice_type_db_value(invoice_type)
 
-    # Query with eager loading
-    invoice = (
+    result = db.execute(
+        text("""
+            SELECT * FROM v_invoices
+            WHERE invoice_type = :invoice_type AND id = :invoice_id
+        """),
+        {"invoice_type": invoice_type_db, "invoice_id": invoice_id}
+    )
+
+    invoice_view_row = result.mappings().fetchone()
+
+    if not invoice_view_row:
+        return None
+
+    # Convert to regular dict for easier access
+    invoice_view = dict(invoice_view_row)
+
+    # Debug: Log what we got from the view
+    logger.info(f"invoice_view keys: {list(invoice_view.keys())[:10]}")
+    logger.info(f"customer_name from view: {invoice_view.get('customer_name', 'KEY NOT FOUND')}")
+    logger.info(f"witel_name from view: {invoice_view.get('witel_name', 'KEY NOT FOUND')}")
+
+    # Get the actual model for loading transactions and documents
+    model = _get_invoice_model(invoice_type)
+    invoice_record = (
         db.query(model)
         .options(
             joinedload(model.transactions),
             joinedload(model.documents),
-            joinedload(model.contract),
         )
         .filter(model.id == invoice_id)
         .first()
     )
 
-    if not invoice:
-        return None
-
-    # Build response
-    invoice_data = {
-        "id": invoice.id,
-        "invoice_type": _get_invoice_type_db_value(invoice_type),
-        "invoice_number": invoice.invoice_number,
-        "contract_id": invoice.contract_id,
-        "invoice_status": invoice.invoice_status,
-        "payment_due_status": invoice.status,
-        "original_amount": invoice.original_amount,
-        "amount": invoice.amount,
-        "base_amount": invoice.base_amount,
-        "ppn_amount": invoice.ppn_amount,
-        "pph_amount": invoice.pph_amount,
-        "net_payable_amount": invoice.net_payable_amount,
-        "paid_amount": invoice.paid_amount,
-        "outstanding_amount": (
-            _parse_decimal_amount(invoice.net_payable_amount) -
-            _parse_decimal_amount(invoice.paid_amount)
-        ),
-        "payment_progress_pct": (
-            (_parse_decimal_amount(invoice.paid_amount) / _parse_decimal_amount(invoice.net_payable_amount) * 100)
-            if invoice.net_payable_amount and invoice.net_payable_amount > 0
-            else Decimal('0.00')
-        ),
-        "due_date": invoice.due_date,
-        "period_label": invoice.period_label,
-        "period_year": invoice.period_year,
-        "period_month": invoice.period_month,
-        "ppn_paid": invoice.ppn_paid,
-        "pph23_paid": invoice.pph23_paid,
-        "sent_date": invoice.sent_date,
-        "notes": invoice.notes,
-        "created_at": invoice.created_at,
-        "updated_at": invoice.updated_at,
-    }
+    # Build invoice data from view (has all the joined fields)
+    try:
+        invoice_data = {
+            "id": invoice_view["id"],
+            "invoice_type": invoice_view["invoice_type"],
+            "invoice_number": invoice_view["invoice_number"],
+            "contract_id": invoice_view["contract_id"],
+            "invoice_status": invoice_view["invoice_status"],
+            "payment_due_status": invoice_view["payment_due_status"],
+            "original_amount": invoice_view["original_amount"],
+            "amount": invoice_view["amount"],
+            "base_amount": invoice_view["base_amount"],
+            "ppn_amount": invoice_view["ppn_amount"],
+            "pph_amount": invoice_view["pph_amount"],
+            "net_payable_amount": invoice_view["net_payable_amount"],
+            "paid_amount": invoice_view["paid_amount"],
+            "outstanding_amount": invoice_view["outstanding_amount"],
+            "payment_progress_pct": invoice_view["payment_progress_pct"],
+            "due_date": invoice_view["due_date"],
+            "period_label": invoice_view["period_label"],
+            "period_year": invoice_view["period_year"],
+            "period_month": invoice_view["period_month"],
+            "ppn_paid": invoice_view["ppn_paid"],
+            "pph23_paid": invoice_view["pph23_paid"],
+            "sent_date": invoice_view["sent_date"],
+            "notes": invoice_view["notes"],
+            "created_at": invoice_view["created_at"],
+            "updated_at": invoice_view["updated_at"],
+            # Contract and account fields from view
+            "customer_name": invoice_view["customer_name"],
+            "contract_number": invoice_view["contract_number"],
+            "customer_npwp": invoice_view["npwp"],
+            "customer_address": invoice_view["customer_address"],
+            "account_number": invoice_view["account_number"],
+            "witel_name": invoice_view["witel_name"],
+            "witel_id": invoice_view["witel_id"],
+            "segment_name": invoice_view["segment_name"],
+            "segment_id": invoice_view["segment_id"],
+            "account_manager_name": invoice_view["account_manager_name"],
+            "assigned_officer_name": invoice_view["assigned_officer_name"],
+        }
+    except KeyError as e:
+        logger.error(f"KeyError when building invoice_data: {e}")
+        logger.error(f"Available keys: {list(invoice_view.keys())}")
+        raise
 
     # Add termin_number or cycle_number based on type
+    # Get directly from model record since view may have NULL for invoice_sequence
     if invoice_type.lower() == "term":
-        invoice_data["termin_number"] = invoice.termin_number
+        invoice_data["termin_number"] = getattr(invoice_record, "termin_number", None) if invoice_record else None
+        invoice_data["cycle_number"] = None
     else:
-        invoice_data["cycle_number"] = invoice.cycle_number
+        invoice_data["cycle_number"] = getattr(invoice_record, "cycle_number", None) if invoice_record else None
+        invoice_data["termin_number"] = None
 
     # Build payments list
     payments = []
-    for txn in invoice.transactions or []:
-        payments.append({
-            "id": txn.id,
-            "payment_date": txn.payment_date,
-            "amount": txn.amount,
-            "payment_method": txn.payment_method,
-            "reference_number": txn.reference_number,
-            "ppn_included": txn.ppn_included,
-            "pph23_included": txn.pph23_included,
-            "notes": txn.notes,
-            "created_by_id": txn.created_by_id,
-            "created_at": txn.created_at,
-        })
+    if invoice_record:
+        for txn in invoice_record.transactions or []:
+            payments.append({
+                "id": txn.id,
+                "payment_date": txn.payment_date,
+                "amount": txn.amount,
+                "payment_method": txn.payment_method,
+                "reference_number": txn.reference_number,
+                "ppn_included": txn.ppn_included,
+                "pph23_included": txn.pph23_included,
+                "notes": txn.notes,
+                "created_by_id": txn.created_by_id,
+                "created_at": txn.created_at,
+            })
 
-    # Build documents list
-    documents = []
-    for doc in invoice.documents or []:
-        documents.append({
-            "id": doc.id,
-            "document_type": doc.document_type,
-            "file_name": doc.file_name,
-            "file_path": doc.file_path,
-            "file_size": doc.file_size,
-            "mime_type": doc.mime_type,
-            "payment_transaction_id": doc.payment_transaction_id,
-            "uploaded_by_id": doc.uploaded_by_id,
-            "uploaded_at": doc.uploaded_at,
-            "notes": doc.notes,
-        })
+        # Build documents list
+        documents = []
+        for doc in invoice_record.documents or []:
+            documents.append({
+                "id": doc.id,
+                "document_type": doc.document_type,
+                "file_name": doc.file_name,
+                "file_path": doc.file_path,
+                "file_size": doc.file_size,
+                "mime_type": doc.mime_type,
+                "payment_transaction_id": doc.payment_transaction_id,
+                "uploaded_by_id": doc.uploaded_by_id,
+                "uploaded_at": doc.uploaded_at,
+                "notes": doc.notes,
+            })
+    else:
+        documents = []
 
     # Build contract info
     contract_data = None
-    if invoice.contract:
-        contract = invoice.contract
+    if invoice_view["contract_id"]:
         contract_data = {
-            "id": contract.id,
-            "customer_name": contract.customer_name,
-            "customer_npwp": contract.customer_npwp,
-            "customer_address": getattr(contract, 'customer_address', None),
-            "contract_number": getattr(contract, 'contract_number', None),
+            "id": invoice_view["contract_id"],
+            "customer_name": invoice_view["customer_name"],
+            "customer_npwp": invoice_view["npwp"],
+            "customer_address": invoice_view["customer_address"],
+            "contract_number": invoice_view["contract_number"],
         }
 
     return {
