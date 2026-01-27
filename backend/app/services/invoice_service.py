@@ -243,8 +243,8 @@ def get_invoice_detail(
     invoice_record = (
         db.query(model)
         .options(
-            joinedload(model.transactions),
-            joinedload(model.documents),
+            joinedload(model.transactions).joinedload(PaymentTransaction.created_by),
+            joinedload(model.documents).joinedload(InvoiceDocument.uploaded_by),
         )
         .filter(model.id == invoice_id)
         .first()
@@ -313,9 +313,22 @@ def get_invoice_detail(
     # Build payments list
     payments = []
     if invoice_record:
+        logger.info(f"Number of transactions: {len(invoice_record.transactions or [])}")
         for txn in invoice_record.transactions or []:
+            # Get user name from relationship (prefer full_name, fallback to username)
+            logger.info(f"Transaction {txn.id}: created_by_id={txn.created_by_id}, created_by object={txn.created_by}")
+            created_by_name = None
+            if txn.created_by:
+                created_by_name = txn.created_by.full_name or txn.created_by.username
+                logger.info(f"Transaction {txn.id}: created_by_name={created_by_name}")
+            else:
+                logger.warning(f"Transaction {txn.id}: created_by relationship is None")
+
             payments.append({
                 "id": txn.id,
+                "invoice_type": txn.invoice_type,
+                "term_payment_id": txn.term_payment_id,
+                "recurring_payment_id": txn.recurring_payment_id,
                 "payment_date": txn.payment_date,
                 "amount": txn.amount,
                 "payment_method": txn.payment_method,
@@ -323,22 +336,31 @@ def get_invoice_detail(
                 "ppn_included": txn.ppn_included,
                 "pph23_included": txn.pph23_included,
                 "notes": txn.notes,
-                "created_by_id": txn.created_by_id,
+                "created_by": created_by_name,
                 "created_at": txn.created_at,
+                "updated_at": txn.updated_at,
             })
 
         # Build documents list
         documents = []
         for doc in invoice_record.documents or []:
+            # Get user name from relationship (prefer full_name, fallback to username)
+            uploaded_by_name = None
+            if doc.uploaded_by:
+                uploaded_by_name = doc.uploaded_by.full_name or doc.uploaded_by.username
+
             documents.append({
                 "id": doc.id,
+                "invoice_type": doc.invoice_type,
+                "term_payment_id": doc.term_payment_id,
+                "recurring_payment_id": doc.recurring_payment_id,
+                "payment_transaction_id": doc.payment_transaction_id,
                 "document_type": doc.document_type,
                 "file_name": doc.file_name,
                 "file_path": doc.file_path,
                 "file_size": doc.file_size,
                 "mime_type": doc.mime_type,
-                "payment_transaction_id": doc.payment_transaction_id,
-                "uploaded_by_id": doc.uploaded_by_id,
+                "uploaded_by": uploaded_by_name,
                 "uploaded_at": doc.uploaded_at,
                 "notes": doc.notes,
             })

@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Trash2,
   Loader2,
+  User,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -76,8 +77,15 @@ const DocumentCard: React.FC<DocumentCardProps> = ({ document, onDelete, isDelet
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm truncate text-slate-900">{document.file_name}</p>
         <p className="text-xs text-slate-500">
-          {documentTypeLabels[document.document_type]} • {formatDateTime(document.uploaded_at)}
+          {documentTypeLabels[document.document_type]}
         </p>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Diupload: {formatDateTime(document.uploaded_at)}
+        </p>
+        <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
+          <User className="size-3" />
+          <span>oleh: {document.uploaded_by || "—"}</span>
+        </div>
       </div>
       <div className="flex items-center gap-1">
         <Button variant="ghost" size="icon" asChild className="hover:bg-rose-50">
