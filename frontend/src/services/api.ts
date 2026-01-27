@@ -57,7 +57,6 @@ import type {
   UploadDocumentResponse,
   UpdateInvoiceStatusRequest,
   UpdateInvoiceStatusResponse,
-  SendInvoiceRequest,
   SendInvoiceResponse,
   InvoiceDocument,
   InvoiceType,
@@ -829,14 +828,86 @@ class ApiClient {
 
   async sendInvoice(
     invoiceType: InvoiceType,
-    id: string,
-    data: SendInvoiceRequest
+    id: string
   ): Promise<SendInvoiceResponse> {
     const type = invoiceType.toLowerCase();
     return this.request<SendInvoiceResponse>(`/api/invoices/${type}/${id}/send`, {
-      method: 'POST',
+      method: 'PATCH',
+    });
+  }
+
+  async editPayment(
+    paymentId: number,
+    data: AddPaymentRequest
+  ): Promise<AddPaymentResponse> {
+    return this.request<AddPaymentResponse>(`/api/invoices/payments/${paymentId}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
+  }
+
+  async deletePayment(paymentId: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/invoices/payments/${paymentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async deleteDocument(documentId: number): Promise<{
+    success: boolean;
+    deleted_document: {
+      document_id: number;
+      document_type: string;
+      file_name: string;
+      file_path: string;
+    };
+    invoice_updated: {
+      invoice_type: string;
+      invoice_id: number;
+      invoice_status: string;
+      pph23_paid: boolean;
+    };
+  }> {
+    return this.request(`/api/invoices/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateInvoiceNotes(
+    invoiceType: InvoiceType,
+    id: string,
+    notes: string
+  ): Promise<{
+    success: boolean;
+    invoice: {
+      id: number;
+      notes: string | null;
+    };
+  }> {
+    const type = invoiceType.toLowerCase();
+    const formData = new FormData();
+    if (notes) formData.append('notes', notes);
+
+    const url = `${API_BASE_URL}/api/invoices/${type}/${id}/notes`;
+    
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(errorData.detail || 'An error occurred');
+    }
+
+    return response.json();
   }
 
   async exportInvoices(
