@@ -52,14 +52,15 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
       variants={cardVariants}
       initial="initial"
       animate="animate"
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -2 }}
       transition={{ delay: 0.1 }}
+      className="sticky top-4"
     >
-      <Card className="overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
-        <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50 pb-4">
+      <Card className="overflow-hidden rounded-2xl border border-gray-200 shadow-sm h-full">
+        <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
                 <Zap className="h-3 w-3" />
                 Aksi
               </span>
@@ -72,12 +73,12 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
             Aksi Cepat
           </CardTitle>
         </CardHeader>
-        <CardContent className="bg-white p-4 space-y-3">
+        <CardContent className="bg-white p-3 space-y-3 flex flex-col">
           {isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+            <div className="space-y-3 flex-1">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
             </div>
           ) : (
             <>
@@ -85,62 +86,61 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
               {isDraft && (
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    className="w-full justify-start bg-rose-600 hover:bg-rose-700 text-white"
+                    size="lg"
+                    className="w-full justify-start bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-md h-12 text-base"
                     onClick={onSendInvoice}
                     disabled={isSending}
                   >
-                    <Send className="mr-2 size-4" />
+                    <Send className="mr-2 size-5" />
                     {isSending ? "Mengirim..." : "Kirim Invoice"}
                   </Button>
                 </motion.div>
               )}
 
               {/* Add Payment */}
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start border-slate-200 hover:bg-slate-50"
-                  onClick={onAddPayment}
-                  disabled={!canModify}
-                >
-                  <Plus className="mr-2 size-4" />
-                  Tambah Pembayaran
-                </Button>
-              </motion.div>
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full justify-start border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold h-12 text-base transition-all"
+                onClick={onAddPayment}
+                disabled={!canModify}
+              >
+                <Plus className="mr-2 size-5" />
+                Tambah Pembayaran
+              </Button>
 
               {/* Upload Document */}
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start border-slate-200 hover:bg-slate-50"
-                  onClick={onUploadDocument}
-                >
-                  <Upload className="mr-2 size-4" />
-                  Upload Dokumen
-                </Button>
-              </motion.div>
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full justify-start border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold h-12 text-base transition-all"
+                onClick={onUploadDocument}
+              >
+                <Upload className="mr-2 size-5" />
+                Upload Dokumen
+              </Button>
 
               {/* Download PDF */}
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start border-slate-200 hover:bg-slate-50"
-                >
-                  <Download className="mr-2 size-4" />
-                  Download PDF
-                </Button>
-              </motion.div>
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full justify-start border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold h-12 text-base transition-all"
+              >
+                <Download className="mr-2 size-5" />
+                Download PDF
+              </Button>
 
               {/* Cancel Invoice */}
               {canModify && (
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
+                    size="lg"
                     variant="outline"
-                    className="w-full justify-start border-red-200 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="w-full justify-start border-2 border-red-200 text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-300 font-semibold h-12 text-base"
                     onClick={onCancelInvoice}
                     disabled={isCancelling}
                   >
-                    <XCircle className="mr-2 size-4" />
+                    <XCircle className="mr-2 size-5" />
                     {isCancelling ? "Membatalkan..." : "Batalkan Invoice"}
                   </Button>
                 </motion.div>
