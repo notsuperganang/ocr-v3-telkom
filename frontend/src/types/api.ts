@@ -650,6 +650,8 @@ export interface Invoice {
   invoice_number: string | null;
   contract_id: number;
   invoice_sequence: number | null;
+  termin_number: number | null;
+  cycle_number: number | null;
   invoice_status: InvoiceStatus;
   payment_due_status: PaymentDueStatus;
   original_payment_date: string | null;
