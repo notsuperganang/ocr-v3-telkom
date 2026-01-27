@@ -56,7 +56,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Progress } from "@/components/ui/progress"
 import { cn, formatCurrency } from "@/lib/utils"
 
 // Design tokens
@@ -274,6 +273,27 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 export default function InvoicesPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  // Determine progress bar color based on payment percentage
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 80) {
+      return "bg-emerald-500" // Green for 80-100%
+    } else if (percentage >= 40) {
+      return "bg-amber-500" // Yellow for 40-79%
+    } else {
+      return "bg-red-500" // Red for 0-39%
+    }
+  }
+
+  const getProgressTextColor = (percentage: number) => {
+    if (percentage >= 80) {
+      return "text-emerald-700" // Green text
+    } else if (percentage >= 40) {
+      return "text-amber-700" // Yellow text
+    } else {
+      return "text-red-700" // Red text
+    }
+  }
 
   // Current date for defaults
   const now = new Date()
@@ -768,11 +788,13 @@ export default function InvoicesPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Progress
-                              value={invoice.payment_progress_pct}
-                              className="h-2 w-16"
-                            />
-                            <span className="text-xs text-muted-foreground">
+                            <div className="relative h-2 w-16 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className={`h-full transition-all duration-500 ease-out ${getProgressColor(invoice.payment_progress_pct)}`}
+                                style={{ width: `${Math.min(invoice.payment_progress_pct, 100)}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs font-medium ${getProgressTextColor(invoice.payment_progress_pct)}`}>
                               {Math.round(invoice.payment_progress_pct)}%
                             </span>
                           </div>

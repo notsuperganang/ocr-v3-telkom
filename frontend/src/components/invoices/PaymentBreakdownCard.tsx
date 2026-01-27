@@ -8,7 +8,6 @@ import {
   CardContent,
   CardHeader,
 } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { formatCurrency } from "@/lib/utils"
 import type { Invoice } from "@/types/api"
 import {
@@ -26,6 +25,29 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> = ({
   invoice,
   isLoading,
 }) => {
+  // Determine progress bar color based on payment percentage
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 80) {
+      return "bg-emerald-500" // Green for 80-100%
+    } else if (percentage >= 40) {
+      return "bg-amber-500" // Yellow for 40-79%
+    } else {
+      return "bg-red-500" // Red for 0-39%
+    }
+  }
+
+  const getProgressTextColor = (percentage: number) => {
+    if (percentage >= 80) {
+      return "text-emerald-700" // Green text
+    } else if (percentage >= 40) {
+      return "text-amber-700" // Yellow text
+    } else {
+      return "text-red-700" // Red text
+    }
+  }
+
+  const paymentProgress = invoice?.payment_progress_pct || 0
+
   return (
     <motion.div
       variants={cardVariants}
@@ -157,14 +179,16 @@ export const PaymentBreakdownCard: React.FC<PaymentBreakdownCardProps> = ({
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500">Progress Pembayaran</span>
-                    <span className="font-bold text-emerald-700">
-                      {Math.round(invoice?.payment_progress_pct || 0)}%
+                    <span className={`font-bold ${getProgressTextColor(paymentProgress)}`}>
+                      {Math.round(paymentProgress)}%
                     </span>
                   </div>
-                  <Progress
-                    value={invoice?.payment_progress_pct || 0}
-                    className="h-2.5"
-                  />
+                  <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full transition-all duration-500 ease-out ${getProgressColor(paymentProgress)}`}
+                      style={{ width: `${Math.min(paymentProgress, 100)}%` }}
+                    />
+                  </div>
                 </div>
               </motion.div>
 
