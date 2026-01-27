@@ -164,6 +164,19 @@ class InvoiceDetail(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    # Customer and account info (from v_invoices view)
+    customer_name: Optional[str] = None
+    contract_number: Optional[str] = None
+    customer_npwp: Optional[str] = None
+    customer_address: Optional[str] = None
+    account_number: Optional[str] = None
+    witel_name: Optional[str] = None
+    witel_id: Optional[int] = None
+    segment_name: Optional[str] = None
+    segment_id: Optional[int] = None
+    account_manager_name: Optional[str] = None
+    assigned_officer_name: Optional[str] = None
+
     class Config:
         from_attributes = True
 
