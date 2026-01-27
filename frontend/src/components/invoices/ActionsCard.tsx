@@ -9,6 +9,7 @@ import {
   XCircle,
   Settings,
   Zap,
+  FileEdit,
 } from "lucide-react"
 
 import {
@@ -30,6 +31,7 @@ interface ActionsCardProps {
   onCancelInvoice: () => void
   onAddPayment: () => void
   onUploadDocument: () => void
+  onEditNotes: () => void
 }
 
 export const ActionsCard: React.FC<ActionsCardProps> = ({
@@ -41,11 +43,17 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
   onCancelInvoice,
   onAddPayment,
   onUploadDocument,
+  onEditNotes,
 }) => {
   const isDraft = invoice?.invoice_status === "DRAFT"
   const isPaid = invoice?.invoice_status === "PAID"
   const isCancelled = invoice?.invoice_status === "CANCELLED"
   const canModify = !isPaid && !isCancelled
+
+  // Check if payment amount is already fulfilled (even if waiting for BUPOT)
+  const outstandingAmount = parseFloat(invoice?.outstanding_amount || "0")
+  const canAddPayment =
+    canModify && outstandingAmount > 1 // Allow payment only if outstanding > Rp 1
 
   return (
     <motion.div
@@ -54,7 +62,6 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
       animate="animate"
       whileHover={{ y: -2 }}
       transition={{ delay: 0.1 }}
-      className="sticky top-4"
     >
       <Card className="overflow-hidden rounded-2xl border border-gray-200 shadow-sm h-full">
         <CardHeader className="border-b border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 p-3">
@@ -97,38 +104,58 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
                 </motion.div>
               )}
 
-              {/* Add Payment */}
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full justify-start border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold h-12 text-base transition-all"
-                onClick={onAddPayment}
-                disabled={!canModify}
-              >
-                <Plus className="mr-2 size-5" />
-                Tambah Pembayaran
-              </Button>
+              {/* Add Payment - only show if outstanding amount > 1 */}
+              {canAddPayment && (
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full justify-start border-2 border-slate-200 hover:bg-slate-600 hover:border-slate-600 hover:text-white font-semibold h-12 text-base transition-all"
+                    onClick={onAddPayment}
+                  >
+                    <Plus className="mr-2 size-5" />
+                    Tambah Pembayaran
+                  </Button>
+                </motion.div>
+              )}
 
               {/* Upload Document */}
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full justify-start border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold h-12 text-base transition-all"
-                onClick={onUploadDocument}
-              >
-                <Upload className="mr-2 size-5" />
-                Upload Dokumen
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full justify-start border-2 border-slate-200 hover:bg-slate-600 hover:border-slate-600 hover:text-white font-semibold h-12 text-base transition-all"
+                  onClick={onUploadDocument}
+                >
+                  <Upload className="mr-2 size-5" />
+                  Upload Dokumen
+                </Button>
+              </motion.div>
 
               {/* Download PDF */}
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full justify-start border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 font-semibold h-12 text-base transition-all"
-              >
-                <Download className="mr-2 size-5" />
-                Download PDF
-              </Button>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full justify-start border-2 border-slate-200 hover:bg-slate-600 hover:border-slate-600 hover:text-white font-semibold h-12 text-base transition-all"
+                >
+                  <Download className="mr-2 size-5" />
+                  Download PDF
+                </Button>
+              </motion.div>
+
+              {/* Edit Notes */}
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full justify-start border-2 border-blue-200 hover:bg-blue-600 hover:border-blue-600 hover:text-white font-semibold h-12 text-base transition-all"
+                  onClick={onEditNotes}
+                >
+                  <FileEdit className="mr-2 size-5" />
+                  Edit Catatan
+                </Button>
+              </motion.div>
 
               {/* Cancel Invoice */}
               {canModify && (
