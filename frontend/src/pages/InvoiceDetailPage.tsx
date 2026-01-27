@@ -5,13 +5,14 @@ import { XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { motion } from "motion/react"
 
-import { useInvoiceDetail, useUpdateInvoiceStatus } from "@/hooks/useInvoices"
+import { useInvoiceDetail, useSendInvoice } from "@/hooks/useInvoices"
 import type { Invoice, InvoiceType } from "@/types/api"
 
 import { Button } from "@/components/ui/button"
 
 import AddPaymentModal from "@/components/AddPaymentModal"
 import UploadDocumentModal from "@/components/UploadDocumentModal"
+import EditNotesModal from "@/components/EditNotesModal"
 
 // Import modular invoice components
 import {
@@ -78,10 +79,11 @@ export default function InvoiceDetailPage() {
   // Modals state
   const [showPaymentModal, setShowPaymentModal] = React.useState(false)
   const [showDocumentModal, setShowDocumentModal] = React.useState(false)
+  const [showNotesModal, setShowNotesModal] = React.useState(false)
 
   // Fetch data
   const { data, isLoading, isError, refetch } = useInvoiceDetail(invoiceType, invoiceId)
-  const updateStatusMutation = useUpdateInvoiceStatus()
+  const sendInvoiceMutation = useSendInvoice()
 
   const invoice = data?.invoice
   const payments = data?.payments || []
@@ -91,10 +93,9 @@ export default function InvoiceDetailPage() {
   const handleSendInvoice = async () => {
     if (!invoice) return
     try {
-      await updateStatusMutation.mutateAsync({
+      await sendInvoiceMutation.mutateAsync({
         invoiceType,
         id: invoiceId,
-        data: { invoice_status: "SENT" },
       })
       toast.success("Invoice berhasil dikirim")
     } catch {
@@ -105,16 +106,8 @@ export default function InvoiceDetailPage() {
   // Handle cancel invoice
   const handleCancelInvoice = async () => {
     if (!invoice) return
-    try {
-      await updateStatusMutation.mutateAsync({
-        invoiceType,
-        id: invoiceId,
-        data: { invoice_status: "CANCELLED", notes: "Cancelled by user" },
-      })
-      toast.success("Invoice dibatalkan")
-    } catch {
-      toast.error("Gagal membatalkan invoice")
-    }
+    // TODO: Backend doesn't have cancel endpoint yet
+    toast.error("Fitur pembatalan invoice belum tersedia")
   }
 
   // Error state
@@ -147,7 +140,7 @@ export default function InvoiceDetailPage() {
         isLoading={isLoading}
         onRefresh={() => refetch()}
         onSendInvoice={handleSendInvoice}
-        isSending={updateStatusMutation.isPending}
+        isSending={sendInvoiceMutation.isPending}
       />
 
       {/* Main Content Grid */}
@@ -174,6 +167,7 @@ export default function InvoiceDetailPage() {
             payments={payments}
             isLoading={isLoading}
             onAddPayment={() => setShowPaymentModal(true)}
+            onRefresh={() => refetch()}
           />
 
           {/* Documents */}
@@ -187,40 +181,43 @@ export default function InvoiceDetailPage() {
 
         {/* Right Column - Actions Sidebar (1/3) */}
         <div className="flex flex-col gap-6">
-          <ActionsCard
-            invoice={invoice}
-            isLoading={isLoading}
-            isSending={updateStatusMutation.isPending}
-            isCancelling={updateStatusMutation.isPending}
-            onSendInvoice={handleSendInvoice}
-            onCancelInvoice={handleCancelInvoice}
-            onAddPayment={() => setShowPaymentModal(true)}
-            onUploadDocument={() => setShowDocumentModal(true)}
-          />
+          <div className="sticky top-4 flex flex-col gap-6">
+            <ActionsCard
+              invoice={invoice}
+              isLoading={isLoading}
+              isSending={sendInvoiceMutation.isPending}
+              isCancelling={false}
+              onSendInvoice={handleSendInvoice}
+              onCancelInvoice={handleCancelInvoice}
+              onAddPayment={() => setShowPaymentModal(true)}
+              onUploadDocument={() => setShowDocumentModal(true)}
+              onEditNotes={() => setShowNotesModal(true)}
+            />
 
-          {/* Notes Card */}
-          {invoice?.notes && (
-            <motion.div
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-3xl border border-rose-100/80 bg-white p-5 shadow-lg shadow-rose-100/40"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
-                    Catatan
-                  </span>
+            {/* Notes Card */}
+            {invoice?.notes && (
+              <motion.div
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-3xl border border-rose-100/80 bg-white p-5 shadow-lg shadow-rose-100/40"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
+                      Catatan
+                    </span>
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Catatan Invoice
+                  </h3>
+                  <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                    {invoice.notes}
+                  </p>
                 </div>
-                <h3 className="text-base font-semibold text-slate-900">
-                  Catatan Invoice
-                </h3>
-                <p className="text-sm text-slate-600 whitespace-pre-wrap">
-                  {invoice.notes}
-                </p>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -246,6 +243,18 @@ export default function InvoiceDetailPage() {
         onSuccess={() => {
           refetch()
           setShowDocumentModal(false)
+        }}
+      />
+
+      <EditNotesModal
+        open={showNotesModal}
+        onOpenChange={setShowNotesModal}
+        invoiceType={invoiceType}
+        invoiceId={invoiceId}
+        currentNotes={invoice?.notes}
+        onSuccess={() => {
+          refetch()
+          setShowNotesModal(false)
         }}
       />
     </motion.div>
