@@ -1002,30 +1002,39 @@ async def delete_contract(
         # Get contract info for logging
         file_model = db.query(FileModel).filter(FileModel.id == contract.file_id).first()
         filename = file_model.original_filename if file_model else "unknown"
+        file_id = contract.file_id
 
-        # Delete associated files BEFORE deleting database records
-        file_cleanup_result = file_manager.delete_contract_files(db, contract_id)
+        # Delete invoice document files FIRST (before cascade deletes the records)
+        invoice_docs_cleanup = file_manager.delete_invoice_documents(db, contract_id)
+
+        # Delete associated contract files (PDF and OCR artifacts)
+        # check_references=True ensures we don't delete PDF if other contracts use it
+        file_cleanup_result = file_manager.delete_contract_files(db, contract_id, check_references=True)
 
         # Delete related export history
         db.query(ExportHistory).filter(ExportHistory.contract_id == contract_id).delete()
 
-        # Delete contract first (to avoid foreign key constraint)
+        # Delete contract record
         db.delete(contract)
-        db.commit()  # Commit contract deletion before deleting processing job
+        db.commit()  # Commit contract deletion
 
-        # Delete file record if no other contracts reference it
+        # Check if we should delete the file record and processing jobs
+        # This happens if no other contracts reference this file
         if file_model:
             other_contracts = db.query(Contract).filter(
-                Contract.file_id == file_model.id,
-                Contract.id != contract_id
+                Contract.file_id == file_id
             ).count()
 
             if other_contracts == 0:
-                # Now safe to delete processing jobs for this file
-                db.query(ProcessingJob).filter(ProcessingJob.file_id == file_model.id).delete()
+                # No other contracts reference this file - safe to delete everything
+                # Delete all processing jobs for this file
+                db.query(ProcessingJob).filter(ProcessingJob.file_id == file_id).delete()
+                # Delete the file record
                 db.delete(file_model)
-
-        db.commit()
+                db.commit()
+                logger.info(f"Deleted file record {file_id} and associated jobs - no remaining references")
+            else:
+                logger.info(f"Kept file record {file_id} - still referenced by {other_contracts} contract(s)")
 
         return {
             "message": "Contract and associated files deleted successfully",
@@ -1037,11 +1046,17 @@ async def delete_contract(
                 "deleted_files": len(file_cleanup_result.get("deleted_files", [])),
                 "total_size": file_cleanup_result.get("total_size", 0),
                 "errors": file_cleanup_result.get("errors", [])
+            },
+            "invoice_documents_cleanup": {
+                "documents_deleted": invoice_docs_cleanup.get("documents_deleted", 0),
+                "total_size": invoice_docs_cleanup.get("total_size", 0),
+                "errors": invoice_docs_cleanup.get("errors", [])
             }
         }
 
     except Exception as e:
         db.rollback()
+        logger.error(f"Failed to delete contract {contract_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete contract: {str(e)}"
