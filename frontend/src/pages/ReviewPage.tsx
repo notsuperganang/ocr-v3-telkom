@@ -5,7 +5,9 @@ import {
   ArrowLeft,
   RefreshCw,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  PenLine,
+  FileQuestion
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,9 +35,13 @@ export function ReviewPage() {
     error: dataError,
     hasData,
     status,
+    isManualEntry,
   } = useFormData(numericJobId);
 
   const isLoading = statusLoading || dataLoading;
+  
+  // Determine if we have a PDF to show
+  const hasPdf = extractionData?.file_id != null;
 
   // Handle back navigation
   const handleBack = () => {
@@ -191,6 +197,16 @@ export function ReviewPage() {
 
         {/* Right - Badges */}
         <div className="flex items-center gap-2">
+          {isManualEntry && (
+            <Badge
+              variant="outline"
+              className="text-blue-600 border-blue-300 bg-blue-50 text-xs py-0.5 px-2"
+            >
+              <PenLine className="w-3 h-3 mr-1" />
+              Input Manual
+            </Badge>
+          )}
+          
           <Badge
             variant="outline"
             className="text-emerald-600 border-emerald-300 bg-emerald-50 text-xs py-0.5 px-2"
@@ -199,28 +215,47 @@ export function ReviewPage() {
             Siap Review
           </Badge>
 
-          {statusData?.processing_time_seconds && (
+          {statusData?.processing_time_seconds && statusData.processing_time_seconds > 0 && (
             <Badge variant="secondary" className="text-xs py-0.5 px-2">
               <Clock className="w-3 h-3 mr-1" />
               {statusData.processing_time_seconds}s
             </Badge>
           )}
 
-          <Badge variant="secondary" className="text-xs py-0.5 px-2">
-            2 halaman
-          </Badge>
+          {hasPdf && (
+            <Badge variant="secondary" className="text-xs py-0.5 px-2">
+              2 halaman
+            </Badge>
+          )}
         </div>
       </div>
 
-      {/* Main Content - 2 Pane Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 flex-1 min-h-0 p-3">
-        {/* Left Pane - PDF Preview */}
-        <div className="h-full min-h-0">
-          <PdfPreview
-            jobId={numericJobId}
-            className="h-full"
-          />
-        </div>
+      {/* Main Content - 2 Pane Layout or Single Pane for Manual Entry */}
+      <div className={`${hasPdf ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : 'flex justify-center'} flex-1 min-h-0 p-3`}>
+        {/* Left Pane - PDF Preview (only if we have a PDF) */}
+        {hasPdf ? (
+          <div className="h-full min-h-0">
+            <PdfPreview
+              jobId={numericJobId}
+              className="h-full"
+            />
+          </div>
+        ) : (
+          /* No PDF - Show placeholder on left */
+          <div className="h-full min-h-0 hidden lg:flex">
+            <Card className="w-full h-full flex items-center justify-center bg-muted/30 border-dashed">
+              <CardContent className="text-center py-12">
+                <FileQuestion className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="font-medium text-muted-foreground mb-2">
+                  Tidak Ada Dokumen PDF
+                </h3>
+                <p className="text-sm text-muted-foreground/70 max-w-[280px]">
+                  Entri ini dibuat secara manual tanpa dokumen referensi. Isi semua data yang diperlukan pada form di samping.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Right Pane - Extraction Form */}
         <div className="h-full min-h-0 overflow-y-auto">

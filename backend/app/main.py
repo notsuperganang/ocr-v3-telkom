@@ -25,6 +25,7 @@ from app.api.segments import router as segments_router
 from app.api.witels import router as witels_router
 from app.api.account_managers import router as account_managers_router
 from app.api.accounts import router as accounts_router
+from app.api.invoices import router as invoices_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -113,6 +114,9 @@ app.include_router(segments_router)
 app.include_router(witels_router)
 app.include_router(account_managers_router)
 app.include_router(accounts_router)
+
+# Invoice management routes
+app.include_router(invoices_router)
 
 # Health check endpoint (unprotected)
 @app.get("/")

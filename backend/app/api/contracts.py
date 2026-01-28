@@ -829,6 +829,7 @@ async def update_contract(
         denorm_fields = compute_denorm_fields(updated_data)
 
         # Update denormalized fields
+        contract.contract_number = denorm_fields.contract_number
         contract.customer_name = denorm_fields.customer_name
         contract.customer_npwp = denorm_fields.customer_npwp
         contract.period_start = denorm_fields.period_start

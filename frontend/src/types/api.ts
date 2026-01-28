@@ -109,9 +109,17 @@ export interface BatchUploadResponse {
   message: string;
 }
 
+export interface ManualEntryResponse {
+  job_id: number;
+  file_id: number | null;
+  message: string;
+  source: string;
+  prefilled_account_id: number | null;
+}
+
 export interface JobStatusResponse {
   job_id: number;
-  file_id: number;
+  file_id: number | null;
   filename: string;
   status: string;
   progress_message: string;
@@ -119,17 +127,19 @@ export interface JobStatusResponse {
   error_message?: string;
   created_at: string;
   updated_at: string;
+  is_manual_entry?: boolean;
 }
 
 export interface JobDataResponse {
   job_id: number;
-  file_id: number;
+  file_id: number | null;
   filename: string;
   status: string;
   extracted_data?: any;
   edited_data?: any;
   ocr_artifacts?: Record<string, string>;
   has_data: boolean;
+  is_manual_entry?: boolean;
 }
 
 export interface ConfirmJobRequest {
@@ -607,4 +617,228 @@ export interface AccountStatsSummary {
   segment_distribution: SegmentDistribution[];
   officer_distribution: OfficerDistribution[];
   monthly_growth: MonthlyGrowth[];
+}
+
+// =====================
+// Invoice Management Types
+// =====================
+
+export type InvoiceType = 'TERM' | 'RECURRING';
+
+export type InvoiceStatus = 
+  | 'DRAFT'
+  | 'SENT'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'PAID_PENDING_PPH23'
+  | 'PAID_PENDING_PPN'
+  | 'OVERDUE'
+  | 'CANCELLED';
+
+export type PaymentDueStatus = 'PENDING' | 'DUE' | 'OVERDUE' | 'PAID' | 'CANCELLED';
+
+export type DocumentType = 
+  | 'BUKTI_BAYAR'
+  | 'BUPOT_PPH23'
+  | 'BUKTI_BAYAR_PPH'
+  | 'BUKTI_BAYAR_PPN'
+  | 'INVOICE_PDF'
+  | 'FAKTUR_PAJAK'
+  | 'OTHER';
+
+export type PaymentMethod = 
+  | 'TRANSFER'
+  | 'CASH'
+  | 'GIRO'
+  | 'CHECK'
+  | 'VIRTUAL_ACCOUNT'
+  | 'OTHER';
+
+export interface Invoice {
+  id: string;
+  invoice_type: InvoiceType;
+  invoice_number: string | null;
+  contract_id: number;
+  invoice_sequence: number | null;
+  termin_number: number | null;
+  cycle_number: number | null;
+  invoice_status: InvoiceStatus;
+  payment_due_status: PaymentDueStatus;
+  original_payment_date: string | null;
+  due_date: string | null;
+  period_month: number | null;
+  period_year: number | null;
+  original_amount: string | null;
+  amount: string | null;
+  base_amount: string | null;
+  ppn_amount: string | null;
+  pph_amount: string | null;
+  net_payable_amount: string | null;
+  paid_amount: string | null;
+  outstanding_amount: string | null;
+  payment_progress_pct: number;
+  ppn_paid: boolean;
+  pph23_paid: boolean;
+  legacy_is_paid: boolean;
+  sent_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string | null;
+  updated_by: string | null;
+  // Contract Info
+  contract_number: string | null;
+  customer_name: string | null;
+  npwp: string | null;
+  customer_address: string | null;
+  witel_id: number | null;
+  witel_name: string | null;
+  segment: string | null;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  // Account Info (new fields)
+  account_number: string | null;
+  bus_area: string | null;
+  nipnas: string | null;
+  segment_name: string | null;
+  account_manager_name: string | null;
+  assigned_officer_name: string | null;
+  account_notes: string | null;
+}
+
+export interface InvoiceSummary {
+  total_invoices: number;
+  total_amount: string;
+  total_paid: string;
+  total_outstanding: string;
+  overdue_count: number;
+}
+
+export interface InvoiceListResponse {
+  data: Invoice[];
+  summary: InvoiceSummary;
+  pagination: {
+    page: number;
+    per_page: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+export interface InvoiceFilters {
+  year: number;
+  month: number;
+  status?: InvoiceStatus | InvoiceStatus[];
+  witel_id?: number;
+  segment?: string;
+  customer_name?: string;
+  contract_number?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaymentTransaction {
+  id: string;
+  invoice_type: InvoiceType;
+  term_payment_id: string | null;
+  recurring_payment_id: string | null;
+  payment_date: string;
+  amount: string;
+  payment_method: PaymentMethod | null;
+  reference_number: string | null;
+  ppn_included: boolean;
+  pph23_included: boolean;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceDocument {
+  id: string;
+  invoice_type: InvoiceType;
+  term_payment_id: string | null;
+  recurring_payment_id: string | null;
+  payment_transaction_id: string | null;
+  document_type: DocumentType;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+  notes: string | null;
+}
+
+export interface InvoiceDetailResponse {
+  invoice: Invoice;
+  payments: PaymentTransaction[];
+  documents: InvoiceDocument[];
+  contract: {
+    id: number;
+    contract_number: string | null;
+    customer_name: string | null;
+    witel_name: string | null;
+    segment: string | null;
+  };
+}
+
+export interface AddPaymentRequest {
+  payment_date: string;
+  amount: number;
+  payment_method?: PaymentMethod;
+  reference_number?: string;
+  ppn_included?: boolean;
+  pph23_included?: boolean;
+  notes?: string;
+}
+
+export interface AddPaymentResponse {
+  success: boolean;
+  payment_id: string;
+  invoice_updated: {
+    paid_amount: string;
+    outstanding_amount: string;
+    invoice_status: InvoiceStatus;
+  };
+}
+
+export interface UploadDocumentRequest {
+  document_type: DocumentType;
+  payment_transaction_id?: string;
+  notes?: string;
+}
+
+export interface UploadDocumentResponse {
+  success: boolean;
+  document_id: string;
+  file_path: string;
+  file_size: number;
+}
+
+export interface UpdateInvoiceStatusRequest {
+  invoice_status: 'SENT' | 'CANCELLED';
+  notes?: string;
+}
+
+export interface UpdateInvoiceStatusResponse {
+  success: boolean;
+  invoice: {
+    id: string;
+    invoice_status: InvoiceStatus;
+    sent_date: string | null;
+    notes: string | null;
+  };
+}
+
+export interface SendInvoiceRequest {
+  recipient_email: string;
+  cc_emails?: string[];
+  subject?: string;
+  message?: string;
+}
+
+export interface SendInvoiceResponse {
+  success: boolean;
+  email_sent: boolean;
+  sent_date: string;
 }

@@ -142,7 +142,7 @@ FR-005: Invoice Status Management (Dual Status System)
 
 FR-006: Auto-Population from Contract
   - When contract created, auto-generate invoices with:
-    * Unique invoice number (format: INV/YYYY/MM/XXXXX)
+    * Unique invoice number (format: AAAAAAA-NNNNNN-YYYYMM)
     * Billing period (month/year from payment_date)
     * Due date (payment_date + 14 days)
     * invoice_status = DRAFT
@@ -193,6 +193,7 @@ SOLUTION ARCHITECTURE:
    - Add new columns to term_payments and recurring_payments
    - Preserve existing columns for backward compatibility
    - Auto-populate new fields during contract creation
+   - NOTE: Requires contracts table to have account_number field (for invoice number generation)
 
 2. CREATE SUPPORTING TABLES
    - payment_transactions: Track multiple payments per invoice
@@ -655,10 +656,10 @@ BEGIN
     ) combined
     WHERE invoice_number IS NOT NULL;
 
-    -- Format: INV/2026/01/00001
-    v_number := 'INV/' || p_year || '/' ||
-                LPAD(p_month::TEXT, 2, '0') || '/' ||
-                LPAD(v_sequence::TEXT, 5, '0');
+    -- Format: 4997096-000035-202512
+    v_number := v_account_prefix || '-' ||
+                LPAD(v_sequence::TEXT, 6, '0') || '-' ||
+                p_year || LPAD(p_month::TEXT, 2, '0');
 
     RETURN v_number;
 END;
@@ -840,7 +841,7 @@ Rule 4: Document Requirements
 When contract is created, auto-generate invoices with:
 
 For TERM payments:
-  - invoice_number = generate_invoice_number(year, month)
+  - invoice_number = generate_invoice_number(account_number, year, month)
   - invoice_status = 'DRAFT'
   - status = 'PENDING' (or calculated based on period date)
   - billing_month = EXTRACT(MONTH FROM payment_date)
@@ -857,7 +858,7 @@ For TERM payments:
 
 For RECURRING payments:
   - Same as term, but generate for each period (12 months ahead)
-  - Each period gets unique invoice_number
+  - Each period gets unique invoice_number with incrementing sequence
 
 6.4 CALCULATION RULES (PPh 23 Withholding)
 --------------------------------------------------------------------------------
@@ -928,7 +929,7 @@ Response:
     {
       "id": "uuid",
       "invoice_type": "TERM" | "RECURRING",
-      "invoice_number": "INV/2026/01/00001",
+      "invoice_number": "4997096-000001-202601",
       "contract_id": "uuid",
       "contract_number": "K.TEL.56/...",
       "customer_name": "SMK NEGERI 1 BIREUN",
@@ -981,7 +982,7 @@ Response:
   "invoice": {
     "id": "uuid",
     "invoice_type": "TERM",
-    "invoice_number": "INV/2026/01/00001",
+    "invoice_number": "4997096-000001-202601",
     "contract_id": "uuid",
     "contract_number": "K.TEL.56/...",
     "customer_name": "SMK NEGERI 1 BIREUN",
@@ -1175,7 +1176,7 @@ Response:
   "success": true,
   "invoice": {
     "id": "uuid",
-    "invoice_number": "INV/2026/01/00001",
+    "invoice_number": "4997096-000001-202601",
     "invoice_status": "SENT",
     "payment_due_status": "DUE",
     "sent_date": "2026-01-10"
@@ -1222,7 +1223,7 @@ Request Body:
 {
   "recipient_email": "bakribobob@gmail.com",
   "cc_emails": ["finance@smkn1bireun.sch.id"],
-  "subject": "Invoice #INV/2026/01/00001",
+  "subject": "Invoice #4997096-000001-202601",
   "message": "Terlampir invoice untuk pembayaran..."
 }
 
@@ -1264,10 +1265,10 @@ Layout:
 │                                                    [Export Excel]   │
 │                                                                     │
 │ ┌───────────────────────────────────────────────────────────────┐ │
-│ │ Invoice #        Customer      Contract  Amount      Status   │ │
+│ │ Invoice #            Customer      Contract  Amount   Status  │ │
 │ ├───────────────────────────────────────────────────────────────┤ │
-│ │ INV/2026/01/001  SMK NEGERI 1  K.TEL..   Rp 40.7M  [SENT]   │ │
-│ │ INV/2026/01/002  PT LKMS       K.TEL..   Rp 25.1M  [PAID]   │ │
+│ │ 4997096-000001-202601 SMK NEGERI 1 K.TEL..  Rp 40.7M [SENT]  │ │
+│ │ 4997096-000002-202601 PT LKMS      K.TEL..  Rp 25.1M [PAID]  │ │
 │ │ ...                                                           │ │
 │ └───────────────────────────────────────────────────────────────┘ │
 │                                                 [← 1 2 3 4 5 →]    │
@@ -1324,14 +1325,14 @@ Route: /invoices/{invoice_type}/{id}
 
 Layout:
 ┌─────────────────────────────────────────────────────────────────────┐
-│ ← Back to List              Invoice: INV/2026/01/00001             │
+│ ← Back to List         Invoice: 4997096-000001-202601              │
 │                                                   [🟡 PARTIALLY PAID]│
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │ ┌─────────────────────┐ ┌────────────────────────────────────────┐ │
 │ │ INVOICE INFO        │ │ CUSTOMER INFO                          │ │
 │ │                     │ │ SMK NEGERI 1 BIREUN                    │ │
-│ │ Number: INV/2026..  │ │ NPWP: 00.124.790.7-101.000.0492       │ │
+│ │ Number: 4997096-000001-202601 │ NPWP: 00.124.790.7-101.000.0492  │ │
 │ │ Type: TERM          │ │ Address: Jl. Taman Siswa...           │ │
 │ │ Contract: K.TEL..   │ │                                        │ │
 │ │ Due Date: 15 Feb    │ │ Contact Person: Bakri                 │ │
@@ -1766,22 +1767,23 @@ MILESTONES:
 12.1 INVOICE NUMBER FORMAT
 --------------------------------------------------------------------------------
 
-Format: INV/YYYY/MM/XXXXX
+Format: AAAAAAA-NNNNNN-YYYYMM
 
 Components:
-- INV: Prefix
-- YYYY: Billing year (4 digits)
-- MM: Billing month (2 digits, zero-padded)
-- XXXXX: Sequence number (5 digits, zero-padded)
+- AAAAAAA: First 7 digits of account_number (from account table)
+- NNNNNN: 6-digit sequence number (total invoice count for this account)
+- YYYYMM: Billing year and month (4-digit year + 2-digit month)
 
 Examples:
-- INV/2026/01/00001 (first invoice of January 2026)
-- INV/2026/01/00002 (second invoice of January 2026)
-- INV/2026/12/00150 (150th invoice of December 2026)
+- 4997096-000001-202601 (1st invoice for account 4997096, January 2026)
+- 4997096-000002-202601 (2nd invoice for account 4997096, January 2026)
+- 4997096-000035-202512 (35th invoice for account 4997096, December 2025)
+- 1234567-000150-202612 (150th invoice for account 1234567, December 2026)
 
 Uniqueness:
 - Unique across both term_payments and recurring_payments
-- Sequence resets each month
+- Sequence is cumulative per account (never resets)
+- Each account has its own invoice counter
 
 12.2 STATUS ENUMS - TWO DIMENSIONS
 --------------------------------------------------------------------------------
