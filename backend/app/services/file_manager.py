@@ -27,10 +27,17 @@ class FileManager:
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.ocr_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def delete_contract_files(self, db: Session, contract_id: int) -> Dict[str, any]:
+    def delete_contract_files(self, db: Session, contract_id: int, check_references: bool = True) -> Dict[str, any]:
         """
         Delete all files associated with a contract
-        Returns summary of deleted files and sizes
+
+        Args:
+            db: Database session
+            contract_id: Contract ID to delete files for
+            check_references: If True, only delete PDF if no other contracts reference it
+
+        Returns:
+            Summary of deleted files and sizes
         """
         deleted_files = []
         total_size = 0
@@ -44,17 +51,47 @@ class FileManager:
 
             file_record = db.query(File).filter(File.id == contract.file_id).first()
             if file_record:
-                # Delete uploaded PDF
-                pdf_path = Path(file_record.pdf_path)
-                if pdf_path.exists():
-                    size = pdf_path.stat().st_size
-                    pdf_path.unlink()
-                    deleted_files.append({
-                        "path": str(pdf_path),
-                        "type": "uploaded_pdf",
-                        "size": size
-                    })
-                    total_size += size
+                # Check if other contracts reference this file
+                should_delete_pdf = True
+                if check_references:
+                    other_contracts = db.query(Contract).filter(
+                        Contract.file_id == file_record.id,
+                        Contract.id != contract_id
+                    ).count()
+                    should_delete_pdf = (other_contracts == 0)
+
+                # Delete uploaded PDF only if no other contracts reference it
+                if should_delete_pdf:
+                    pdf_path = Path(file_record.pdf_path)
+
+                    # Try multiple path resolutions
+                    paths_to_try = [
+                        pdf_path,  # Original path as stored
+                        Path("backend") / pdf_path if not pdf_path.is_absolute() else pdf_path,  # With backend prefix
+                        Path.cwd() / pdf_path if not pdf_path.is_absolute() else pdf_path,  # Relative to current dir
+                    ]
+
+                    deleted = False
+                    for try_path in paths_to_try:
+                        if try_path.exists():
+                            try:
+                                size = try_path.stat().st_size
+                                try_path.unlink()
+                                deleted_files.append({
+                                    "path": str(try_path),
+                                    "type": "uploaded_pdf",
+                                    "size": size
+                                })
+                                total_size += size
+                                deleted = True
+                                break
+                            except Exception as e:
+                                errors.append(f"Failed to delete {try_path}: {str(e)}")
+
+                    if not deleted and not any(p.exists() for p in paths_to_try):
+                        errors.append(f"PDF file not found at any expected location: {pdf_path}")
+                else:
+                    errors.append(f"PDF file not deleted - still referenced by {other_contracts} other contract(s)")
 
                 # Delete OCR artifacts
                 job = db.query(ProcessingJob).filter(ProcessingJob.id == contract.source_job_id).first()
@@ -82,6 +119,129 @@ class FileManager:
                 "deleted_files": deleted_files,
                 "total_size": total_size,
                 "errors": errors
+            }
+
+    def delete_invoice_documents(self, db: Session, contract_id: int) -> Dict[str, any]:
+        """
+        Delete all invoice document files associated with a contract
+        This includes documents from both term and recurring payments
+
+        Args:
+            db: Database session
+            contract_id: Contract ID to delete invoice documents for
+
+        Returns:
+            Summary of deleted files and sizes
+        """
+        from app.models.database import Contract, ContractTermPayment, ContractRecurringPayment, InvoiceDocument
+
+        deleted_files = []
+        total_size = 0
+        errors = []
+
+        try:
+            # Get contract
+            contract = db.query(Contract).filter(Contract.id == contract_id).first()
+            if not contract:
+                return {"error": "Contract not found", "deleted_files": [], "total_size": 0, "errors": []}
+
+            # Get all term payments for this contract
+            term_payments = db.query(ContractTermPayment).filter(
+                ContractTermPayment.contract_id == contract_id
+            ).all()
+
+            # Get all recurring payments for this contract
+            recurring_payments = db.query(ContractRecurringPayment).filter(
+                ContractRecurringPayment.contract_id == contract_id
+            ).all()
+
+            # Collect all invoice documents
+            invoice_documents = []
+
+            # Documents from term payments
+            for term_payment in term_payments:
+                docs = db.query(InvoiceDocument).filter(
+                    InvoiceDocument.term_payment_id == term_payment.id
+                ).all()
+                invoice_documents.extend(docs)
+
+            # Documents from recurring payments
+            for recurring_payment in recurring_payments:
+                docs = db.query(InvoiceDocument).filter(
+                    InvoiceDocument.recurring_payment_id == recurring_payment.id
+                ).all()
+                invoice_documents.extend(docs)
+
+            # Delete each document file
+            for document in invoice_documents:
+                file_path = Path(document.file_path)
+
+                # Try multiple path resolutions
+                paths_to_try = [
+                    file_path,  # Original path as stored
+                    Path("backend") / file_path if not file_path.is_absolute() else file_path,
+                    Path.cwd() / file_path if not file_path.is_absolute() else file_path,
+                ]
+
+                deleted = False
+                for try_path in paths_to_try:
+                    if try_path.exists():
+                        try:
+                            size = try_path.stat().st_size
+                            try_path.unlink()
+                            deleted_files.append({
+                                "path": str(try_path),
+                                "type": f"invoice_document_{document.document_type}",
+                                "document_id": document.id,
+                                "file_name": document.file_name,
+                                "size": size
+                            })
+                            total_size += size
+                            deleted = True
+                            break
+                        except Exception as e:
+                            errors.append(f"Failed to delete {try_path}: {str(e)}")
+
+                if not deleted and not any(p.exists() for p in paths_to_try):
+                    errors.append(f"Invoice document file not found: {document.file_name} (ID: {document.id})")
+
+            # Try to clean up empty directories
+            try:
+                # Get unique invoice directories
+                invoice_dirs = set()
+                for document in invoice_documents:
+                    file_path = Path(document.file_path)
+                    invoice_dirs.add(file_path.parent)
+
+                for invoice_dir in invoice_dirs:
+                    if invoice_dir.exists() and not list(invoice_dir.iterdir()):
+                        # Directory is empty, remove it
+                        invoice_dir.rmdir()
+                        # Try to remove parent (invoice_type) directory if empty
+                        try:
+                            if invoice_dir.parent.exists() and not list(invoice_dir.parent.iterdir()):
+                                invoice_dir.parent.rmdir()
+                        except OSError:
+                            pass  # Parent not empty, that's fine
+            except Exception as e:
+                errors.append(f"Error cleaning up directories: {str(e)}")
+
+            return {
+                "contract_id": contract_id,
+                "deleted_files": deleted_files,
+                "total_size": total_size,
+                "errors": errors,
+                "documents_deleted": len(deleted_files)
+            }
+
+        except Exception as e:
+            errors.append(f"Error deleting invoice documents: {str(e)}")
+            return {
+                "contract_id": contract_id,
+                "deleted_files": deleted_files,
+                "total_size": total_size,
+                "errors": errors,
+                "documents_deleted": len(deleted_files)
             }
 
     def delete_job_files(self, db: Session, job_id: int, keep_pdf: bool = True) -> Dict[str, any]:
