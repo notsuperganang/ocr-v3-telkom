@@ -3,8 +3,9 @@
  * Unified single card: Rincian Detail Layanan (period + cost breakdown)
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Calendar, DollarSign, Receipt, Clock, CreditCard, Repeat, ListChecks, Layers, MoreVertical, StickyNote, CheckCircle2, XCircle } from 'lucide-react';
+import { Calendar, DollarSign, Receipt, Clock, CreditCard, Repeat, ListChecks, Layers, MoreVertical, StickyNote, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +58,8 @@ const subtlePulse = {
 
 export function ServiceDetailsSection({ contractId, serviceItems, startDate, endDate, paymentMethod }: ServiceDetailsSectionProps) {
   if (!serviceItems || serviceItems.length === 0) return null;
+
+  const navigate = useNavigate();
 
   // Fetch termin payment management data from backend
   const { data: terminPaymentsData, isLoading: isLoadingTermins } = useTerminPayments(contractId);
@@ -432,12 +435,12 @@ export function ServiceDetailsSection({ contractId, serviceItems, startDate, end
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
-                              {!isPaid && (
+                              {tp.id && (
                                 <DropdownMenuItem
-                                  onClick={() => setSelectedTermin({ terminNumber, mode: 'paid' })}
+                                  onClick={() => navigate(`/invoices/term/${tp.id}`)}
                                 >
-                                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                                  Tandai sebagai lunas
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Kelola invoice
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
