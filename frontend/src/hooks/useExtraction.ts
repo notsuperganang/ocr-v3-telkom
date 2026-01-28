@@ -198,13 +198,51 @@ export function usePdfBlob(jobId: number) {
 export function useFormData(jobId: number) {
   const { data: extractionData, isLoading, error } = useExtraction(jobId);
 
+  // Check if this is a manual entry
+  const isManualEntry = React.useMemo(() => {
+    if (!extractionData) return false;
+    return extractionData.is_manual_entry || 
+           extractionData.extracted_data?._source === 'manual' ||
+           extractionData.file_id === null;
+  }, [extractionData]);
+
   const formData = React.useMemo(() => {
     if (!extractionData) return null;
 
     // Prefer edited data over extracted data
     const data = extractionData.edited_data || extractionData.extracted_data;
 
-    if (!data) return null;
+    // For manual entry, we might have empty or minimal data - that's okay
+    // Return defaults structure even if data is mostly empty
+    const isEmptyManualEntry = !data || 
+      Object.keys(data).length === 0 || 
+      (Object.keys(data).length <= 2 && (data as Record<string, unknown>)._source === 'manual');
+    
+    if (isEmptyManualEntry) {
+      // Return empty defaults for manual entry
+      return {
+        informasi_pelanggan: {
+          nama_pelanggan: '',
+          alamat: '',
+          npwp: '',
+          perwakilan: { nama: '', jabatan: '' },
+          kontak_person: { nama: '', jabatan: '', email: '', telepon: '' },
+        },
+        layanan_utama: {
+          connectivity_telkom: 0,
+          non_connectivity_telkom: 0,
+          bundling: 0,
+        },
+        rincian_layanan: [{ biaya_instalasi: 0, biaya_langganan_tahunan: 0 }],
+        tata_cara_pembayaran: {
+          method_type: 'one_time_charge' as const,
+          description: '',
+        },
+        kontak_person_telkom: { nama: '', jabatan: '', email: '', telepon: '' },
+        jangka_waktu: { mulai: '', akhir: '' },
+        extraction_timestamp: new Date().toISOString(),
+      } as TelkomContractData;
+    }
 
     // Ensure all required fields exist with defaults
     return {
@@ -256,8 +294,9 @@ export function useFormData(jobId: number) {
     extractionData,
     isLoading,
     error,
-    hasData: extractionData?.has_data || false,
+    hasData: extractionData?.has_data || isManualEntry,
     status: extractionData?.status || 'unknown',
+    isManualEntry,
   };
 }
 
