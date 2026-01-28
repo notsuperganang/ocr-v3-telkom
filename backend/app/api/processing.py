@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/processing", tags=["processing"])
 # Response models
 class JobStatusResponse(BaseModel):
     job_id: int
-    file_id: int
+    file_id: Optional[int]
     filename: str
     status: str
     progress_message: str
@@ -27,19 +27,21 @@ class JobStatusResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    is_manual_entry: bool = False
     
     class Config:
         from_attributes = True
 
 class JobDataResponse(BaseModel):
     job_id: int
-    file_id: int
+    file_id: Optional[int]
     filename: str
     status: str
     extracted_data: Optional[Dict[str, Any]] = None
     edited_data: Optional[Dict[str, Any]] = None
     ocr_artifacts: Optional[Dict[str, str]] = None
     has_data: bool
+    is_manual_entry: bool = False
     
     class Config:
         from_attributes = True
@@ -112,17 +114,19 @@ async def list_all_jobs(
     # Convert to response format
     job_responses = []
     for job in jobs:
-        file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
+        file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first() if job.file_id else None
+        is_manual = job.file_id is None or (job.extracted_data and job.extracted_data.get('_source') == 'manual')
         job_responses.append(JobStatusResponse(
             job_id=job.id,
             file_id=job.file_id,
-            filename=file_model.original_filename if file_model else "Unknown",
+            filename=file_model.original_filename if file_model else ("Manual Entry" if is_manual else "Unknown"),
             status=job.status.value,
             progress_message=get_progress_message(job),
             processing_time_seconds=job.processing_time_seconds,
             error_message=job.error_message,
             created_at=job.created_at,
-            updated_at=job.updated_at
+            updated_at=job.updated_at,
+            is_manual_entry=is_manual
         ))
 
     return JobListResponse(
@@ -149,24 +153,29 @@ async def get_job_status(
             detail="Processing job not found"
         )
     
-    # Get associated file
-    file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
-    if not file_model:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Associated file not found"
-        )
+    # Check if this is a manual entry
+    is_manual_entry = job.file_id is None or (
+        job.extracted_data and job.extracted_data.get('_source') == 'manual'
+    )
+    
+    # Get associated file if it exists
+    filename = "Manual Entry"
+    if job.file_id:
+        file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
+        if file_model:
+            filename = file_model.original_filename
     
     return JobStatusResponse(
         job_id=job.id,
         file_id=job.file_id,
-        filename=file_model.original_filename,
+        filename=filename,
         status=job.status.value,
         progress_message=get_progress_message(job),
         processing_time_seconds=job.processing_time_seconds,
         error_message=job.error_message,
         created_at=job.created_at,
-        updated_at=job.updated_at
+        updated_at=job.updated_at,
+        is_manual_entry=is_manual_entry
     )
 
 @router.get("/data/{job_id}", response_model=JobDataResponse)
@@ -185,26 +194,31 @@ async def get_job_data(
             detail="Processing job not found"
         )
     
-    # Get associated file
-    file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
-    if not file_model:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Associated file not found"
-        )
+    # Check if this is a manual entry (no file or _source marker)
+    is_manual_entry = job.file_id is None or (
+        job.extracted_data and job.extracted_data.get('_source') == 'manual'
+    )
+    
+    # Get associated file if it exists
+    filename = "Manual Entry"
+    if job.file_id:
+        file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first()
+        if file_model:
+            filename = file_model.original_filename
     
     # Check if job has extractable data
-    has_data = job.status in [JobStatus.AWAITING_REVIEW, JobStatus.CONFIRMED] and job.extracted_data is not None
+    has_data = job.status in [JobStatus.AWAITING_REVIEW, JobStatus.CONFIRMED]
     
     return JobDataResponse(
         job_id=job.id,
         file_id=job.file_id,
-        filename=file_model.original_filename,
+        filename=filename,
         status=job.status.value,
         extracted_data=job.extracted_data,
         edited_data=job.edited_data,
         ocr_artifacts=job.ocr_artifacts,
-        has_data=has_data
+        has_data=has_data,
+        is_manual_entry=is_manual_entry
     )
 
 @router.patch("/data/{job_id}")
