@@ -14,10 +14,18 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import File as FileModel, ProcessingJob, JobStatus, User
+from app.models.database import File as FileModel, ProcessingJob, JobStatus, User, Account
 from app.config import settings
 
 router = APIRouter(prefix="/api", tags=["upload"])
+
+# Response model for manual entry
+class ManualEntryResponse(BaseModel):
+    job_id: int
+    file_id: int | None
+    message: str
+    source: str = "manual"
+    prefilled_account_id: int | None = None
 
 # Response models
 class UploadResponse(BaseModel):
@@ -300,3 +308,102 @@ async def upload_batch(
         total_files=len(files),
         message=f"Batch upload completed. {len([f for f in uploaded_files if f.job_id > 0])} files processed successfully."
     )
+
+
+@router.post("/upload/manual", response_model=ManualEntryResponse)
+async def create_manual_entry(
+    background_tasks: BackgroundTasks,
+    file: UploadFile | None = File(None),
+    account_id: int | None = None,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """Create a manual entry job that skips OCR extraction.
+    
+    Optionally accepts a PDF file for reference, but the user will manually
+    enter all contract data in the validation interface.
+    
+    If account_id is provided, customer information will be prefilled from the account.
+    """
+    db, current_user = db_and_user
+    
+    try:
+        file_model = None
+        prefilled_data = {}
+        
+        # If account_id is provided, prefill customer info from account
+        if account_id:
+            account = db.query(Account).filter(Account.id == account_id).first()
+            if account:
+                prefilled_data = {
+                    "informasi_pelanggan": {
+                        "nama_pelanggan": account.name or "",
+                        "alamat": "",
+                        "npwp": account.nipnas or "",
+                        "perwakilan": {
+                            "nama": "",
+                            "jabatan": ""
+                        },
+                        "kontak_person": {
+                            "nama": "",
+                            "jabatan": "",
+                            "email": "",
+                            "telepon": ""
+                        }
+                    },
+                    "_prefilled_from_account_id": account_id,
+                    "_source": "manual"
+                }
+        
+        # If a file is provided, save it for reference
+        if file and file.filename:
+            # Validate file
+            validate_file(file)
+            
+            # Generate unique file ID
+            file_id = str(uuid.uuid4())
+            
+            # Save file to storage
+            file_path, file_size = await save_uploaded_file(file, file_id)
+            
+            # Create file record
+            file_model = FileModel(
+                original_filename=file.filename,
+                size_bytes=file_size,
+                mime_type=file.content_type,
+                pdf_path=file_path
+            )
+            db.add(file_model)
+            db.commit()
+            db.refresh(file_model)
+        
+        # Create processing job with AWAITING_REVIEW status (skipping OCR)
+        # Use prefilled_data or empty dict
+        job = ProcessingJob(
+            file_id=file_model.id if file_model else None,
+            status=JobStatus.AWAITING_REVIEW,
+            reviewed_by_id=current_user.id,
+            extracted_data=prefilled_data if prefilled_data else {"_source": "manual"},
+            processing_started_at=datetime.now(timezone.utc),
+            processing_completed_at=datetime.now(timezone.utc),
+            processing_time_seconds=0.0
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        
+        return ManualEntryResponse(
+            job_id=job.id,
+            file_id=file_model.id if file_model else None,
+            message="Manual entry job created. Ready for data input.",
+            source="manual",
+            prefilled_account_id=account_id if account_id else None
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create manual entry: {str(e)}"
+        )

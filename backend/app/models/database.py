@@ -68,6 +68,9 @@ class User(Base):
     updated_term_payments = relationship("ContractTermPayment", foreign_keys="ContractTermPayment.updated_by_id", back_populates="updater")
     created_recurring_payments = relationship("ContractRecurringPayment", foreign_keys="ContractRecurringPayment.created_by_id", back_populates="creator")
     updated_recurring_payments = relationship("ContractRecurringPayment", foreign_keys="ContractRecurringPayment.updated_by_id", back_populates="updater")
+    # Invoice management relationships
+    created_payment_transactions = relationship("PaymentTransaction", back_populates="created_by")
+    uploaded_invoice_documents = relationship("InvoiceDocument", back_populates="uploaded_by")
     # Account relationships
     assigned_accounts = relationship("Account", foreign_keys="Account.assigned_officer_id", back_populates="assigned_officer")
     created_accounts = relationship("Account", foreign_keys="Account.created_by_id", back_populates="creator")
@@ -331,6 +334,23 @@ class ContractTermPayment(Base):
     paid_at = Column(DateTime(timezone=True), nullable=True)  # Timestamp when marked as paid
     notes = Column(Text, nullable=True)  # Additional notes or comments
 
+    # Invoice management fields
+    invoice_number = Column(String(50), unique=True, nullable=True)  # Format: AAAAAAA-NNNNNN-YYYYMM
+    invoice_status = Column(String(30), default="DRAFT", server_default="DRAFT", nullable=False)  # DRAFT/SENT/PAID/etc
+    due_date = Column(DateTime(timezone=True), nullable=True)  # Invoice due date
+
+    # Tax breakdown (auto-calculated via trigger)
+    base_amount = Column(Numeric(18, 2), nullable=True)  # DPP (Dasar Pengenaan Pajak) = amount / 1.11
+    ppn_amount = Column(Numeric(18, 2), nullable=True)  # PPN 11% = base_amount × 0.11
+    pph_amount = Column(Numeric(18, 2), nullable=True)  # PPh 23 2% withheld = base_amount × 0.02
+    net_payable_amount = Column(Numeric(18, 2), nullable=True)  # Net to customer = amount - pph_amount
+    paid_amount = Column(Numeric(18, 2), default=0, server_default="0", nullable=False)  # Sum of payments
+
+    # Tax status flags
+    ppn_paid = Column(Boolean, default=False, server_default="false", nullable=False)  # PPN payment status
+    pph23_paid = Column(Boolean, default=False, server_default="false", nullable=False)  # PPh 23 payment status
+    sent_date = Column(DateTime(timezone=True), nullable=True)  # When invoice was sent to customer
+
     # Audit fields
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who created this record
     updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who last updated this record
@@ -341,6 +361,8 @@ class ContractTermPayment(Base):
     contract = relationship("Contract", back_populates="term_payments")
     creator = relationship("User", foreign_keys=[created_by_id], back_populates="created_term_payments")
     updater = relationship("User", foreign_keys=[updated_by_id], back_populates="updated_term_payments")
+    transactions = relationship("PaymentTransaction", back_populates="term_payment", cascade="all, delete-orphan")
+    documents = relationship("InvoiceDocument", back_populates="term_payment", cascade="all, delete-orphan")
 
 class ContractRecurringPayment(Base):
     """Normalized recurring payment tracking for operational monthly billing management"""
@@ -364,6 +386,23 @@ class ContractRecurringPayment(Base):
     paid_at = Column(DateTime(timezone=True), nullable=True)  # Timestamp when marked as paid
     notes = Column(Text, nullable=True)  # Additional notes or comments
 
+    # Invoice management fields
+    invoice_number = Column(String(50), unique=True, nullable=True)  # Format: AAAAAAA-NNNNNN-YYYYMM
+    invoice_status = Column(String(30), default="DRAFT", server_default="DRAFT", nullable=False)  # DRAFT/SENT/PAID/etc
+    due_date = Column(DateTime(timezone=True), nullable=True)  # Invoice due date
+
+    # Tax breakdown (auto-calculated via trigger)
+    base_amount = Column(Numeric(18, 2), nullable=True)  # DPP (Dasar Pengenaan Pajak) = amount / 1.11
+    ppn_amount = Column(Numeric(18, 2), nullable=True)  # PPN 11% = base_amount × 0.11
+    pph_amount = Column(Numeric(18, 2), nullable=True)  # PPh 23 2% withheld = base_amount × 0.02
+    net_payable_amount = Column(Numeric(18, 2), nullable=True)  # Net to customer = amount - pph_amount
+    paid_amount = Column(Numeric(18, 2), default=0, server_default="0", nullable=False)  # Sum of payments
+
+    # Tax status flags
+    ppn_paid = Column(Boolean, default=False, server_default="false", nullable=False)  # PPN payment status
+    pph23_paid = Column(Boolean, default=False, server_default="false", nullable=False)  # PPh 23 payment status
+    sent_date = Column(DateTime(timezone=True), nullable=True)  # When invoice was sent to customer
+
     # Audit fields
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who created this record
     updated_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # User who last updated this record
@@ -374,6 +413,76 @@ class ContractRecurringPayment(Base):
     contract = relationship("Contract", back_populates="recurring_payments")
     creator = relationship("User", foreign_keys=[created_by_id], back_populates="created_recurring_payments")
     updater = relationship("User", foreign_keys=[updated_by_id], back_populates="updated_recurring_payments")
+    transactions = relationship("PaymentTransaction", back_populates="recurring_payment", cascade="all, delete-orphan")
+    documents = relationship("InvoiceDocument", back_populates="recurring_payment", cascade="all, delete-orphan")
+
+
+class PaymentTransaction(Base):
+    """Tracks individual payment transactions for invoices. Supports partial payments."""
+    __tablename__ = "payment_transactions"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+
+    # Polymorphic invoice reference (exactly one must be set)
+    invoice_type = Column(String(20), nullable=False)  # 'TERM' or 'RECURRING'
+    term_payment_id = Column(BigInteger, ForeignKey("contract_term_payments.id", ondelete="CASCADE"), nullable=True)
+    recurring_payment_id = Column(BigInteger, ForeignKey("contract_recurring_payments.id", ondelete="CASCADE"), nullable=True)
+
+    # Payment details
+    payment_date = Column(DateTime(timezone=True), nullable=False)  # When payment was received
+    amount = Column(Numeric(18, 2), nullable=False)  # Payment amount (must be > 0)
+    payment_method = Column(String(50), nullable=True)  # TRANSFER, CASH, GIRO, CHECK, etc
+    reference_number = Column(String(100), nullable=True)  # Bank reference or transaction ID
+
+    # Tax info (per-payment flags)
+    ppn_included = Column(Boolean, default=False, server_default="false", nullable=False)  # PPN paid in this payment?
+    pph23_included = Column(Boolean, default=False, server_default="false", nullable=False)  # PPh 23 paid in this payment?
+
+    # Metadata
+    notes = Column(Text, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    term_payment = relationship("ContractTermPayment", back_populates="transactions")
+    recurring_payment = relationship("ContractRecurringPayment", back_populates="transactions")
+    created_by = relationship("User", back_populates="created_payment_transactions")
+    documents = relationship("InvoiceDocument", back_populates="payment_transaction", cascade="all, delete-orphan")
+
+
+class InvoiceDocument(Base):
+    """Stores documents related to invoices and payments (bukti bayar, BUPOT, etc)."""
+    __tablename__ = "invoice_documents"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+
+    # Polymorphic invoice reference (exactly one must be set)
+    invoice_type = Column(String(20), nullable=False)  # 'TERM' or 'RECURRING'
+    term_payment_id = Column(BigInteger, ForeignKey("contract_term_payments.id", ondelete="CASCADE"), nullable=True)
+    recurring_payment_id = Column(BigInteger, ForeignKey("contract_recurring_payments.id", ondelete="CASCADE"), nullable=True)
+
+    # Optional link to specific payment transaction
+    payment_transaction_id = Column(BigInteger, ForeignKey("payment_transactions.id", ondelete="CASCADE"), nullable=True)
+
+    # Document details
+    document_type = Column(String(30), nullable=False)  # BUKTI_BAYAR, BUPOT_PPH23, FAKTUR_PAJAK, etc
+    file_name = Column(String(255), nullable=False)
+    file_path = Column(String(500), nullable=False)
+    file_size = Column(Integer, nullable=True)  # In bytes (max 10MB via check constraint)
+    mime_type = Column(String(100), nullable=True)  # application/pdf, image/jpeg, etc
+
+    # Metadata
+    notes = Column(Text, nullable=True)
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    term_payment = relationship("ContractTermPayment", back_populates="documents")
+    recurring_payment = relationship("ContractRecurringPayment", back_populates="documents")
+    payment_transaction = relationship("PaymentTransaction", back_populates="documents")
+    uploaded_by = relationship("User", back_populates="uploaded_invoice_documents")
+
 
 class ExtractionLog(Base):
     """Processing logs and audit trail"""

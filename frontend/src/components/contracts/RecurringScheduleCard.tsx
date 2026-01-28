@@ -3,9 +3,10 @@
  * Displays monthly recurring payment schedule with management actions
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { Repeat, MoreVertical, CheckCircle2, FileText } from 'lucide-react';
+import { Repeat, MoreVertical, CheckCircle2, FileText, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +36,7 @@ interface RecurringScheduleCardProps {
 }
 
 export function RecurringScheduleCard({ contractId }: RecurringScheduleCardProps) {
+  const navigate = useNavigate();
   const { data: payments, isLoading, error } = useRecurringPayments(contractId);
 
   // Modal state
@@ -167,7 +169,6 @@ export function RecurringScheduleCard({ contractId }: RecurringScheduleCardProps
               const isCurrentMonth =
                 payment.period_year === currentYear &&
                 payment.period_month === currentMonth;
-              const isPaid = payment.status === 'PAID';
               const statusConfig = getStatusBadgeConfig(payment.status);
               const amount = parseFloat(payment.amount || '0');
 
@@ -310,17 +311,13 @@ export function RecurringScheduleCard({ contractId }: RecurringScheduleCardProps
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {!isPaid && (
-                          <>
-                            <DropdownMenuItem
-                              onClick={() => handleOpenModal(payment, 'paid')}
-                            >
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                              Tandai sebagai lunas
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
+                        <DropdownMenuItem
+                          onClick={() => navigate(`/invoices/recurring/${payment.id}`)}
+                        >
+                          <Settings className="h-4 w-4 mr-2" />
+                          Kelola invoice
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => handleOpenModal(payment, 'note')}
                         >

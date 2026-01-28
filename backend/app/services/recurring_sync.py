@@ -11,7 +11,8 @@ from decimal import Decimal
 from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.database import Contract, ContractRecurringPayment, User
+from app.models.database import Contract, ContractRecurringPayment, User, Account
+from app.services.invoice_service import generate_invoice_number, calculate_due_date
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,16 @@ def sync_contract_recurring_payments(
 
     logger.info(f"Syncing recurring payments for contract {contract.id}")
 
+    # Get account_number for invoice generation
+    account_number = None
+    if contract.account_id:
+        account = db.query(Account).filter(Account.id == contract.account_id).first()
+        if account:
+            account_number = account.account_number
+            logger.debug(f"Contract {contract.id}: Using account_number {account_number} for invoice generation")
+        else:
+            logger.warning(f"Contract {contract.id}: account_id={contract.account_id} but Account not found")
+
     # === GUARD CLAUSE: Check if recurring applies ===
 
     # Check payment method
@@ -254,6 +265,20 @@ def sync_contract_recurring_payments(
 
         else:
             # CREATE new payment
+
+            # Generate invoice number (may return None if no account)
+            invoice_number = None
+            if account_number:
+                try:
+                    invoice_number = generate_invoice_number(db, account_number, year, month)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to generate invoice number for recurring cycle {cycle_number}: {e}"
+                    )
+
+            # Calculate due date (15th of billing month)
+            due_date = calculate_due_date(year, month)
+
             new_payment = ContractRecurringPayment(
                 contract_id=contract.id,
                 cycle_number=cycle_number,
@@ -267,12 +292,19 @@ def sync_contract_recurring_payments(
                 notes=None,
                 created_by_id=acting_user.id if acting_user else None,
                 updated_by_id=acting_user.id if acting_user else None,
+                # Invoice management fields
+                invoice_number=invoice_number,
+                invoice_status="DRAFT",
+                due_date=due_date,
+                # NOTE: base_amount, ppn_amount, pph_amount, net_payable_amount
+                # are auto-calculated by database trigger when amount is set
             )
             db.add(new_payment)
 
             logger.debug(
                 f"Created new recurring payment for contract {contract.id}: "
-                f"cycle={cycle_number}, period={period_label}, amount={contract.recurring_monthly_amount}"
+                f"cycle={cycle_number}, period={period_label}, amount={contract.recurring_monthly_amount}, "
+                f"invoice_number={invoice_number}"
             )
             created_count += 1
 
