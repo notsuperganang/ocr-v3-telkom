@@ -157,6 +157,12 @@
     background: linear-gradient(135deg, oklch(0.50 0.24 27 / 0.1) 0%, oklch(0.50 0.24 27 / 0.05) 100%);
   }
 
+  /* Calendar year dropdown scrolling - limit height for better UX */
+  .rdp select[name="years"] {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
   /* Reduced motion support */
   @media (prefers-reduced-motion: reduce) {
     *,

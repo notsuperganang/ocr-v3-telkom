@@ -136,7 +136,7 @@ export function SearchableSelect({
         </div>
 
         {/* Options List */}
-        <ScrollArea className="max-h-[200px]">
+        <ScrollArea className="h-[200px]">
           <div className="p-1">
             {/* Clear Selection Option */}
             <button

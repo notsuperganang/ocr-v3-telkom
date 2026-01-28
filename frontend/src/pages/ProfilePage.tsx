@@ -79,10 +79,26 @@ export function ProfilePage() {
     setIsSavingProfile(true);
 
     try {
-      await apiService.updateOwnProfile({
-        email: email.trim() || undefined,
-        full_name: fullName.trim() || undefined,
-      });
+      const trimmedEmail = email.trim();
+      const trimmedFullName = fullName.trim();
+
+      // Only include email if it's a non-empty valid-looking email
+      const updateData: { email?: string; full_name?: string } = {};
+      if (trimmedEmail && trimmedEmail.includes('@')) {
+        updateData.email = trimmedEmail;
+      }
+      if (trimmedFullName) {
+        updateData.full_name = trimmedFullName;
+      }
+
+      // Ensure at least one field is provided
+      if (!updateData.email && !updateData.full_name) {
+        toast.error('Harap isi minimal satu field (email atau nama lengkap)');
+        setIsSavingProfile(false);
+        return;
+      }
+
+      await apiService.updateOwnProfile(updateData);
 
       await refreshUserInfo();
       toast.success('Profil berhasil diperbarui');

@@ -365,9 +365,9 @@ export function AccountsPage() {
               <Building2 className="size-7 text-[#d71920]" aria-hidden="true" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Manajemen Account</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Manajemen Akun</h1>
               <p className="text-muted-foreground">
-                Kelola data customer dan account Telkom
+                Kelola data customer dan akun Telkom
               </p>
             </div>
           </div>
@@ -510,7 +510,7 @@ export function AccountsPage() {
                             {account.account_number || '-'}
                           </TableCell>
                           <TableCell>{account.name}</TableCell>
-                          <TableCell>{account.nipnas || '-'}</TableCell>
+                          <TableCell className="font-mono">{account.nipnas || '-'}</TableCell>
                           <TableCell>
                             {account.segment ? (
                               <Badge variant="outline">{account.segment.name}</Badge>
