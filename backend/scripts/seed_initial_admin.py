@@ -78,7 +78,7 @@ def seed_initial_admin():
         print(f"Creating initial MANAGER user...")
         print()
 
-        admin_email = f"{admin_username}@telkom.local"
+        admin_email = f"{admin_username}@telkom.co.id"
 
         admin_user = User(
             username=admin_username,

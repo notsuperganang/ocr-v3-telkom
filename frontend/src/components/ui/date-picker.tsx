@@ -115,6 +115,8 @@ export function DatePicker({
               captionLayout="dropdown"
               locale={idLocale}
               defaultMonth={selectedDate}
+              startMonth={new Date(2000, 0)}
+              endMonth={new Date(2040, 11)}
             />
           </PopoverContent>
         </Popover>
