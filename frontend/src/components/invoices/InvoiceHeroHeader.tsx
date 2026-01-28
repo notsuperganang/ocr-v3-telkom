@@ -116,7 +116,7 @@ export const InvoiceHeroHeader: React.FC<InvoiceHeroHeaderProps> = ({
                 variant="ghost"
                 size="icon"
                 onClick={() => navigate("/invoices")}
-                className="hover:bg-white/70 transition-colors border border-transparent hover:border-rose-100"
+                className="hover:bg-white/70 hover:text-rose-600 transition-colors border border-transparent hover:border-rose-100"
               >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
