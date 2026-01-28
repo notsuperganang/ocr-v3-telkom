@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict kDvyVdG7yfAZ3w1jX03DJ9s5Id4XvhX9qOddnfvgiaR5vXA1XrvyjFeiYIbsj81
+\restrict rF61bZtp7klWjZmWEf5He1Hev37UXgftd8zlJlndeDIY5a0UakSJm0QmvuOyY64
 
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
@@ -51,6 +51,110 @@ CREATE TYPE public.userrole AS ENUM (
     'STAFF',
     'MANAGER'
 );
+
+
+--
+-- Name: generate_invoice_number(character varying, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.generate_invoice_number(p_account_number character varying, p_year integer, p_month integer) RETURNS character varying
+    LANGUAGE plpgsql
+    AS $$
+        DECLARE
+            v_account_prefix VARCHAR(7);
+            v_sequence INTEGER;
+            v_number VARCHAR;
+        BEGIN
+            -- Extract first 7 digits of account number
+            v_account_prefix := LEFT(p_account_number, 7);
+
+            -- Get total invoice count for this account (cumulative, never resets)
+            SELECT COALESCE(COUNT(*), 0) + 1
+            INTO v_sequence
+            FROM (
+                SELECT invoice_number FROM contract_term_payments
+                WHERE invoice_number LIKE v_account_prefix || '-%'
+                UNION ALL
+                SELECT invoice_number FROM contract_recurring_payments
+                WHERE invoice_number LIKE v_account_prefix || '-%'
+            ) combined;
+
+            -- Format: 4997096-000035-202512
+            v_number := v_account_prefix || '-' ||
+                        LPAD(v_sequence::TEXT, 6, '0') || '-' ||
+                        p_year || LPAD(p_month::TEXT, 2, '0');
+
+            RETURN v_number;
+        END;
+        $$;
+
+
+--
+-- Name: recalculate_invoice_breakdown_trigger(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.recalculate_invoice_breakdown_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+        BEGIN
+            -- Recalculate all breakdown fields from amount
+            -- Formula implements PPh 23 withholding tax:
+            -- amount = total invoice value (including PPN)
+            -- base_amount = amount / 1.11 (DPP - Dasar Pengenaan Pajak)
+            -- ppn_amount = base_amount × 0.11 (11% PPN)
+            -- pph_amount = base_amount × 0.02 (2% PPh 23 - withheld by customer)
+            -- net_payable_amount = amount - pph_amount (what customer actually pays)
+            NEW.base_amount := NEW.amount / 1.11;
+            NEW.ppn_amount := NEW.base_amount * 0.11;
+            NEW.pph_amount := NEW.base_amount * 0.02;
+            NEW.net_payable_amount := NEW.amount - NEW.pph_amount;
+            RETURN NEW;
+        END;
+        $$;
+
+
+--
+-- Name: update_invoice_status_trigger(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.update_invoice_status_trigger() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+        DECLARE
+            v_new_invoice_status VARCHAR(30);
+        BEGIN
+            -- Determine new INVOICE_STATUS based on payment
+            -- IMPORTANT: Use net_payable_amount (not amount) because PPh 23 is withheld
+            -- Customer pays net_payable_amount = amount - pph_amount
+            IF NEW.paid_amount >= NEW.net_payable_amount THEN
+                IF NEW.ppn_paid AND NEW.pph23_paid THEN
+                    v_new_invoice_status := 'PAID';
+                ELSIF NOT NEW.pph23_paid THEN
+                    -- Customer paid full net amount, but waiting for BUPOT document
+                    v_new_invoice_status := 'PAID_PENDING_PPH23';
+                ELSE
+                    -- Rare case: payment complete but PPN documentation pending
+                    v_new_invoice_status := 'PAID_PENDING_PPN';
+                END IF;
+            ELSIF NEW.paid_amount > 0 THEN
+                v_new_invoice_status := 'PARTIALLY_PAID';
+            ELSIF NEW.due_date < CURRENT_DATE THEN
+                v_new_invoice_status := 'OVERDUE';
+            ELSE
+                -- FIX: When no payments and not overdue, revert to SENT
+                -- UNLESS the invoice is in DRAFT (hasn't been sent yet)
+                -- This prevents stuck PAID_PENDING_PPH23 when payments are deleted
+                IF NEW.invoice_status = 'DRAFT' THEN
+                    v_new_invoice_status := 'DRAFT';
+                ELSE
+                    v_new_invoice_status := 'SENT';
+                END IF;
+            END IF;
+
+            NEW.invoice_status := v_new_invoice_status;
+            RETURN NEW;
+        END;
+        $$;
 
 
 SET default_tablespace = '';
@@ -163,7 +267,18 @@ CREATE TABLE public.contract_recurring_payments (
     created_by_id integer,
     updated_by_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    invoice_number character varying(50),
+    invoice_status character varying(30) DEFAULT 'DRAFT'::character varying NOT NULL,
+    due_date timestamp with time zone,
+    base_amount numeric(18,2),
+    ppn_amount numeric(18,2),
+    pph_amount numeric(18,2),
+    net_payable_amount numeric(18,2),
+    paid_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    ppn_paid boolean DEFAULT false NOT NULL,
+    pph23_paid boolean DEFAULT false NOT NULL,
+    sent_date timestamp with time zone
 );
 
 
@@ -205,7 +320,18 @@ CREATE TABLE public.contract_term_payments (
     created_by_id integer,
     updated_by_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    invoice_number character varying(50),
+    invoice_status character varying(30) DEFAULT 'DRAFT'::character varying NOT NULL,
+    due_date timestamp with time zone,
+    base_amount numeric(18,2),
+    ppn_amount numeric(18,2),
+    pph_amount numeric(18,2),
+    net_payable_amount numeric(18,2),
+    paid_amount numeric(18,2) DEFAULT '0'::numeric NOT NULL,
+    ppn_paid boolean DEFAULT false NOT NULL,
+    pph23_paid boolean DEFAULT false NOT NULL,
+    sent_date timestamp with time zone
 );
 
 
@@ -408,6 +534,91 @@ ALTER SEQUENCE public.files_id_seq OWNED BY public.files.id;
 
 
 --
+-- Name: invoice_documents; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.invoice_documents (
+    id bigint NOT NULL,
+    invoice_type character varying(20) NOT NULL,
+    term_payment_id bigint,
+    recurring_payment_id bigint,
+    payment_transaction_id bigint,
+    document_type character varying(30) NOT NULL,
+    file_name character varying(255) NOT NULL,
+    file_path character varying(500) NOT NULL,
+    file_size integer,
+    mime_type character varying(100),
+    uploaded_by_id integer,
+    uploaded_at timestamp with time zone DEFAULT now(),
+    notes text,
+    CONSTRAINT chk_file_size CHECK ((file_size <= 10485760)),
+    CONSTRAINT chk_invoice_reference CHECK ((((term_payment_id IS NOT NULL) AND (recurring_payment_id IS NULL)) OR ((term_payment_id IS NULL) AND (recurring_payment_id IS NOT NULL))))
+);
+
+
+--
+-- Name: invoice_documents_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.invoice_documents_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: invoice_documents_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.invoice_documents_id_seq OWNED BY public.invoice_documents.id;
+
+
+--
+-- Name: payment_transactions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payment_transactions (
+    id bigint NOT NULL,
+    invoice_type character varying(20) NOT NULL,
+    term_payment_id bigint,
+    recurring_payment_id bigint,
+    payment_date timestamp with time zone NOT NULL,
+    amount numeric(18,2) NOT NULL,
+    payment_method character varying(50),
+    reference_number character varying(100),
+    ppn_included boolean DEFAULT false NOT NULL,
+    pph23_included boolean DEFAULT false NOT NULL,
+    notes text,
+    created_by_id integer,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT chk_payment_amount CHECK ((amount > (0)::numeric)),
+    CONSTRAINT chk_payment_reference CHECK ((((term_payment_id IS NOT NULL) AND (recurring_payment_id IS NULL)) OR ((term_payment_id IS NULL) AND (recurring_payment_id IS NOT NULL))))
+);
+
+
+--
+-- Name: payment_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.payment_transactions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: payment_transactions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.payment_transactions_id_seq OWNED BY public.payment_transactions.id;
+
+
+--
 -- Name: processing_jobs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -536,6 +747,124 @@ CREATE TABLE public.witels (
 
 
 --
+-- Name: v_invoices; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.v_invoices AS
+ SELECT 'TERM'::text AS invoice_type,
+    tp.id,
+    tp.invoice_number,
+    tp.contract_id,
+    tp.termin_number AS invoice_sequence,
+    tp.invoice_status,
+    tp.status,
+    tp.status AS payment_due_status,
+    tp.due_date,
+    tp.period_month,
+    tp.period_year,
+    ((to_char((to_date((tp.period_month)::text, 'MM'::text))::timestamp with time zone, 'Mon'::text) || ' '::text) || (tp.period_year)::text) AS period_label,
+    tp.original_amount,
+    tp.amount,
+    tp.base_amount,
+    tp.ppn_amount,
+    tp.pph_amount,
+    tp.net_payable_amount,
+    tp.paid_amount,
+    tp.ppn_paid,
+    tp.pph23_paid,
+    tp.sent_date,
+    tp.notes,
+    tp.created_at,
+    tp.updated_at,
+    tp.updated_by_id,
+    c.contract_number,
+    c.customer_name,
+    c.customer_npwp AS npwp,
+    c.customer_address,
+    a.witel_id,
+    a.segment_id,
+    c.period_start AS contract_start_date,
+    c.period_end AS contract_end_date,
+    c.account_id,
+    a.account_number,
+    a.bus_area,
+    a.nipnas,
+    w.name AS witel_name,
+    s.name AS segment_name,
+    am.name AS account_manager_name,
+    ao.full_name AS assigned_officer_name,
+    a.notes AS account_notes,
+    (tp.net_payable_amount - COALESCE(tp.paid_amount, (0)::numeric)) AS outstanding_amount,
+        CASE
+            WHEN (tp.net_payable_amount > (0)::numeric) THEN round(((COALESCE(tp.paid_amount, (0)::numeric) / tp.net_payable_amount) * (100)::numeric), 2)
+            ELSE (0)::numeric
+        END AS payment_progress_pct
+   FROM ((((((public.contract_term_payments tp
+     LEFT JOIN public.contracts c ON ((tp.contract_id = c.id)))
+     LEFT JOIN public.accounts a ON ((c.account_id = a.id)))
+     LEFT JOIN public.witels w ON ((a.witel_id = w.id)))
+     LEFT JOIN public.segments s ON ((a.segment_id = s.id)))
+     LEFT JOIN public.account_managers am ON ((a.account_manager_id = am.id)))
+     LEFT JOIN public.users ao ON ((a.assigned_officer_id = ao.id)))
+UNION ALL
+ SELECT 'RECURRING'::text AS invoice_type,
+    rp.id,
+    rp.invoice_number,
+    rp.contract_id,
+    NULL::integer AS invoice_sequence,
+    rp.invoice_status,
+    rp.status,
+    rp.status AS payment_due_status,
+    rp.due_date,
+    rp.period_month,
+    rp.period_year,
+    ((to_char((to_date((rp.period_month)::text, 'MM'::text))::timestamp with time zone, 'Mon'::text) || ' '::text) || (rp.period_year)::text) AS period_label,
+    rp.original_amount,
+    rp.amount,
+    rp.base_amount,
+    rp.ppn_amount,
+    rp.pph_amount,
+    rp.net_payable_amount,
+    rp.paid_amount,
+    rp.ppn_paid,
+    rp.pph23_paid,
+    rp.sent_date,
+    rp.notes,
+    rp.created_at,
+    rp.updated_at,
+    rp.updated_by_id,
+    c.contract_number,
+    c.customer_name,
+    c.customer_npwp AS npwp,
+    c.customer_address,
+    a.witel_id,
+    a.segment_id,
+    c.period_start AS contract_start_date,
+    c.period_end AS contract_end_date,
+    c.account_id,
+    a.account_number,
+    a.bus_area,
+    a.nipnas,
+    w.name AS witel_name,
+    s.name AS segment_name,
+    am.name AS account_manager_name,
+    ao.full_name AS assigned_officer_name,
+    a.notes AS account_notes,
+    (rp.net_payable_amount - COALESCE(rp.paid_amount, (0)::numeric)) AS outstanding_amount,
+        CASE
+            WHEN (rp.net_payable_amount > (0)::numeric) THEN round(((COALESCE(rp.paid_amount, (0)::numeric) / rp.net_payable_amount) * (100)::numeric), 2)
+            ELSE (0)::numeric
+        END AS payment_progress_pct
+   FROM ((((((public.contract_recurring_payments rp
+     LEFT JOIN public.contracts c ON ((rp.contract_id = c.id)))
+     LEFT JOIN public.accounts a ON ((c.account_id = a.id)))
+     LEFT JOIN public.witels w ON ((a.witel_id = w.id)))
+     LEFT JOIN public.segments s ON ((a.segment_id = s.id)))
+     LEFT JOIN public.account_managers am ON ((a.account_manager_id = am.id)))
+     LEFT JOIN public.users ao ON ((a.assigned_officer_id = ao.id)));
+
+
+--
 -- Name: witels_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -612,6 +941,20 @@ ALTER TABLE ONLY public.files ALTER COLUMN id SET DEFAULT nextval('public.files_
 
 
 --
+-- Name: invoice_documents id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_documents ALTER COLUMN id SET DEFAULT nextval('public.invoice_documents_id_seq'::regclass);
+
+
+--
+-- Name: payment_transactions id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_transactions ALTER COLUMN id SET DEFAULT nextval('public.payment_transactions_id_seq'::regclass);
+
+
+--
 -- Name: processing_jobs id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -664,11 +1007,27 @@ ALTER TABLE ONLY public.alembic_version
 
 
 --
+-- Name: contract_recurring_payments contract_recurring_payments_invoice_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contract_recurring_payments
+    ADD CONSTRAINT contract_recurring_payments_invoice_number_key UNIQUE (invoice_number);
+
+
+--
 -- Name: contract_recurring_payments contract_recurring_payments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.contract_recurring_payments
     ADD CONSTRAINT contract_recurring_payments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: contract_term_payments contract_term_payments_invoice_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.contract_term_payments
+    ADD CONSTRAINT contract_term_payments_invoice_number_key UNIQUE (invoice_number);
 
 
 --
@@ -709,6 +1068,22 @@ ALTER TABLE ONLY public.extraction_logs
 
 ALTER TABLE ONLY public.files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: invoice_documents invoice_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_documents
+    ADD CONSTRAINT invoice_documents_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_transactions payment_transactions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT payment_transactions_pkey PRIMARY KEY (id);
 
 
 --
@@ -757,6 +1132,125 @@ ALTER TABLE ONLY public.witels
 
 ALTER TABLE ONLY public.witels
     ADD CONSTRAINT witels_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_crp_billing_period; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crp_billing_period ON public.contract_recurring_payments USING btree (period_year, period_month);
+
+
+--
+-- Name: idx_crp_due_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crp_due_date ON public.contract_recurring_payments USING btree (due_date);
+
+
+--
+-- Name: idx_crp_invoice_number; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crp_invoice_number ON public.contract_recurring_payments USING btree (invoice_number);
+
+
+--
+-- Name: idx_crp_invoice_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_crp_invoice_status ON public.contract_recurring_payments USING btree (invoice_status);
+
+
+--
+-- Name: idx_ctp_billing_period; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_billing_period ON public.contract_term_payments USING btree (period_year, period_month);
+
+
+--
+-- Name: idx_ctp_due_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_due_date ON public.contract_term_payments USING btree (due_date);
+
+
+--
+-- Name: idx_ctp_invoice_number; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_invoice_number ON public.contract_term_payments USING btree (invoice_number);
+
+
+--
+-- Name: idx_ctp_invoice_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ctp_invoice_status ON public.contract_term_payments USING btree (invoice_status);
+
+
+--
+-- Name: idx_doc_payment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_payment ON public.invoice_documents USING btree (payment_transaction_id);
+
+
+--
+-- Name: idx_doc_recurring; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_recurring ON public.invoice_documents USING btree (recurring_payment_id);
+
+
+--
+-- Name: idx_doc_term; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_term ON public.invoice_documents USING btree (term_payment_id);
+
+
+--
+-- Name: idx_doc_type; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_type ON public.invoice_documents USING btree (document_type);
+
+
+--
+-- Name: idx_doc_uploaded_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_doc_uploaded_at ON public.invoice_documents USING btree (uploaded_at);
+
+
+--
+-- Name: idx_payment_created_at; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_created_at ON public.payment_transactions USING btree (created_at);
+
+
+--
+-- Name: idx_payment_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_date ON public.payment_transactions USING btree (payment_date);
+
+
+--
+-- Name: idx_payment_recurring; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_recurring ON public.payment_transactions USING btree (recurring_payment_id);
+
+
+--
+-- Name: idx_payment_term; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_term ON public.payment_transactions USING btree (term_payment_id);
 
 
 --
@@ -949,6 +1443,34 @@ CREATE INDEX ix_witels_id ON public.witels USING btree (id);
 
 
 --
+-- Name: contract_recurring_payments trg_recalc_recurring_breakdown; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_recalc_recurring_breakdown BEFORE INSERT OR UPDATE ON public.contract_recurring_payments FOR EACH ROW WHEN ((new.amount IS NOT NULL)) EXECUTE FUNCTION public.recalculate_invoice_breakdown_trigger();
+
+
+--
+-- Name: contract_term_payments trg_recalc_term_breakdown; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_recalc_term_breakdown BEFORE INSERT OR UPDATE ON public.contract_term_payments FOR EACH ROW WHEN ((new.amount IS NOT NULL)) EXECUTE FUNCTION public.recalculate_invoice_breakdown_trigger();
+
+
+--
+-- Name: contract_recurring_payments trg_update_recurring_invoice_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_update_recurring_invoice_status BEFORE UPDATE ON public.contract_recurring_payments FOR EACH ROW WHEN (((old.paid_amount IS DISTINCT FROM new.paid_amount) OR (old.ppn_paid IS DISTINCT FROM new.ppn_paid) OR (old.pph23_paid IS DISTINCT FROM new.pph23_paid))) EXECUTE FUNCTION public.update_invoice_status_trigger();
+
+
+--
+-- Name: contract_term_payments trg_update_term_invoice_status; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_update_term_invoice_status BEFORE UPDATE ON public.contract_term_payments FOR EACH ROW WHEN (((old.paid_amount IS DISTINCT FROM new.paid_amount) OR (old.ppn_paid IS DISTINCT FROM new.ppn_paid) OR (old.pph23_paid IS DISTINCT FROM new.pph23_paid))) EXECUTE FUNCTION public.update_invoice_status_trigger();
+
+
+--
 -- Name: accounts accounts_account_manager_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1093,6 +1615,62 @@ ALTER TABLE ONLY public.extraction_logs
 
 
 --
+-- Name: invoice_documents invoice_documents_payment_transaction_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_documents
+    ADD CONSTRAINT invoice_documents_payment_transaction_id_fkey FOREIGN KEY (payment_transaction_id) REFERENCES public.payment_transactions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoice_documents invoice_documents_recurring_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_documents
+    ADD CONSTRAINT invoice_documents_recurring_payment_id_fkey FOREIGN KEY (recurring_payment_id) REFERENCES public.contract_recurring_payments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoice_documents invoice_documents_term_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_documents
+    ADD CONSTRAINT invoice_documents_term_payment_id_fkey FOREIGN KEY (term_payment_id) REFERENCES public.contract_term_payments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: invoice_documents invoice_documents_uploaded_by_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.invoice_documents
+    ADD CONSTRAINT invoice_documents_uploaded_by_id_fkey FOREIGN KEY (uploaded_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: payment_transactions payment_transactions_created_by_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT payment_transactions_created_by_id_fkey FOREIGN KEY (created_by_id) REFERENCES public.users(id);
+
+
+--
+-- Name: payment_transactions payment_transactions_recurring_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT payment_transactions_recurring_payment_id_fkey FOREIGN KEY (recurring_payment_id) REFERENCES public.contract_recurring_payments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_transactions payment_transactions_term_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_transactions
+    ADD CONSTRAINT payment_transactions_term_payment_id_fkey FOREIGN KEY (term_payment_id) REFERENCES public.contract_term_payments(id) ON DELETE CASCADE;
+
+
+--
 -- Name: processing_jobs processing_jobs_file_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1112,5 +1690,5 @@ ALTER TABLE ONLY public.processing_jobs
 -- PostgreSQL database dump complete
 --
 
-\unrestrict kDvyVdG7yfAZ3w1jX03DJ9s5Id4XvhX9qOddnfvgiaR5vXA1XrvyjFeiYIbsj81
+\unrestrict rF61bZtp7klWjZmWEf5He1Hev37UXgftd8zlJlndeDIY5a0UakSJm0QmvuOyY64
 
