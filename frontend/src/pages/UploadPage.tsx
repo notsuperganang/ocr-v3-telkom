@@ -429,7 +429,7 @@ export function UploadPage() {
             <Button
               variant="outline"
               onClick={() => setIsManualEntryOpen(true)}
-              className="gap-2 border-primary/30 hover:border-primary hover:bg-primary/5"
+              className="gap-2 border-primary/30 hover:border-primary hover:bg-primary/5 hover:text-primary"
             >
               <PenLine className="w-4 h-4" />
               Input Manual
