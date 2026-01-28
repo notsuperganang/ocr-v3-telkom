@@ -275,6 +275,36 @@ class ApiClient {
     return response.json();
   }
 
+  // Manual entry (skip OCR)
+  async createManualEntry(file?: File, accountId?: number): Promise<import('../types/api').ManualEntryResponse> {
+    const formData = new FormData();
+    if (file) {
+      formData.append('file', file);
+    }
+    
+    const url = new URL(`${API_BASE_URL}/api/upload/manual`);
+    if (accountId) {
+      url.searchParams.append('account_id', accountId.toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+      },
+      body: file ? formData : undefined,
+    });
+
+    if (!response.ok) {
+      const errorData: ApiError = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(errorData.detail || 'Manual entry creation failed');
+    }
+
+    return response.json();
+  }
+
   // Processing jobs
   async getJobStatus(jobId: number): Promise<JobStatusResponse> {
     return this.request<JobStatusResponse>(`/api/processing/status/${jobId}`);
