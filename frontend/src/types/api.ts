@@ -109,9 +109,17 @@ export interface BatchUploadResponse {
   message: string;
 }
 
+export interface ManualEntryResponse {
+  job_id: number;
+  file_id: number | null;
+  message: string;
+  source: string;
+  prefilled_account_id: number | null;
+}
+
 export interface JobStatusResponse {
   job_id: number;
-  file_id: number;
+  file_id: number | null;
   filename: string;
   status: string;
   progress_message: string;
@@ -119,17 +127,19 @@ export interface JobStatusResponse {
   error_message?: string;
   created_at: string;
   updated_at: string;
+  is_manual_entry?: boolean;
 }
 
 export interface JobDataResponse {
   job_id: number;
-  file_id: number;
+  file_id: number | null;
   filename: string;
   status: string;
   extracted_data?: any;
   edited_data?: any;
   ocr_artifacts?: Record<string, string>;
   has_data: boolean;
+  is_manual_entry?: boolean;
 }
 
 export interface ConfirmJobRequest {
