@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import ProcessingJob, JobStatus, File as FileModel
+from app.models.database import ProcessingJob, JobStatus, File as FileModel, Contract
 
 router = APIRouter(prefix="/api/processing", tags=["processing"])
 
@@ -496,28 +496,35 @@ async def discard_job(
         )
 
     try:
-        # Clean up job files (keep PDF as other jobs might reference it)
-        file_cleanup_result = file_manager.delete_job_files(db, job_id, keep_pdf=True)
+        # Get file_id before any deletions
+        file_id = job.file_id
+        file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
+
+        # Check if other jobs or contracts reference this file
+        other_jobs_count = db.query(ProcessingJob).filter(
+            ProcessingJob.file_id == file_id,
+            ProcessingJob.id != job_id
+        ).count()
+
+        contracts_count = db.query(Contract).filter(
+            Contract.file_id == file_id
+        ).count()
+
+        # Determine if we should delete the PDF
+        # Delete PDF only if no other jobs AND no contracts reference it
+        keep_pdf = (other_jobs_count > 0 or contracts_count > 0)
+
+        # Clean up job files (delete PDF if it's the last reference)
+        file_cleanup_result = file_manager.delete_job_files(db, job_id, keep_pdf=keep_pdf)
 
         # If job is already failed, completely delete it from database
         if job.status == JobStatus.FAILED:
-            # Get file_id before deleting job
-            file_id = job.file_id
-
             # Delete the job completely
             db.delete(job)
 
-            # Check if any other jobs reference this file
-            other_jobs = db.query(ProcessingJob).filter(
-                ProcessingJob.file_id == file_id,
-                ProcessingJob.id != job_id
-            ).count()
-
-            # If no other jobs reference this file, delete the file record too
-            if other_jobs == 0:
-                file_record = db.query(FileModel).filter(FileModel.id == file_id).first()
-                if file_record:
-                    db.delete(file_record)
+            # If no other jobs or contracts reference this file, delete the file record too
+            if not keep_pdf and file_record:
+                db.delete(file_record)
 
             db.commit()
 
@@ -528,7 +535,8 @@ async def discard_job(
                 "file_cleanup": {
                     "deleted_files": len(file_cleanup_result.get("deleted_files", [])),
                     "total_size": file_cleanup_result.get("total_size", 0),
-                    "errors": file_cleanup_result.get("errors", [])
+                    "errors": file_cleanup_result.get("errors", []),
+                    "pdf_deleted": not keep_pdf
                 }
             }
         else:
