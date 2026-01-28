@@ -367,6 +367,7 @@ export default function UploadDocumentModal({
               <Button
                 type="submit"
                 disabled={uploadMutation.isPending || !file}
+                className="hover:bg-white/70 hover:text-rose-600 transition-colors border border-transparent hover:border-rose-100"
               >
                 {uploadMutation.isPending && (
                   <Loader2 className="mr-2 size-4 animate-spin" />

@@ -226,7 +226,7 @@ export const DocumentsCard: React.FC<DocumentsCardProps> = ({
               size="sm"
               variant="outline"
               onClick={onUploadDocument}
-              className="border-rose-200 hover:bg-rose-50"
+              className="hover:bg-white/70 hover:text-rose-600 transition-colors border border-transparent hover:border-rose-100"
             >
               <Upload className="mr-2 size-4" />
               Upload Dokumen
