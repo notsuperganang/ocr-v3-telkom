@@ -62,13 +62,14 @@ export interface PaymentFormData {
 // Enhanced job data response with typed extraction data
 export interface TypedJobDataResponse {
   job_id: number;
-  file_id: number;
+  file_id: number | null;
   filename: string;
   status: string;
-  extracted_data?: TelkomContractData;
+  extracted_data?: TelkomContractData & { _source?: string };
   edited_data?: TelkomContractData;
   ocr_artifacts?: Record<string, string>;
   has_data: boolean;
+  is_manual_entry?: boolean;
 }
 
 // Form validation error types
