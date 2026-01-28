@@ -42,14 +42,14 @@ const navigationLinks: Links[] = [
     icon: <BarChart3 className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   },
   {
-    label: 'Kontrak',
-    href: '/contracts',
-    icon: <FolderOpen className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-  },
-  {
     label: 'Invoice',
     href: '/invoices',
     icon: <Receipt className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+  },
+  {
+    label: 'Kontrak',
+    href: '/contracts',
+    icon: <FolderOpen className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
   },
   {
     label: 'Overview Akun',
