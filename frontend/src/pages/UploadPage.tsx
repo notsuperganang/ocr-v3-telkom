@@ -15,9 +15,11 @@ import {
   X,
   RefreshCw,
   Eye,
-  Info
+  Info,
+  PenLine
 } from 'lucide-react';
 import { apiService } from '@/services/api';
+import { ManualEntryDialog } from '@/components/ManualEntryDialog';
 
 // Types untuk file upload
 interface UploadFile {
@@ -39,6 +41,7 @@ const POLL_INTERVAL = 2000; // 2 detik
 export function UploadPage() {
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const navigate = useNavigate();
   const pollingIntervals = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const pollingInProgress = useRef<Set<number>>(new Set()); // Track in-progress polls
@@ -415,6 +418,23 @@ export function UploadPage() {
           >
             Ekstraksi data otomatis dari dokumen kontrak PDF menggunakan teknologi OCR
           </motion.p>
+          
+          {/* Manual Entry Button */}
+          <motion.div
+            className="mt-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.45 }}
+          >
+            <Button
+              variant="outline"
+              onClick={() => setIsManualEntryOpen(true)}
+              className="gap-2 border-primary/30 hover:border-primary hover:bg-primary/5"
+            >
+              <PenLine className="w-4 h-4" />
+              Input Manual
+            </Button>
+          </motion.div>
         </motion.div>
 
         {/* Main Upload Section */}
@@ -665,6 +685,12 @@ export function UploadPage() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Manual Entry Dialog */}
+      <ManualEntryDialog
+        open={isManualEntryOpen}
+        onOpenChange={setIsManualEntryOpen}
+      />
     </div>
   );
 }
