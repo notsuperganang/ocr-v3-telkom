@@ -31,6 +31,7 @@ from app.models.database import (
     TerminPaymentStatus,
     User,
     Account,
+    ContractContact,
 )
 from app.config import settings
 
@@ -216,6 +217,37 @@ class UpdateRecurringPaymentRequest(BaseModel):
     status: Optional[str] = None
     paid_at: Optional[datetime] = None
     notes: Optional[str] = None
+
+# Contract Contact Models
+class ContactCreateRequest(BaseModel):
+    """Request model for creating a contract contact"""
+    name: str
+    phone_number: Optional[str] = None
+    job_title: Optional[str] = None
+    email: Optional[str] = None
+
+class ContactUpdateRequest(BaseModel):
+    """Request model for updating a contract contact"""
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    job_title: Optional[str] = None
+    email: Optional[str] = None
+
+class ContactResponse(BaseModel):
+    """Response model for contract contact"""
+    id: int
+    contract_id: int
+    name: str
+    phone_number: Optional[str] = None
+    job_title: Optional[str] = None
+    email: Optional[str] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
 
 def _extract_job_display_data(job: ProcessingJob) -> Dict[str, Optional[str]]:
     """Extract display data from processing job's edited_data or extracted_data"""
@@ -1362,4 +1394,213 @@ async def update_recurring_payment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update recurring payment: {str(e)}"
+        )
+
+# Contract Contact Endpoints
+@router.get("/{contract_id}/contacts", response_model=List[ContactResponse])
+async def get_contract_contacts(
+    contract_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """Get all customer contacts for a contract"""
+    db, current_user = db_and_user
+
+    # Verify contract exists
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    # Fetch all contacts for this contract
+    contacts = db.query(ContractContact).filter(
+        ContractContact.contract_id == contract_id
+    ).order_by(ContractContact.created_at).all()
+
+    # Convert to response models
+    return [
+        ContactResponse(
+            id=contact.id,
+            contract_id=contact.contract_id,
+            name=contact.name,
+            phone_number=contact.phone_number,
+            job_title=contact.job_title,
+            email=contact.email,
+            created_by=_get_user_display_name(contact.creator) if contact.creator else None,
+            updated_by=_get_user_display_name(contact.updater) if contact.updater else None,
+            created_at=contact.created_at,
+            updated_at=contact.updated_at
+        )
+        for contact in contacts
+    ]
+
+@router.post("/{contract_id}/contacts", response_model=ContactResponse)
+async def create_contract_contact(
+    contract_id: int,
+    contact_data: ContactCreateRequest,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """Create a new customer contact for a contract"""
+    db, current_user = db_and_user
+
+    # Verify contract exists
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    try:
+        # Create new contact
+        new_contact = ContractContact(
+            contract_id=contract_id,
+            name=contact_data.name,
+            phone_number=contact_data.phone_number,
+            job_title=contact_data.job_title,
+            email=contact_data.email,
+            created_by_id=current_user.id,
+            updated_by_id=current_user.id
+        )
+
+        db.add(new_contact)
+        db.commit()
+        db.refresh(new_contact)
+
+        # Return response
+        return ContactResponse(
+            id=new_contact.id,
+            contract_id=new_contact.contract_id,
+            name=new_contact.name,
+            phone_number=new_contact.phone_number,
+            job_title=new_contact.job_title,
+            email=new_contact.email,
+            created_by=_get_user_display_name(current_user),
+            updated_by=_get_user_display_name(current_user),
+            created_at=new_contact.created_at,
+            updated_at=new_contact.updated_at
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create contact: {str(e)}"
+        )
+
+@router.patch("/{contract_id}/contacts/{contact_id}", response_model=ContactResponse)
+async def update_contract_contact(
+    contract_id: int,
+    contact_id: int,
+    contact_data: ContactUpdateRequest,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """Update an existing customer contact"""
+    db, current_user = db_and_user
+
+    # Verify contract exists
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    # Find the contact
+    contact = db.query(ContractContact).filter(
+        ContractContact.id == contact_id,
+        ContractContact.contract_id == contract_id
+    ).first()
+
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contact not found"
+        )
+
+    try:
+        # Update fields if provided
+        if contact_data.name is not None:
+            contact.name = contact_data.name
+        if contact_data.phone_number is not None:
+            contact.phone_number = contact_data.phone_number
+        if contact_data.job_title is not None:
+            contact.job_title = contact_data.job_title
+        if contact_data.email is not None:
+            contact.email = contact_data.email
+
+        # Update audit fields
+        contact.updated_by_id = current_user.id
+        contact.updated_at = datetime.now(timezone.utc)
+
+        db.commit()
+        db.refresh(contact)
+
+        # Return response
+        return ContactResponse(
+            id=contact.id,
+            contract_id=contact.contract_id,
+            name=contact.name,
+            phone_number=contact.phone_number,
+            job_title=contact.job_title,
+            email=contact.email,
+            created_by=_get_user_display_name(contact.creator) if contact.creator else None,
+            updated_by=_get_user_display_name(current_user),
+            created_at=contact.created_at,
+            updated_at=contact.updated_at
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update contact: {str(e)}"
+        )
+
+@router.delete("/{contract_id}/contacts/{contact_id}")
+async def delete_contract_contact(
+    contract_id: int,
+    contact_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user)
+):
+    """Delete a customer contact"""
+    db, current_user = db_and_user
+
+    # Verify contract exists
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contract not found"
+        )
+
+    # Find the contact
+    contact = db.query(ContractContact).filter(
+        ContractContact.id == contact_id,
+        ContractContact.contract_id == contract_id
+    ).first()
+
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contact not found"
+        )
+
+    try:
+        db.delete(contact)
+        db.commit()
+
+        return {
+            "message": "Contact deleted successfully",
+            "contact_id": contact_id,
+            "deleted_by": current_user.username,
+            "deleted_at": datetime.now(timezone.utc)
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete contact: {str(e)}"
         )
