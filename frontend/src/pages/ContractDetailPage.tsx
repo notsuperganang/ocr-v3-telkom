@@ -37,6 +37,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useContract } from '@/hooks/useContracts';
 import { formatNPWP, formatPhone } from '@/lib/validation';
 import { ServiceDetailsSection } from '@/components/contracts/ServiceDetailsSection';
+import { CustomerContactsDisplay } from '@/components/contracts/CustomerContactsDisplay';
 import { apiService } from '@/services/api';
 
 // Animation variants
@@ -1047,13 +1048,14 @@ export function ContractDetailPage() {
                       <span aria-hidden="true" className="rounded-full bg-rose-50 p-1.5 text-rose-500 shadow-sm shadow-rose-100">
                         <field.icon className="h-3.5 w-3.5" />
                       </span>
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0 flex-1">
                         <p className="text-[0.6rem] font-semibold uppercase tracking-[0.28em] text-rose-400">
                           {field.label}
                         </p>
                         <p
+                          title={field.value}
                           className={`font-medium text-slate-900 ${
-                            field.monospace ? 'font-mono text-sm tracking-wide text-slate-900 break-all' : 'text-sm break-words'
+                            field.monospace ? 'font-mono text-sm tracking-wide text-slate-900 break-all' : 'text-sm truncate'
                           }`}
                         >
                           {field.value}
@@ -1067,6 +1069,9 @@ export function ContractDetailPage() {
           </Card>
         </motion.div>
       </motion.div>
+
+      {/* Customer Contacts Section */}
+      <CustomerContactsDisplay contractId={contract.id} />
 
       {/* Service Details with VAT Breakdown */}
       <ServiceDetailsSection
