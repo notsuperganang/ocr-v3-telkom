@@ -132,7 +132,7 @@ export function TelkomContactSection({
                   message: 'Format email tidak valid',
                 },
               })}
-              placeholder="email@telkom.co.id"
+              placeholder="contoh@email.com"
               className={
                 errors.kontak_person_telkom?.email
                   ? 'border-red-500'
@@ -149,7 +149,7 @@ export function TelkomContactSection({
               <div className="flex items-start gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5 text-orange-500 mt-0.5" />
                 <p className="text-xs text-orange-600">
-                  Format email harus valid (contoh: nama@telkom.co.id)
+                  Format email harus valid (contoh@email.com)
                 </p>
               </div>
             )}
@@ -159,11 +159,11 @@ export function TelkomContactSection({
               </p>
             )}
             {/* Format guide */}
-            {!isReadOnly && !telkomEmailValue && (
+            {/* {!isReadOnly && !telkomEmailValue && (
               <p className="text-xs text-muted-foreground">
-                Format: nama@telkom.co.id
+                Format: contoh@email.com
               </p>
-            )}
+            )} */}
           </div>
 
           {/* Phone */}
@@ -176,7 +176,7 @@ export function TelkomContactSection({
               id="telkom_contact_phone"
               value={telkomPhoneValue || ''}
               onChange={handlePhoneChange}
-              placeholder="08xxxxxxxxxx atau 021xxxxxxxx"
+              placeholder="0812xxxxxxx"
               className={
                 errors.kontak_person_telkom?.telepon
                   ? 'border-red-500'
@@ -208,11 +208,11 @@ export function TelkomContactSection({
               </p>
             )}
             {/* Format guide */}
-            {!isReadOnly && !telkomPhoneValue && (
+            {/* {!isReadOnly && !telkomPhoneValue && (
               <p className="text-xs text-muted-foreground">
-                Format: 08xxxxxxxxxx, 021xxxxxxxx, atau +628xxxxxxxxxx
+                Format: 08xxxxxxxxxx
               </p>
-            )}
+            )} */}
           </div>
         </div>
 

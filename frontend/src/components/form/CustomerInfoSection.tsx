@@ -172,11 +172,11 @@ export function CustomerInfoSection({
               {errors.informasi_pelanggan.npwp.message}
             </p>
           )}
-          {!errors.informasi_pelanggan?.npwp && npwpValue && (
+          {/* {!errors.informasi_pelanggan?.npwp && npwpValue && (
             <p className="text-xs text-muted-foreground">
               💡 NPWP akan divalidasi saat Anda menyimpan
             </p>
-          )}
+          )} */}
         </div>
 
         {/* Representative Information */}
