@@ -317,6 +317,7 @@ export function ContractEditPage() {
             onConfirm={handleSave}
             onDiscard={handleBack}
             mode="contract"
+            contractId={numericContractId}
             initialAccountId={contract.account_id}
             initialContractYear={contract.contract_year}
             initialTelkomContactId={contract.telkom_contact_id}
