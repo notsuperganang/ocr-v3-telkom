@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import AddPaymentModal from "@/components/AddPaymentModal"
 import UploadDocumentModal from "@/components/UploadDocumentModal"
 import EditNotesModal from "@/components/EditNotesModal"
+import { CustomerContactsDisplay } from "@/components/contracts/CustomerContactsDisplay"
 
 // Import modular invoice components
 import {
@@ -88,6 +89,7 @@ export default function InvoiceDetailPage() {
   const invoice = data?.invoice
   const payments = data?.payments || []
   const documents = data?.documents || []
+  const contractId = invoice?.contract_id || data?.contract?.id
 
   // Handle send invoice
   const handleSendInvoice = async () => {
@@ -157,6 +159,11 @@ export default function InvoiceDetailPage() {
             data={invoice ? mapInvoiceToSummaryData(invoice, invoiceType) : undefined}
             isLoading={isLoading}
           />
+
+          {/* Customer Contacts Section */}
+          {contractId && (
+            <CustomerContactsDisplay contractId={contractId} />
+          )}
 
           {/* Payment Breakdown */}
           <PaymentBreakdownCard invoice={invoice} isLoading={isLoading} />
