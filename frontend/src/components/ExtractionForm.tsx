@@ -16,6 +16,7 @@ import { PaymentMethodSection } from '@/components/form/PaymentMethodSection';
 import { TelkomContactSection } from '@/components/form/TelkomContactSection';
 import { ContractPeriodSection } from '@/components/form/ContractPeriodSection';
 import { AccountLinkageSection } from '@/components/form/AccountLinkageSection';
+import { CustomerContactsSection } from '@/components/form/CustomerContactsSection';
 import { FormSummary } from '@/components/ui/form-section';
 import {
   telkomContractFormSchema,
@@ -136,6 +137,8 @@ interface ExtractionFormProps {
   onDiscard?: () => void;
   disabled?: boolean;
   mode?: 'job' | 'contract'; // 'job' for processing jobs, 'contract' for editing contracts
+  // Contract ID (for contract edit mode, to manage contacts)
+  contractId?: number | null;
   // Account linkage initial values (for contract edit mode)
   initialAccountId?: number | null;
   initialContractYear?: number | null;
@@ -154,6 +157,7 @@ export function ExtractionForm({
   onDiscard,
   disabled = false,
   mode = 'job',
+  contractId,
   initialAccountId,
   initialContractYear,
   initialTelkomContactId,
@@ -689,6 +693,13 @@ export function ExtractionForm({
               setValue={setValue}
               watch={watch}
               linkedAccountManager={linkedAccountManager}
+            />
+          </div>
+
+          <div id="section-customer-contacts">
+            <CustomerContactsSection
+              contractId={contractId ?? null}
+              mode={mode}
             />
           </div>
         </div>
