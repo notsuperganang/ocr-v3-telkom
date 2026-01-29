@@ -61,6 +61,10 @@ import type {
   InvoiceDocument,
   InvoiceType,
   DocumentType,
+  // Contract Contact types
+  ContractContact,
+  ContractContactCreate,
+  ContractContactUpdate,
 } from '../types/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -476,6 +480,44 @@ class ApiClient {
 
   async deleteContract(contractId: number): Promise<any> {
     return this.request(`/api/contracts/${contractId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Contract Contact Management
+  async getContractContacts(contractId: number): Promise<ContractContact[]> {
+    return this.request<ContractContact[]>(`/api/contracts/${contractId}/contacts`);
+  }
+
+  async createContractContact(
+    contractId: number,
+    contactData: ContractContactCreate
+  ): Promise<ContractContact> {
+    return this.request<ContractContact>(
+      `/api/contracts/${contractId}/contacts`,
+      {
+        method: 'POST',
+        body: JSON.stringify(contactData),
+      }
+    );
+  }
+
+  async updateContractContact(
+    contractId: number,
+    contactId: number,
+    contactData: ContractContactUpdate
+  ): Promise<ContractContact> {
+    return this.request<ContractContact>(
+      `/api/contracts/${contractId}/contacts/${contactId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(contactData),
+      }
+    );
+  }
+
+  async deleteContractContact(contractId: number, contactId: number): Promise<any> {
+    return this.request(`/api/contracts/${contractId}/contacts/${contactId}`, {
       method: 'DELETE',
     });
   }
