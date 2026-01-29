@@ -842,3 +842,31 @@ export interface SendInvoiceResponse {
   email_sent: boolean;
   sent_date: string;
 }
+
+// Contract Contact Types
+export interface ContractContact {
+  id: number;
+  contract_id: number;
+  name: string;
+  phone_number: string | null;
+  job_title: string | null;
+  email: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContractContactCreate {
+  name: string;
+  phone_number?: string | null;
+  job_title?: string | null;
+  email?: string | null;
+}
+
+export interface ContractContactUpdate {
+  name?: string;
+  phone_number?: string | null;
+  job_title?: string | null;
+  email?: string | null;
+}
