@@ -310,6 +310,8 @@ class Contract(Base):
     # Account backbone relationships
     account = relationship("Account", back_populates="contracts")
     telkom_contact = relationship("AccountManager", back_populates="contracts")
+    # Customer contacts (manually added)
+    customer_contacts = relationship("ContractContact", back_populates="contract", cascade="all, delete-orphan")
 
 
 class ContractTermPayment(Base):
@@ -415,6 +417,31 @@ class ContractRecurringPayment(Base):
     updater = relationship("User", foreign_keys=[updated_by_id], back_populates="updated_recurring_payments")
     transactions = relationship("PaymentTransaction", back_populates="recurring_payment", cascade="all, delete-orphan")
     documents = relationship("InvoiceDocument", back_populates="recurring_payment", cascade="all, delete-orphan")
+
+
+class ContractContact(Base):
+    """Customer contact persons manually added to contracts (not from OCR extraction)"""
+    __tablename__ = "contract_contacts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True, index=True)
+    contract_id = Column(Integer, ForeignKey("contracts.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Contact information
+    name = Column(String(255), nullable=False)
+    phone_number = Column(String(50), nullable=True)
+    job_title = Column(String(255), nullable=True)  # Jabatan
+    email = Column(String(255), nullable=True)
+
+    # Audit fields
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    contract = relationship("Contract", back_populates="customer_contacts")
+    creator = relationship("User", foreign_keys=[created_by_id])
+    updater = relationship("User", foreign_keys=[updated_by_id])
 
 
 class PaymentTransaction(Base):
