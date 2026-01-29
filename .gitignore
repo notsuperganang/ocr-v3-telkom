@@ -97,8 +97,10 @@ Thumbs.db
 *.xlsx
 *.xls
 
+# Exception: Include frontend assets (logos, images for README)
+!frontend/src/assets/**
+
 # Docker
-.dockerignore
 docker-compose.override.yml
 
 # Local development
@@ -116,5 +118,3 @@ backend/storage
 gha-creds-*.json
 .github/
 .claude
-
-DESIGN_GUIDE.md
