@@ -111,6 +111,8 @@ debug/
 CLAUDE.md
 project-brief.md
 
+# Sensitive
+commit.txt
 data
 
 backend/storage
