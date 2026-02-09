@@ -120,3 +120,8 @@ backend/storage
 gha-creds-*.json
 .github/
 .claude
+
+# Seed scripts (contain credentials)
+backend/scripts/seed_*.py
+backend/scripts/fix_nipnas_scientific_notation.py
+backend/scripts/update_account_officers.py
