@@ -6,6 +6,7 @@ Handles PDF upload and creates processing jobs
 import os
 import uuid
 import json
+import asyncio
 from typing import List
 from pathlib import Path
 from datetime import datetime, timezone
@@ -118,7 +119,11 @@ def create_processing_job(db: Session, file_model: FileModel, current_user: User
     return job
 
 async def process_file_background(job_id: int, file_path: str):
-    """Background task to process uploaded file with OCR"""
+    """Background task to process uploaded file with OCR.
+    
+    Offloads the CPU-heavy OCR work to a thread so the async event loop
+    remains free to serve other requests.
+    """
     # Import here to avoid circular imports during startup
     from app.database import SessionLocal
     from app.services.ocr_service import get_ocr_service
@@ -137,9 +142,10 @@ async def process_file_background(job_id: int, file_path: str):
         db.commit()
         
         try:
-            # Run OCR processing
+            # Run OCR processing in a separate thread to avoid blocking the event loop
             ocr_service = get_ocr_service()
-            ocr_result = ocr_service.process_pdf(
+            ocr_result = await asyncio.to_thread(
+                ocr_service.process_pdf,
                 file_path, 
                 "storage/ocr_outputs",
                 str(job.file_id)
