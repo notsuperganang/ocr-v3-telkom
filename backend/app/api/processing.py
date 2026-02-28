@@ -115,7 +115,7 @@ async def list_all_jobs(
     job_responses = []
     for job in jobs:
         file_model = db.query(FileModel).filter(FileModel.id == job.file_id).first() if job.file_id else None
-        is_manual = job.file_id is None or (job.extracted_data and job.extracted_data.get('_source') == 'manual')
+        is_manual = bool(job.file_id is None or (job.extracted_data and job.extracted_data.get('_source') == 'manual'))
         job_responses.append(JobStatusResponse(
             job_id=job.id,
             file_id=job.file_id,
@@ -154,9 +154,9 @@ async def get_job_status(
         )
     
     # Check if this is a manual entry
-    is_manual_entry = job.file_id is None or (
+    is_manual_entry = bool(job.file_id is None or (
         job.extracted_data and job.extracted_data.get('_source') == 'manual'
-    )
+    ))
     
     # Get associated file if it exists
     filename = "Manual Entry"
@@ -195,9 +195,9 @@ async def get_job_data(
         )
     
     # Check if this is a manual entry (no file or _source marker)
-    is_manual_entry = job.file_id is None or (
+    is_manual_entry = bool(job.file_id is None or (
         job.extracted_data and job.extracted_data.get('_source') == 'manual'
-    )
+    ))
     
     # Get associated file if it exists
     filename = "Manual Entry"
