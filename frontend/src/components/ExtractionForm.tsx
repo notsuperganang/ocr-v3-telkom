@@ -31,6 +31,7 @@ import type { AccountManagerResponse } from '@/types/api';
 
 // Field path prefix to section ID mapping for scroll-to-error
 const fieldToSectionId: Record<string, string> = {
+  'nomor_kontrak': 'section-informasi-pelanggan',
   'informasi_pelanggan': 'section-informasi-pelanggan',
   'layanan_utama': 'section-layanan-utama',
   'rincian_layanan': 'section-rincian-layanan',

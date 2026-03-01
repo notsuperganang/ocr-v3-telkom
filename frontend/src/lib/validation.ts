@@ -144,11 +144,12 @@ const npwpSchema = z.preprocess(
 // Contract number validation - K.TEL. XX/XXX/XXX/YYYY format
 const contractNumberSchema = z.preprocess(
   (val) => nullToUndefined(val),
-  z.union([
-    z.string().regex(contractNumberRegex, 'Format nomor kontrak harus: K.TEL. XX/XXX/XXX/YYYY'),
-    z.string().length(0),
-    z.undefined()
-  ]).optional()
+  z.string()
+    .optional()
+    .refine(
+      (val) => !val || val.trim() === '' || contractNumberRegex.test(val.trim()),
+      { message: 'Format nomor kontrak tidak valid. Gunakan format: K.TEL. XX/XXX/XXX/YYYY (contoh: K.TEL. 01/001/BAS/2025)' }
+    )
 );
 
 // Email validation with proper null handling
