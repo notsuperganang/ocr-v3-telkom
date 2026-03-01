@@ -5,7 +5,7 @@ import {
   Send,
   Plus,
   Upload,
-  Download,
+  FileText,
   XCircle,
   Settings,
   Zap,
@@ -21,6 +21,8 @@ import {
 import { Button } from "@/components/ui/button"
 import type { Invoice } from "@/types/api"
 import { Skeleton, cardVariants } from "./InvoiceUIComponents"
+import { apiService } from "@/services/api"
+import { toast } from "sonner"
 
 interface ActionsCardProps {
   invoice: Invoice | undefined
@@ -54,6 +56,26 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
   const outstandingAmount = parseFloat(invoice?.outstanding_amount || "0")
   const canAddPayment =
     canModify && outstandingAmount > 1 // Allow payment only if outstanding > Rp 1
+
+  // Handle view contract in new tab
+  const handleViewContract = async () => {
+    if (!invoice?.contract_id) return
+    
+    try {
+      // Fetch the PDF with authentication
+      const pdfBlob = await apiService.getContractPdfStream(invoice.contract_id)
+      
+      // Create a blob URL and open it in a new tab
+      const blobUrl = URL.createObjectURL(pdfBlob)
+      window.open(blobUrl, '_blank')
+      
+      // Clean up the blob URL after a delay to allow the browser to load it
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100)
+    } catch (error) {
+      console.error('Failed to open contract PDF:', error)
+      toast.error('Gagal membuka kontrak PDF')
+    }
+  }
 
   return (
     <motion.div
@@ -132,17 +154,20 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
                 </Button>
               </motion.div>
 
-              {/* Download PDF */}
-              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full justify-start border-2 border-slate-200 hover:bg-slate-600 hover:border-slate-600 hover:text-white font-semibold h-12 text-base transition-all"
-                >
-                  <Download className="mr-2 size-5" />
-                  Download PDF
-                </Button>
-              </motion.div>
+              {/* View Contract */}
+              {invoice?.contract_id && (
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full justify-start border-2 border-slate-200 hover:bg-slate-600 hover:border-slate-600 hover:text-white font-semibold h-12 text-base transition-all"
+                    onClick={handleViewContract}
+                  >
+                    <FileText className="mr-2 size-5" />
+                    Lihat Kontrak
+                  </Button>
+                </motion.div>
+              )}
 
               {/* Edit Notes */}
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
