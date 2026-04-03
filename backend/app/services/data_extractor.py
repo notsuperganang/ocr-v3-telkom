@@ -10,6 +10,11 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+try:
+    from app.config import settings
+except ModuleNotFoundError:
+    settings = None  # Fallback jika config tidak tersedia, tapi seharusnya tidak terjadi di lingkungan produksi
+
 # Import model pydantic kamu
 # Import pydantic models (support both "python -m app.services.data_extractor" and direct script run)
 try:  # Preferred absolute import when package root is on sys.path
@@ -45,6 +50,13 @@ except ModuleNotFoundError:  # Fallback for direct invocation: python app/servic
 
 # -------------------- Utilities --------------------
 _MONEY_TOKEN = re.compile(r"^\s*(?:Rp\.?|Rp)?\s*[\d\.\,]+[-,]*\s*$", re.I)
+
+def _is_debug_enabled() -> bool:
+    return bool(settings) and settings.is_debug
+
+def _debug(msg: str) -> None:
+    if _is_debug_enabled():
+        print(msg)
 
 def _texts_from_ocr(ocr_json: Any) -> List[str]:
     """
@@ -1454,13 +1466,13 @@ def _to_iso_date(y: int, m: int, d: int) -> Optional[str]:
 
 def _parse_date_id(s: str) -> Optional[str]:
     s = s.strip()
-    print(f"🔍 DEBUG _parse_date_id: Attempting to parse '{s}'")
+    _debug(f"🔍 DEBUG _parse_date_id: Attempting to parse '{s}'")
     
     # ISO: YYYY-MM-DD
     m = re.search(r"\b(20\d{2}|19\d{2})-(\d{1,2})-(\d{1,2})\b", s)
     if m:
         result = _to_iso_date(m.group(1), m.group(2), m.group(3))
-        print(f"✅ DEBUG _parse_date_id: ISO format matched: {result}")
+        _debug(f"✅ DEBUG _parse_date_id: ISO format matched: {result}")
         return result
     
     # DD[-/]MM[-/]YYYY
@@ -1468,7 +1480,7 @@ def _parse_date_id(s: str) -> Optional[str]:
     if m:
         d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
         result = _to_iso_date(y, mo, d)
-        print(f"✅ DEBUG _parse_date_id: DD/MM/YYYY format matched: {result}")
+        _debug(f"✅ DEBUG _parse_date_id: DD/MM/YYYY format matched: {result}")
         return result
     
     # D Month YYYY (Indonesia) with spaces
@@ -1477,13 +1489,13 @@ def _parse_date_id(s: str) -> Optional[str]:
         d = int(m.group(1))
         mon = m.group(2).lower().strip(".")
         y = int(m.group(3))
-        print(f"🔍 DEBUG _parse_date_id: Spaced format - day: {d}, month: '{mon}', year: {y}")
+        _debug(f"🔍 DEBUG _parse_date_id: Spaced format - day: {d}, month: '{mon}', year: {y}")
         if mon in _ID_MONTHS:
             result = _to_iso_date(y, _ID_MONTHS[mon], d)
-            print(f"✅ DEBUG _parse_date_id: Spaced format matched: {result}")
+            _debug(f"✅ DEBUG _parse_date_id: Spaced format matched: {result}")
             return result
         else:
-            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+            _debug(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
     
     # Concatenated format: DDMonthYYYY (e.g., "23Februari2027")  
     m = re.search(r"(\d{1,2})([A-Za-z]+)(\d{4})", s)  # Removed \b boundaries
@@ -1491,13 +1503,13 @@ def _parse_date_id(s: str) -> Optional[str]:
         d = int(m.group(1))
         mon = m.group(2).lower()
         y = int(m.group(3))
-        print(f"🔍 DEBUG _parse_date_id: Concatenated format - day: {d}, month: '{mon}', year: {y}")
+        _debug(f"🔍 DEBUG _parse_date_id: Concatenated format - day: {d}, month: '{mon}', year: {y}")
         if mon in _ID_MONTHS:
             result = _to_iso_date(y, _ID_MONTHS[mon], d)
-            print(f"✅ DEBUG _parse_date_id: Concatenated format matched: {result}")
+            _debug(f"✅ DEBUG _parse_date_id: Concatenated format matched: {result}")
             return result
         else:
-            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+            _debug(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
     
     # Format with optional spaces: DD [space] Month YYYY (e.g., "31 Desember2025")
     m = re.search(r"(\d{1,2})\s*([A-Za-z]+)(\d{4})", s)  # Removed \b boundaries  
@@ -1505,13 +1517,13 @@ def _parse_date_id(s: str) -> Optional[str]:
         d = int(m.group(1))
         mon = m.group(2).lower()
         y = int(m.group(3))
-        print(f"🔍 DEBUG _parse_date_id: Optional spaces format - day: {d}, month: '{mon}', year: {y}")
+        _debug(f"🔍 DEBUG _parse_date_id: Optional spaces format - day: {d}, month: '{mon}', year: {y}")
         if mon in _ID_MONTHS:
             result = _to_iso_date(y, _ID_MONTHS[mon], d)
-            print(f"✅ DEBUG _parse_date_id: Optional spaces format matched: {result}")
+            _debug(f"✅ DEBUG _parse_date_id: Optional spaces format matched: {result}")
             return result
         else:
-            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+            _debug(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
     
     # CRITICAL PATTERN: DD+Month + space + YYYY (e.g., "23Februari 2027")
     m = re.search(r"(\d{1,2})([A-Za-z]+)\s+(\d{4})", s)
@@ -1519,15 +1531,15 @@ def _parse_date_id(s: str) -> Optional[str]:
         d = int(m.group(1))
         mon = m.group(2).lower()
         y = int(m.group(3))
-        print(f"🔍 DEBUG _parse_date_id: CRITICAL pattern - day: {d}, month: '{mon}', year: {y}")
+        _debug(f"🔍 DEBUG _parse_date_id: CRITICAL pattern - day: {d}, month: '{mon}', year: {y}")
         if mon in _ID_MONTHS:
             result = _to_iso_date(y, _ID_MONTHS[mon], d)
-            print(f"✅ DEBUG _parse_date_id: CRITICAL pattern matched: {result}")
+            _debug(f"✅ DEBUG _parse_date_id: CRITICAL pattern matched: {result}")
             return result
         else:
-            print(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
+            _debug(f"❌ DEBUG _parse_date_id: Month '{mon}' not found in _ID_MONTHS")
     
-    print(f"❌ DEBUG _parse_date_id: No pattern matched for '{s}'")
+    _debug(f"❌ DEBUG _parse_date_id: No pattern matched for '{s}'")
     return None
 
 # -------------------- Page 2: robust jangka waktu + kontak --------------------
@@ -1556,8 +1568,8 @@ def _find_date_range_in_texts(texts: List[str]) -> tuple[Optional[str], Optional
     Find date range by looking for specific lines in texts array containing "berlaku sejak tanggal".
     Handles both "hingga" and "sampai dengan" variations, including concatenated dates and trailing text.
     """
-    print("🔍 DEBUG: _find_date_range_in_texts called")
-    print(f"🔍 DEBUG: Total texts to search: {len(texts)}")
+    _debug("🔍 DEBUG: _find_date_range_in_texts called")
+    _debug(f"🔍 DEBUG: Total texts to search: {len(texts)}")
     
     # Enhanced patterns that handle all possible OCR variations and formatting issues
     date_range_patterns = [
@@ -1600,73 +1612,73 @@ def _find_date_range_in_texts(texts: List[str]) -> tuple[Optional[str], Optional
         
         if any(term in text_line.lower() for term in search_terms):
             matching_lines.append((i, text_line))
-            print(f"🔍 DEBUG: Found matching line at index {i}: '{text_line}'")
+            _debug(f"🔍 DEBUG: Found matching line at index {i}: '{text_line}'")
     
     if not matching_lines:
-        print("🔍 DEBUG: No lines found containing 'berlaku sejak tanggal'")
+        _debug("🔍 DEBUG: No lines found containing 'berlaku sejak tanggal'")
         return None, None
     
     for line_idx, text_line in matching_lines:
-        print(f"🔍 DEBUG: Processing line {line_idx}: '{text_line}'")
+        _debug(f"🔍 DEBUG: Processing line {line_idx}: '{text_line}'")
         
         # Try all patterns on this line
         for pattern_idx, pattern in enumerate(date_range_patterns):
-            print(f"🔍 DEBUG: Trying pattern {pattern_idx + 1}: {pattern}")
+            _debug(f"🔍 DEBUG: Trying pattern {pattern_idx + 1}: {pattern}")
             match = re.search(pattern, text_line, flags=re.I)
             if match:
-                print(f"✅ DEBUG: Pattern {pattern_idx + 1} MATCHED!")
+                _debug(f"✅ DEBUG: Pattern {pattern_idx + 1} MATCHED!")
                 start_str = match.group(1).strip()
                 end_str = match.group(2).strip()
-                print(f"🔍 DEBUG: Raw captures - start: '{start_str}', end: '{end_str}'")
+                _debug(f"🔍 DEBUG: Raw captures - start: '{start_str}', end: '{end_str}'")
                 
                 # Clean up captured groups - normalize spaces
                 start_str = re.sub(r'\s+', ' ', start_str)
                 end_str = re.sub(r'\s+', ' ', end_str)
-                print(f"🔍 DEBUG: Cleaned captures - start: '{start_str}', end: '{end_str}'")
+                _debug(f"🔍 DEBUG: Cleaned captures - start: '{start_str}', end: '{end_str}'")
                 
                 # Additional cleanup for concatenated dates
                 # Handle cases like "23Februari2027" -> ensure proper parsing
                 if not ' ' in end_str and len(end_str) > 8:  # Likely concatenated format
-                    print(f"🔍 DEBUG: Detected concatenated end date: '{end_str}'")
+                    _debug(f"🔍 DEBUG: Detected concatenated end date: '{end_str}'")
                     # Try to add spaces for better parsing: "23Februari2027" -> "23 Februari 2027"
                     concatenated_match = re.match(r'(\d{1,2})([A-Za-z]+)(\d{4})', end_str)
                     if concatenated_match:
                         day, month, year = concatenated_match.groups()
                         end_str_spaced = f"{day} {month} {year}"
-                        print(f"🔍 DEBUG: Trying spaced version: '{end_str_spaced}'")
+                        _debug(f"🔍 DEBUG: Trying spaced version: '{end_str_spaced}'")
                         # Try parsing the spaced version first
                         end_date_spaced = _parse_date_id(end_str_spaced)
                         if end_date_spaced:
-                            print(f"✅ DEBUG: Spaced version parsed successfully: {end_date_spaced}")
+                            _debug(f"✅ DEBUG: Spaced version parsed successfully: {end_date_spaced}")
                             end_str = end_str_spaced
                         else:
-                            print(f"❌ DEBUG: Spaced version parsing failed")
+                            _debug(f"❌ DEBUG: Spaced version parsing failed")
                 
                 # Parse both dates
-                print(f"🔍 DEBUG: Attempting to parse dates...")
+                _debug(f"🔍 DEBUG: Attempting to parse dates...")
                 start_date = _parse_date_id(start_str)
                 end_date = _parse_date_id(end_str)
-                print(f"🔍 DEBUG: Parse results - start: {start_date}, end: {end_date}")
+                _debug(f"🔍 DEBUG: Parse results - start: {start_date}, end: {end_date}")
                 
                 # Return if both dates are valid and different
                 if start_date and end_date and start_date != end_date:
-                    print(f"✅ DEBUG: SUCCESS! Returning dates: start={start_date}, end={end_date}")
+                    _debug(f"✅ DEBUG: SUCCESS! Returning dates: start={start_date}, end={end_date}")
                     return start_date, end_date
                 
                 # If parsing failed but we had a match, try parsing original concatenated format
                 if not end_date and not ' ' in match.group(2).strip():
-                    print(f"🔍 DEBUG: Retrying with original concatenated format: '{match.group(2).strip()}'")
+                    _debug(f"🔍 DEBUG: Retrying with original concatenated format: '{match.group(2).strip()}'")
                     end_date = _parse_date_id(match.group(2).strip())
-                    print(f"🔍 DEBUG: Retry parse result: {end_date}")
+                    _debug(f"🔍 DEBUG: Retry parse result: {end_date}")
                     if start_date and end_date and start_date != end_date:
-                        print(f"✅ DEBUG: SUCCESS on retry! Returning dates: start={start_date}, end={end_date}")
+                        _debug(f"✅ DEBUG: SUCCESS on retry! Returning dates: start={start_date}, end={end_date}")
                         return start_date, end_date
                 
-                print(f"❌ DEBUG: Pattern {pattern_idx + 1} matched but date parsing failed")
+                _debug(f"❌ DEBUG: Pattern {pattern_idx + 1} matched but date parsing failed")
             else:
-                print(f"❌ DEBUG: Pattern {pattern_idx + 1} did not match")
+                _debug(f"❌ DEBUG: Pattern {pattern_idx + 1} did not match")
     
-    print("❌ DEBUG: No successful matches found, returning None, None")
+    _debug("❌ DEBUG: No successful matches found, returning None, None")
     return None, None
 
 def _extract_jangka_waktu(texts: List[str]) -> tuple[Optional[str], Optional[str]]:
@@ -1722,7 +1734,7 @@ def _extract_jangka_waktu(texts: List[str]) -> tuple[Optional[str], Optional[str
         if len(date_tokens) >= 10:  # Get more candidates
             break
     
-    print(f"🔍 DEBUG: Found {len(date_tokens)} unique dates: {[(i, d) for i, d, _ in date_tokens]}")
+    _debug(f"🔍 DEBUG: Found {len(date_tokens)} unique dates: {[(i, d) for i, d, _ in date_tokens]}")
     
     if len(date_tokens) >= 2:
         # Smart date pair selection algorithm
@@ -1775,14 +1787,14 @@ def _extract_jangka_waktu(texts: List[str]) -> tuple[Optional[str], Optional[str
                 if start_idx <= 15:  # Earlier in the section
                     score += 30
                 
-                print(f"🔍 DEBUG: Date pair ({start_date}, {end_date}) - days: {days_diff}, text_distance: {text_distance}, score: {score}")
+                _debug(f"🔍 DEBUG: Date pair ({start_date}, {end_date}) - days: {days_diff}, text_distance: {text_distance}, score: {score}")
                 
                 if score > best_score:
                     best_score = score
                     best_pair = (start_date, end_date)
         
         if best_pair and best_score > 0:
-            print(f"✅ DEBUG: Selected best date pair with score {best_score}: {best_pair}")
+            _debug(f"✅ DEBUG: Selected best date pair with score {best_score}: {best_pair}")
             return best_pair
         
         # Fallback: if no good pair found, use chronological order but skip obvious signature dates
@@ -1797,14 +1809,14 @@ def _extract_jangka_waktu(texts: List[str]) -> tuple[Optional[str], Optional[str
                     end_dt = datetime.strptime(dates_only[j], "%Y-%m-%d")
                     days_diff = (end_dt - start_dt).days
                     if days_diff >= 30:  # At least 30 days for a reasonable contract
-                        print(f"✅ DEBUG: Fallback selection: {dates_only[i]}, {dates_only[j]} ({days_diff} days)")
+                        _debug(f"✅ DEBUG: Fallback selection: {dates_only[i]}, {dates_only[j]} ({days_diff} days)")
                         return dates_only[i], dates_only[j]
                 except:
                     continue
         
         # Last resort: first two different dates
         if len(dates_only) >= 2 and dates_only[0] != dates_only[1]:
-            print(f"⚠️  DEBUG: Last resort selection: {dates_only[0]}, {dates_only[1]}")
+            _debug(f"⚠️  DEBUG: Last resort selection: {dates_only[0]}, {dates_only[1]}")
             return dates_only[0], dates_only[1]
     
     return None, None
