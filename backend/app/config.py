@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+    
+    @property
+    def is_debug(self) -> bool:
+        """Determine if the application is running in debug mode based on log level"""
+        return self.log_level.upper() == "DEBUG"
 
 def force_reload_config():
     """Force reload of configuration by clearing cached modules"""
