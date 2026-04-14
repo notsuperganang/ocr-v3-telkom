@@ -1014,6 +1014,37 @@ class ApiClient {
 
     return response.blob();
   }
+
+  async downloadInvoiceDocument(documentId: number, fileName: string): Promise<void> {
+    const url = `${API_BASE_URL}/api/invoices/documents/${documentId}/download`;
+    const headers: Record<string, string> = {};
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+      throw new Error('Failed to download document');
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+  }
+
+  async cancelInvoice(
+    invoiceType: InvoiceType,
+    id: string
+  ): Promise<{ success: boolean; invoice: { id: number; invoice_number: string; invoice_status: string } }> {
+    const type = invoiceType.toLowerCase();
+    return this.request(`/api/invoices/${type}/${id}/cancel`, { method: 'PATCH' });
+  }
 }
 
 export const apiClient = new ApiClient();
