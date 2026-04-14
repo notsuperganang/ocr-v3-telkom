@@ -427,6 +427,9 @@ def add_payment(
     if not invoice:
         raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
 
+    if invoice.invoice_status == "CANCELLED":
+        raise ValueError("Tidak dapat menambahkan pembayaran ke invoice yang sudah dibatalkan.")
+
     # Parse and validate payment amount
     payment_amount = _parse_decimal_amount(payment_data.get("amount"), "payment_amount")
     _validate_payment_amount(invoice, payment_amount)
@@ -870,6 +873,49 @@ def send_invoice(
     invoice.updated_by_id = acting_user.id if acting_user else None
 
     logger.info(f"Invoice {invoice_type}/{invoice_id} marked as SENT")
+
+
+def cancel_invoice(
+    db: Session,
+    invoice_type: str,
+    invoice_id: int,
+    acting_user: User,
+) -> None:
+    """
+    Cancel an invoice.
+
+    Sets invoice_status to 'CANCELLED'. PAID invoices cannot be cancelled.
+    The database trigger only fires on paid_amount/ppn_paid/pph23_paid changes,
+    so directly setting CANCELLED will not be overridden.
+
+    Does NOT commit. Caller must commit.
+
+    Args:
+        db: Database session
+        invoice_type: "term" or "recurring"
+        invoice_id: Invoice ID
+        acting_user: User performing the action
+
+    Raises:
+        ValueError: If invoice not found or cannot be cancelled
+    """
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
+
+    if invoice.invoice_status == "PAID":
+        raise ValueError("Invoice yang sudah lunas tidak dapat dibatalkan.")
+
+    if invoice.invoice_status == "CANCELLED":
+        raise ValueError("Invoice sudah dalam status dibatalkan.")
+
+    invoice.invoice_status = "CANCELLED"
+    invoice.updated_by_id = acting_user.id if acting_user else None
+
+    logger.info(
+        f"Invoice {invoice_type}/{invoice_id} cancelled by user "
+        f"{acting_user.id if acting_user else 'unknown'}"
+    )
 
 
 def get_invoices_by_period(
