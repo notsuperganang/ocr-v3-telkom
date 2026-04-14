@@ -4,14 +4,16 @@ Handles invoice listing, payment tracking, and document management
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 
 from app.api.dependencies import get_db_and_user
-from app.models.database import User
+from app.models.database import User, InvoiceDocument
 from app.services import invoice_service
 
 router = APIRouter(prefix="/api/invoices", tags=["invoices"])
@@ -854,4 +856,86 @@ async def update_invoice_notes(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update notes: {str(e)}"
+        )
+
+
+@router.get("/documents/{document_id}/download")
+async def download_document(
+    document_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Download an invoice document file.
+
+    Returns the file as an attachment with the original filename.
+    Requires authentication.
+    """
+    db, current_user = db_and_user
+
+    document = db.query(InvoiceDocument).filter(InvoiceDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+
+    file_path = Path(document.file_path)
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found on server"
+        )
+
+    return FileResponse(
+        path=str(file_path),
+        filename=document.file_name,
+        media_type=document.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{document.file_name}"'},
+    )
+
+
+@router.patch("/{invoice_type}/{invoice_id}/cancel")
+async def cancel_invoice(
+    invoice_type: str,
+    invoice_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Cancel an invoice.
+
+    Sets invoice_status to CANCELLED. Cannot cancel a fully PAID invoice.
+    """
+    db, current_user = db_and_user
+
+    validate_invoice_type(invoice_type)
+
+    try:
+        invoice_service.cancel_invoice(db, invoice_type, invoice_id, current_user)
+        db.commit()
+
+        invoice = invoice_service._get_invoice_by_id(db, invoice_type, invoice_id)
+
+        return {
+            "success": True,
+            "invoice": {
+                "id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "invoice_status": invoice.invoice_status,
+            }
+        }
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to cancel invoice: {str(e)}"
         )
