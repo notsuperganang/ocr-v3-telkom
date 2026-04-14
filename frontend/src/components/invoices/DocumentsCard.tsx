@@ -33,6 +33,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import type { Invoice, InvoiceDocument, DocumentType } from "@/types/api"
+import { apiService } from "@/services/api"
 import { formatDateTime, documentTypeLabels } from "./invoice-utils"
 import {
   Skeleton,
@@ -58,10 +59,22 @@ interface DocumentCardProps {
 
 const DocumentCard: React.FC<DocumentCardProps> = ({ document, onDelete, isDeleting }) => {
   const [isAlertOpen, setIsAlertOpen] = React.useState(false)
+  const [isDownloading, setIsDownloading] = React.useState(false)
 
   const handleDelete = () => {
     onDelete(Number(document.id))
     setIsAlertOpen(false)
+  }
+
+  const handleDownload = async () => {
+    setIsDownloading(true)
+    try {
+      await apiService.downloadInvoiceDocument(Number(document.id), document.file_name)
+    } catch {
+      toast.error("Gagal mengunduh dokumen")
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   return (
@@ -88,11 +101,19 @@ const DocumentCard: React.FC<DocumentCardProps> = ({ document, onDelete, isDelet
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" asChild className="hover:bg-rose-50">
-          <a href={document.file_path} target="_blank" rel="noopener noreferrer">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hover:bg-rose-50"
+          onClick={handleDownload}
+          disabled={isDownloading}
+        >
+          {isDownloading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
             <Download className="size-4 text-slate-600" />
-            <span className="sr-only">Download</span>
-          </a>
+          )}
+          <span className="sr-only">Download</span>
         </Button>
         <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
           <AlertDialogTrigger asChild>
