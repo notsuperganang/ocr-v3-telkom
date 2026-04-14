@@ -263,10 +263,14 @@ export default function AddPaymentModal({
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
-                            }
+                            onSelect={(date) => {
+                              if (date) field.onChange(date)
+                            }}
+                            disabled={(date) => {
+                              const today = new Date()
+                              today.setHours(23, 59, 59, 999)
+                              return date > today || date < new Date("1900-01-01")
+                            }}
                           />
                         </PopoverContent>
                       </Popover>
@@ -289,7 +293,7 @@ export default function AddPaymentModal({
                           size="sm"
                           className="h-auto p-0 text-xs font-normal text-blue-600 hover:text-blue-700"
                           onClick={() => {
-                            const formatted = formatAmountInput(outstandingAmount.toString())
+                            const formatted = formatAmountInput(Math.round(outstandingAmount).toString())
                             field.onChange(formatted)
                           }}
                         >
