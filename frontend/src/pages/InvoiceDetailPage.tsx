@@ -5,7 +5,7 @@ import { XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { motion } from "motion/react"
 
-import { useInvoiceDetail, useSendInvoice } from "@/hooks/useInvoices"
+import { useInvoiceDetail, useSendInvoice, useCancelInvoice } from "@/hooks/useInvoices"
 import type { Invoice, InvoiceType } from "@/types/api"
 
 import { Button } from "@/components/ui/button"
@@ -85,6 +85,7 @@ export default function InvoiceDetailPage() {
   // Fetch data
   const { data, isLoading, isError, refetch } = useInvoiceDetail(invoiceType, invoiceId)
   const sendInvoiceMutation = useSendInvoice()
+  const cancelInvoiceMutation = useCancelInvoice()
 
   const invoice = data?.invoice
   const payments = data?.payments || []
@@ -108,8 +109,13 @@ export default function InvoiceDetailPage() {
   // Handle cancel invoice
   const handleCancelInvoice = async () => {
     if (!invoice) return
-    // TODO: Backend doesn't have cancel endpoint yet
-    toast.error("Fitur pembatalan invoice belum tersedia")
+    if (!window.confirm(`Batalkan invoice ${invoice.invoice_number}? Tindakan ini tidak dapat diurungkan.`)) return
+    try {
+      await cancelInvoiceMutation.mutateAsync({ invoiceType, id: invoiceId })
+      toast.success("Invoice berhasil dibatalkan")
+    } catch {
+      toast.error("Gagal membatalkan invoice")
+    }
   }
 
   // Error state
@@ -193,7 +199,7 @@ export default function InvoiceDetailPage() {
               invoice={invoice}
               isLoading={isLoading}
               isSending={sendInvoiceMutation.isPending}
-              isCancelling={false}
+              isCancelling={cancelInvoiceMutation.isPending}
               onSendInvoice={handleSendInvoice}
               onCancelInvoice={handleCancelInvoice}
               onAddPayment={() => setShowPaymentModal(true)}
