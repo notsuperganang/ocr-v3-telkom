@@ -859,6 +859,60 @@ async def update_invoice_notes(
         )
 
 
+@router.patch("/{invoice_type}/{invoice_id}/uncancel")
+async def uncancel_invoice(
+    invoice_type: str,
+    invoice_id: int,
+    db_and_user: tuple[Session, User] = Depends(get_db_and_user),
+):
+    """
+    Reverse a cancelled invoice back to its active status.
+
+    Recomputes invoice_status from current payment state (mirrors DB trigger logic).
+    Only CANCELLED invoices can be uncancelled.
+    """
+    db, current_user = db_and_user
+
+    validate_invoice_type(invoice_type)
+
+    try:
+        restored_status = invoice_service.uncancel_invoice(db, invoice_type, invoice_id, current_user)
+
+        # Sync status column to match restored invoice_status
+        db.flush()
+        invoice_service.sync_invoice_status(db, invoice_type, invoice_id, current_user)
+
+        db.commit()
+
+        invoice = invoice_service._get_invoice_by_id(db, invoice_type, invoice_id)
+
+        return {
+            "success": True,
+            "invoice": {
+                "id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "invoice_status": invoice.invoice_status,
+                "restored_status": restored_status,
+            }
+        }
+
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to uncancel invoice: {str(e)}"
+        )
+
+
 @router.get("/documents/{document_id}/download")
 async def download_document(
     document_id: int,
