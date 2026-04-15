@@ -5,7 +5,7 @@ import { XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { motion } from "motion/react"
 
-import { useInvoiceDetail, useSendInvoice, useCancelInvoice } from "@/hooks/useInvoices"
+import { useInvoiceDetail, useSendInvoice, useCancelInvoice, useUncancelInvoice } from "@/hooks/useInvoices"
 import type { Invoice, InvoiceType } from "@/types/api"
 
 import { Button } from "@/components/ui/button"
@@ -86,6 +86,7 @@ export default function InvoiceDetailPage() {
   const { data, isLoading, isError, refetch } = useInvoiceDetail(invoiceType, invoiceId)
   const sendInvoiceMutation = useSendInvoice()
   const cancelInvoiceMutation = useCancelInvoice()
+  const uncancelInvoiceMutation = useUncancelInvoice()
 
   const invoice = data?.invoice
   const payments = data?.payments || []
@@ -103,6 +104,18 @@ export default function InvoiceDetailPage() {
       toast.success("Invoice berhasil dikirim")
     } catch {
       toast.error("Gagal mengirim invoice")
+    }
+  }
+
+  // Handle uncancel invoice
+  const handleUncancelInvoice = async () => {
+    if (!invoice) return
+    if (!window.confirm(`Batalkan pembatalan invoice ${invoice.invoice_number}?`)) return
+    try {
+      await uncancelInvoiceMutation.mutateAsync({ invoiceType, id: invoiceId })
+      toast.success("Pembatalan invoice berhasil diurungkan")
+    } catch {
+      toast.error("Gagal mengurungkan pembatalan invoice")
     }
   }
 
@@ -200,8 +213,10 @@ export default function InvoiceDetailPage() {
               isLoading={isLoading}
               isSending={sendInvoiceMutation.isPending}
               isCancelling={cancelInvoiceMutation.isPending}
+              isUncancelling={uncancelInvoiceMutation.isPending}
               onSendInvoice={handleSendInvoice}
               onCancelInvoice={handleCancelInvoice}
+              onUncancelInvoice={handleUncancelInvoice}
               onAddPayment={() => setShowPaymentModal(true)}
               onUploadDocument={() => setShowDocumentModal(true)}
               onEditNotes={() => setShowNotesModal(true)}
