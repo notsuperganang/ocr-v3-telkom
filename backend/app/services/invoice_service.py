@@ -918,6 +918,81 @@ def cancel_invoice(
     )
 
 
+def _compute_invoice_status_from_payments(
+    invoice,
+) -> str:
+    """
+    Recompute invoice_status from current payment state.
+
+    Mirrors the database trigger logic so the result is consistent after
+    a manual status override (e.g. reverting a cancellation).
+    """
+    from decimal import Decimal
+
+    paid = _parse_decimal_amount(invoice.paid_amount) or Decimal(0)
+    net_payable = _parse_decimal_amount(invoice.net_payable_amount) or Decimal(0)
+
+    if net_payable > 0 and paid >= net_payable:
+        if invoice.ppn_paid and invoice.pph23_paid:
+            return "PAID"
+        elif not invoice.pph23_paid:
+            return "PAID_PENDING_PPH23"
+        else:
+            return "PAID_PENDING_PPN"
+    elif paid > 0:
+        return "PARTIALLY_PAID"
+    else:
+        # No payments — restore to SENT if it was ever sent, otherwise DRAFT
+        return "SENT" if invoice.sent_date else "DRAFT"
+
+
+def uncancel_invoice(
+    db: Session,
+    invoice_type: str,
+    invoice_id: int,
+    acting_user: User,
+) -> str:
+    """
+    Reverse a cancelled invoice back to its appropriate active status.
+
+    Recomputes the correct invoice_status from current payment state so the
+    result is consistent with what the database trigger would have set.
+
+    Does NOT commit. Caller must commit.
+
+    Args:
+        db: Database session
+        invoice_type: "term" or "recurring"
+        invoice_id: Invoice ID
+        acting_user: User performing the action
+
+    Returns:
+        The restored invoice_status string.
+
+    Raises:
+        ValueError: If invoice not found or not in CANCELLED status.
+    """
+    invoice = _get_invoice_by_id(db, invoice_type, invoice_id)
+    if not invoice:
+        raise ValueError(f"Invoice not found: {invoice_type}/{invoice_id}")
+
+    if invoice.invoice_status != "CANCELLED":
+        raise ValueError(
+            f"Invoice tidak dalam status dibatalkan. Status saat ini: {invoice.invoice_status}"
+        )
+
+    restored_status = _compute_invoice_status_from_payments(invoice)
+    invoice.invoice_status = restored_status
+    invoice.updated_by_id = acting_user.id if acting_user else None
+
+    logger.info(
+        f"Invoice {invoice_type}/{invoice_id} uncancelled → restored to {restored_status} "
+        f"by user {acting_user.id if acting_user else 'unknown'}"
+    )
+
+    return restored_status
+
+
 def get_invoices_by_period(
     db: Session,
     year: int,
