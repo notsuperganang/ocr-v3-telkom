@@ -7,6 +7,7 @@ import {
   Upload,
   FileText,
   XCircle,
+  RotateCcw,
   Settings,
   Zap,
   FileEdit,
@@ -29,8 +30,10 @@ interface ActionsCardProps {
   isLoading: boolean
   isSending: boolean
   isCancelling: boolean
+  isUncancelling: boolean
   onSendInvoice: () => void
   onCancelInvoice: () => void
+  onUncancelInvoice: () => void
   onAddPayment: () => void
   onUploadDocument: () => void
   onEditNotes: () => void
@@ -41,8 +44,10 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
   isLoading,
   isSending,
   isCancelling,
+  isUncancelling,
   onSendInvoice,
   onCancelInvoice,
+  onUncancelInvoice,
   onAddPayment,
   onUploadDocument,
   onEditNotes,
@@ -194,6 +199,22 @@ export const ActionsCard: React.FC<ActionsCardProps> = ({
                   >
                     <XCircle className="mr-2 size-5" />
                     {isCancelling ? "Membatalkan..." : "Batalkan Invoice"}
+                  </Button>
+                </motion.div>
+              )}
+
+              {/* Uncancel Invoice - only visible when CANCELLED */}
+              {isCancelled && (
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="w-full justify-start border-2 border-amber-200 text-amber-700 hover:text-amber-800 hover:bg-amber-50 hover:border-amber-300 font-semibold h-12 text-base"
+                    onClick={onUncancelInvoice}
+                    disabled={isUncancelling}
+                  >
+                    <RotateCcw className="mr-2 size-5" />
+                    {isUncancelling ? "Memproses..." : "Batalkan Pembatalan"}
                   </Button>
                 </motion.div>
               )}
