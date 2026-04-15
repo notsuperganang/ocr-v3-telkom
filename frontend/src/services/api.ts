@@ -1045,6 +1045,14 @@ class ApiClient {
     const type = invoiceType.toLowerCase();
     return this.request(`/api/invoices/${type}/${id}/cancel`, { method: 'PATCH' });
   }
+
+  async uncancelInvoice(
+    invoiceType: InvoiceType,
+    id: string
+  ): Promise<{ success: boolean; invoice: { id: number; invoice_number: string; invoice_status: string; restored_status: string } }> {
+    const type = invoiceType.toLowerCase();
+    return this.request(`/api/invoices/${type}/${id}/uncancel`, { method: 'PATCH' });
+  }
 }
 
 export const apiClient = new ApiClient();
