@@ -320,6 +320,32 @@ export function useCancelInvoice() {
   });
 }
 
+// Hook for reversing a cancelled invoice
+export function useUncancelInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceType,
+      id,
+    }: {
+      invoiceType: InvoiceType;
+      id: string;
+    }) => apiService.uncancelInvoice(invoiceType, id),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.detail(variables.invoiceType, variables.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: invoiceKeys.lists(),
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to uncancel invoice:', error);
+    },
+  });
+}
+
 // Hook for exporting invoices
 export function useExportInvoices() {
   return useMutation({
