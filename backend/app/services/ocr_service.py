@@ -76,10 +76,10 @@ class OCRService:
             logger.info("🔄 Loading PP-StructureV3 pipeline...")
             
             self.pipeline = PPStructureV3(**pipeline_params)
-            
+
             load_time = time.time() - start_time
             logger.success(f"✅ Pipeline loaded successfully in {load_time:.2f} seconds")
-            
+
             if settings.log_model_loading:
                 logger.info("🎯 Pipeline initialization complete")
                 logger.info("="*80)
