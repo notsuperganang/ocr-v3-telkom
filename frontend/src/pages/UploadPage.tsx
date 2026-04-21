@@ -43,7 +43,7 @@ export function UploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isManualEntryOpen, setIsManualEntryOpen] = useState(false);
   const navigate = useNavigate();
-  const pollingIntervals = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  const pollingIntervals = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const pollingInProgress = useRef<Set<number>>(new Set()); // Track in-progress polls
   const fileUploadRef = useRef<FileUploadRef>(null);
 
