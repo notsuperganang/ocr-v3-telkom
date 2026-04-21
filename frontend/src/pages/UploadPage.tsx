@@ -45,6 +45,8 @@ export function UploadPage() {
   const navigate = useNavigate();
   const pollingIntervals = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const pollingInProgress = useRef<Set<number>>(new Set()); // Track in-progress polls
+  const animationIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const easingTargets = useRef<Map<string, number>>(new Map());
   const fileUploadRef = useRef<FileUploadRef>(null);
 
   // Format ukuran file
@@ -100,8 +102,8 @@ export function UploadPage() {
 
   // Remove file
   const removeFile = (fileId: string) => {
-    // Find the file and stop its polling if it has a jobId
     const fileToRemove = files.find(f => f.id === fileId);
+    stopEasingAnimation(fileId);
     if (fileToRemove?.jobId) {
       const interval = pollingIntervals.current.get(fileToRemove.jobId);
       if (interval) {
@@ -173,6 +175,32 @@ export function UploadPage() {
     }
   };
 
+  const stopEasingAnimation = useCallback((fileId: string) => {
+    const existing = animationIntervals.current.get(fileId);
+    if (existing) {
+      clearInterval(existing);
+      animationIntervals.current.delete(fileId);
+    }
+    easingTargets.current.delete(fileId);
+  }, []);
+
+  const startEasingAnimation = useCallback((fileId: string) => {
+    if (animationIntervals.current.has(fileId)) return;
+    easingTargets.current.set(fileId, 92);
+
+    const interval = setInterval(() => {
+      setFiles(prev => prev.map(f => {
+        if (f.id !== fileId || f.status !== 'processing') return f;
+        const target = easingTargets.current.get(fileId) ?? 92;
+        const next = f.progress + (target - f.progress) * 0.04;
+        const clamped = Math.min(Math.round(next), 95);
+        return clamped > f.progress ? { ...f, progress: clamped } : f;
+      }));
+    }, 300);
+
+    animationIntervals.current.set(fileId, interval);
+  }, []);
+
   // Poll job status
   const pollJobStatus = useCallback(async (jobId: number, fileId: string) => {
     // Prevent multiple simultaneous polls for the same job
@@ -198,18 +226,25 @@ export function UploadPage() {
           switch (status.status) {
             case 'processing':
               newStatus = 'processing';
-              progress = 50;
+              // progress stays as-is; easing animation handles it
+              break;
+            case 'extracted':
+              newStatus = 'processing';
+              easingTargets.current.set(fileId, 95);
               break;
             case 'awaiting_review':
               newStatus = 'awaiting_review';
+              stopEasingAnimation(fileId);
               progress = 100;
               break;
             case 'completed':
               newStatus = 'completed';
+              stopEasingAnimation(fileId);
               progress = 100;
               break;
             case 'failed':
               newStatus = 'failed';
+              stopEasingAnimation(fileId);
               progress = 0;
               break;
           }
@@ -246,7 +281,7 @@ export function UploadPage() {
       // Always remove from in-progress set
       pollingInProgress.current.delete(jobId);
     }
-  }, []);
+  }, [stopEasingAnimation]);
 
   // Start polling for a job
   const startPolling = useCallback((jobId: number, fileId: string) => {
@@ -271,44 +306,32 @@ export function UploadPage() {
   const uploadSingleFile = async (file: UploadFile): Promise<void> => {
     try {
       setFiles(prev => prev.map(f =>
-        f.id === file.id
-          ? { ...f, status: 'uploading', progress: 0 }
-          : f
+        f.id === file.id ? { ...f, status: 'uploading', progress: 0 } : f
       ));
 
-      // Simulate upload progress
-      for (let progress = 0; progress <= 90; progress += 10) {
+      const response = await apiService.uploadFile(file.file, (rawPercent) => {
+        const displayProgress = Math.round(rawPercent * 0.6); // map to 0–60%
         setFiles(prev => prev.map(f =>
-          f.id === file.id ? { ...f, progress } : f
+          f.id === file.id && f.status === 'uploading'
+            ? { ...f, progress: displayProgress }
+            : f
         ));
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      const response = await apiService.uploadFile(file.file);
+      });
 
       setFiles(prev => prev.map(f =>
         f.id === file.id
-          ? {
-              ...f,
-              status: 'processing',
-              progress: 100,
-              jobId: response.job_id,
-              uploadedAt: new Date()
-            }
+          ? { ...f, status: 'processing', progress: 65, jobId: response.job_id, uploadedAt: new Date() }
           : f
       ));
 
+      startEasingAnimation(file.id);
       startPolling(response.job_id, file.id);
 
     } catch (error: any) {
+      stopEasingAnimation(file.id);
       setFiles(prev => prev.map(f =>
         f.id === file.id
-          ? {
-              ...f,
-              status: 'failed',
-              progress: 0,
-              error: error.message || 'Upload gagal'
-            }
+          ? { ...f, status: 'failed', progress: 0, error: error.message || 'Upload gagal' }
           : f
       ));
     }
@@ -338,6 +361,8 @@ export function UploadPage() {
     return () => {
       pollingIntervals.current.forEach(interval => clearInterval(interval));
       pollingIntervals.current.clear();
+      animationIntervals.current.forEach(interval => clearInterval(interval));
+      animationIntervals.current.clear();
     };
   }, []);
 
@@ -476,9 +501,11 @@ export function UploadPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      // Stop all polling intervals
+                      // Stop all polling and animation intervals
                       pollingIntervals.current.forEach(interval => clearInterval(interval));
                       pollingIntervals.current.clear();
+                      animationIntervals.current.forEach(interval => clearInterval(interval));
+                      animationIntervals.current.clear();
 
                       setFiles([]);
                       fileUploadRef.current?.clearFiles();
