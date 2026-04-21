@@ -303,7 +303,7 @@ export function useFormData(jobId: number) {
 // Hook for auto-save functionality with debouncing
 export function useAutoSave(jobId: number, delay = 1000) {
   const updateMutation = useUpdateExtraction(jobId);
-  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingDataRef = React.useRef<Partial<TelkomContractData> | null>(null);
 
   const autoSave = React.useCallback((data: Partial<TelkomContractData>) => {
