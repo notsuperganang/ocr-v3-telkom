@@ -39,8 +39,8 @@ class Settings(BaseSettings):
     use_formula_recognition: bool = False            # ❌ Disabled - not needed for contracts
     
     # Performance Optimization - TESTED AND WORKING
-    enable_hpi: bool = True                          # ✅ High Performance Inference for CPU
-    device: str = "cpu"                              # CPU-only production environment
+    enable_hpi: bool = True                          # ✅ High Performance Inference (CPU only, auto-disabled on GPU)
+    device: str = "cpu"                              # Device: "cpu" | "gpu" | "gpu:0" | "gpu:1"
     
     # Processing Pipeline Configuration  
     use_doc_orientation_classify: Optional[bool] = None    # Use PPStructureV3 defaults
@@ -76,8 +76,11 @@ class Settings(BaseSettings):
     
     @property
     def is_debug(self) -> bool:
-        """Determine if the application is running in debug mode based on log level"""
         return self.log_level.upper() == "DEBUG"
+
+    @property
+    def is_gpu(self) -> bool:
+        return self.device.lower().startswith("gpu")
 
 def force_reload_config():
     """Force reload of configuration by clearing cached modules"""
@@ -119,8 +122,11 @@ def validate_and_log_config(settings_instance):
     
     # Performance Settings
     print(f"[CONFIG]   ⚡ Performance Settings:")
-    print(f"[CONFIG]   🚀 High Performance Inference: {settings_instance.enable_hpi}")
     print(f"[CONFIG]   💻 Device: {settings_instance.device}")
+    effective_hpi = settings_instance.enable_hpi and not settings_instance.is_gpu
+    print(f"[CONFIG]   🚀 High Performance Inference: {effective_hpi} (CPU-only feature)")
+    if settings_instance.is_gpu:
+        print(f"[CONFIG]   🎮 GPU mode — ensure paddlepaddle-gpu is installed")
     
     # Logging Configuration
     print(f"[CONFIG]   📋 Logging Configuration:")
@@ -138,8 +144,9 @@ def validate_and_log_config(settings_instance):
         "Seal recognition should be disabled for contract processing"
     assert settings_instance.use_formula_recognition == False, \
         "Formula recognition should be disabled for contract processing"
-    assert settings_instance.enable_hpi == True, \
-        "HPI should be enabled for CPU performance"
+    if not settings_instance.is_gpu:
+        assert settings_instance.enable_hpi == True, \
+            "HPI should be enabled for CPU performance"
     
     print(f"[CONFIG] ✅ Configuration validation passed")
     print(f"[CONFIG] 🎯 Optimized for Telkom contract processing")
@@ -164,7 +171,8 @@ def get_pipeline_params(settings_instance):
     params["use_formula_recognition"] = settings_instance.use_formula_recognition
     
     # Performance settings (always set)
-    params["enable_hpi"] = settings_instance.enable_hpi
+    # HPI is a CPU-only optimization — disable automatically when using GPU
+    params["enable_hpi"] = settings_instance.enable_hpi and not settings_instance.is_gpu
     params["device"] = settings_instance.device
     
     # Add optional parameters only if they're not None
