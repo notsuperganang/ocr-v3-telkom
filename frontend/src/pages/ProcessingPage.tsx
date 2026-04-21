@@ -16,7 +16,7 @@ import { apiService } from '@/services/api';
 
 interface JobStatus {
   job_id: number;
-  file_id: number;
+  file_id: number | null;
   filename: string;
   status: string;
   progress_message: string;
