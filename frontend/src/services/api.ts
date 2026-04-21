@@ -233,26 +233,35 @@ class ApiClient {
   }
 
   // File upload
-  async uploadFile(file: File): Promise<UploadResponse> {
-    const formData = new FormData();
-    formData.append('file', file);
+  async uploadFile(file: File, onUploadProgress?: (percent: number) => void): Promise<UploadResponse> {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', file);
 
-    const response = await fetch(`${API_BASE_URL}/api/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-      },
-      body: formData,
+      const xhr = new XMLHttpRequest();
+
+      if (onUploadProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            onUploadProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        });
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText) as UploadResponse);
+        } else {
+          const err = JSON.parse(xhr.responseText || '{}') as ApiError;
+          reject(new Error(err.detail || `HTTP ${xhr.status}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Upload gagal'));
+      xhr.open('POST', `${API_BASE_URL}/api/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
+      xhr.send(formData);
     });
-
-    if (!response.ok) {
-      const errorData: ApiError = await response.json().catch(() => ({
-        detail: `HTTP ${response.status}: ${response.statusText}`,
-      }));
-      throw new Error(errorData.detail || 'Upload failed');
-    }
-
-    return response.json();
   }
 
   async uploadBatch(files: File[]): Promise<BatchUploadResponse> {
