@@ -6,7 +6,6 @@ Handles PDF upload and creates processing jobs
 import os
 import uuid
 import json
-import asyncio
 from typing import List
 from pathlib import Path
 from datetime import datetime, timezone
@@ -126,7 +125,7 @@ async def process_file_background(job_id: int, file_path: str):
     """
     # Import here to avoid circular imports during startup
     from app.database import SessionLocal
-    from app.services.ocr_service import get_ocr_service
+    from app.services.ocr_service import run_ocr_async
     from app.services.data_extractor import extract_from_page1_one_time, merge_with_page2
     
     db = SessionLocal()
@@ -142,13 +141,12 @@ async def process_file_background(job_id: int, file_path: str):
         db.commit()
         
         try:
-            # Run OCR processing in a separate thread to avoid blocking the event loop
-            ocr_service = get_ocr_service()
-            ocr_result = await asyncio.to_thread(
-                ocr_service.process_pdf,
-                file_path, 
+            # Run OCR on the dedicated ocr-worker thread. All predict() calls
+            # must go through this to avoid PaddlePaddle per-thread state bugs.
+            ocr_result = await run_ocr_async(
+                file_path,
                 "storage/ocr_outputs",
-                str(job.file_id)
+                str(job.file_id),
             )
             
             if ocr_result.success:

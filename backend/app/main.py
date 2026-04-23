@@ -36,10 +36,12 @@ async def lifespan(app: FastAPI):
     # Initialize database
     init_database()
     
-    # Initialize OCR service (singleton)
-    from app.services.ocr_service import get_ocr_service
+    # Initialize OCR service and warm up the pipeline on the dedicated
+    # ocr-worker thread. This binds PaddlePaddle's per-thread state to the
+    # same thread every future predict() will run on.
+    from app.services.ocr_service import warmup
     try:
-        ocr_service = get_ocr_service()
+        warmup()
         print("✅ OCR service initialized successfully")
     except Exception as e:
         print(f"⚠️ OCR service initialization warning: {str(e)}")

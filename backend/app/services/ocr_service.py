@@ -6,26 +6,34 @@ Converted from scripts/raw_pipeline_processor.py to be used as a backend service
 for the web application. Processes PDF contract files using PP-StructureV3 pipeline.
 """
 
-import gc
+import asyncio
 import os
 import sys
 import time
 import tempfile
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from statistics import mean
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
-import threading
 import fitz  # PyMuPDF
 from loguru import logger
 from paddleocr import PPStructureV3
 from pdf2image import convert_from_path
 
-# Import from backend config  
+# Import from backend config
 from app.config import settings, get_pipeline_params
+
+
+# Dedicated single-thread executor for ALL OCR work. PaddlePaddle's mkldnn
+# predictor holds per-thread state (primitive caches, tensor handles); calling
+# the same pipeline object from multiple threads raises std::exception. Pinning
+# every predict() to one thread avoids that entirely. Use run_ocr_async() from
+# async code — never asyncio.to_thread() or a different executor.
+_ocr_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr-worker")
 
 
 @dataclass
@@ -45,9 +53,15 @@ class OCRService:
     def __init__(self):
         self.pipeline = None
         self.temp_dir = None
-        self._lock = threading.Lock()
         self._setup_temp_dir()
-        self._initialize_pipeline()
+        # Pipeline is initialized lazily via _ensure_pipeline() so init runs on
+        # the ocr-worker thread — the same thread every subsequent predict()
+        # runs on. Initializing here could bind pipeline state to the wrong
+        # thread (e.g. the asyncio event loop thread).
+
+    def _ensure_pipeline(self):
+        if self.pipeline is None:
+            self._initialize_pipeline()
     
     def _setup_temp_dir(self):
         """Create temporary directory for processing"""
@@ -125,23 +139,12 @@ class OCRService:
     
     def _process_page_with_pipeline(self, image_path: str, page_num: int) -> List:
         """Process a single page with PP-StructureV3"""
-        last_exc = None
-        for attempt in range(2):
-            try:
-                if attempt > 0:
-                    logger.warning(f"🔄 Retrying page {page_num} (attempt {attempt + 1})...")
-                    gc.collect()
-                    time.sleep(1.0)
-                logger.info(f"🔍 Processing page {page_num}: {os.path.basename(image_path)}")
-                start_time = time.time()
-                result = self.pipeline.predict(image_path)
-                processing_time = time.time() - start_time
-                logger.success(f"✅ Page {page_num} processed in {processing_time:.2f}s")
-                return result
-            except Exception as e:
-                last_exc = e
-                logger.error(f"❌ Page {page_num} processing failed (attempt {attempt + 1}): {str(e)}")
-        raise last_exc
+        logger.info(f"🔍 Processing page {page_num}: {os.path.basename(image_path)}")
+        start_time = time.time()
+        result = self.pipeline.predict(image_path)
+        processing_time = time.time() - start_time
+        logger.success(f"✅ Page {page_num} processed in {processing_time:.2f}s")
+        return result
     
     def _save_page_result(self, results: List, output_dir: str, page_num: int) -> str:
         """Save page OCR result to JSON file using built-in save_to_json method"""
@@ -175,84 +178,81 @@ class OCRService:
         Returns:
             OCRResult with processing details and output paths
         """
+        self._ensure_pipeline()
         start_time = time.time()
 
-        logger.info(f"⏳ Job {file_id} waiting for OCR lock...")
-        with self._lock:
-            try:
-                logger.info("="*80)
-                logger.info(f"🚀 Starting OCR processing for: {os.path.basename(pdf_path)}")
-                logger.info(f"📁 File ID: {file_id}")
-                logger.info("="*80)
+        try:
+            logger.info("="*80)
+            logger.info(f"🚀 Starting OCR processing for: {os.path.basename(pdf_path)}")
+            logger.info(f"📁 File ID: {file_id}")
+            logger.info("="*80)
 
-                # Create output directory structure
-                file_output_dir = os.path.join(output_base_dir, f"{file_id}_ocr_results")
-                os.makedirs(file_output_dir, exist_ok=True)
+            # Create output directory structure
+            file_output_dir = os.path.join(output_base_dir, f"{file_id}_ocr_results")
+            os.makedirs(file_output_dir, exist_ok=True)
 
-                # Convert PDF to images
-                page_temp_dir = os.path.join(self.temp_dir, file_id)
-                os.makedirs(page_temp_dir, exist_ok=True)
+            # Convert PDF to images
+            page_temp_dir = os.path.join(self.temp_dir, file_id)
+            os.makedirs(page_temp_dir, exist_ok=True)
 
-                image_paths = self._convert_pdf_to_images(pdf_path, page_temp_dir)
+            image_paths = self._convert_pdf_to_images(pdf_path, page_temp_dir)
 
-                # Process each page
-                output_paths = {}
-                page_times = []
+            # Process each page
+            output_paths = {}
+            page_times = []
 
-                for i, image_path in enumerate(image_paths):
-                    page_num = i + 1
+            for i, image_path in enumerate(image_paths):
+                page_num = i + 1
 
-                    page_start = time.time()
-                    ocr_results = self._process_page_with_pipeline(image_path, page_num)
-                    page_time = time.time() - page_start
-                    page_times.append(page_time)
+                page_start = time.time()
+                ocr_results = self._process_page_with_pipeline(image_path, page_num)
+                page_time = time.time() - page_start
+                page_times.append(page_time)
 
-                    page_output_dir = os.path.join(file_output_dir, f"page_{page_num}_results")
-                    result_file = self._save_page_result(ocr_results, page_output_dir, page_num)
+                page_output_dir = os.path.join(file_output_dir, f"page_{page_num}_results")
+                result_file = self._save_page_result(ocr_results, page_output_dir, page_num)
 
-                    output_paths[f"page_{page_num}"] = result_file
+                output_paths[f"page_{page_num}"] = result_file
 
-                total_time = time.time() - start_time
-                avg_page_time = mean(page_times) if page_times else 0
+            total_time = time.time() - start_time
+            avg_page_time = mean(page_times) if page_times else 0
 
-                logger.info("="*80)
-                logger.success(f"✅ OCR PROCESSING COMPLETE")
-                logger.info(f"📄 File: {os.path.basename(pdf_path)}")
-                logger.info(f"📊 Pages processed: {len(image_paths)}")
-                logger.info(f"⏱️  Total time: {total_time:.2f}s")
-                logger.info(f"⏱️  Average per page: {avg_page_time:.2f}s")
-                logger.info(f"📂 Output directory: {file_output_dir}")
-                logger.info("="*80)
+            logger.info("="*80)
+            logger.success(f"✅ OCR PROCESSING COMPLETE")
+            logger.info(f"📄 File: {os.path.basename(pdf_path)}")
+            logger.info(f"📊 Pages processed: {len(image_paths)}")
+            logger.info(f"⏱️  Total time: {total_time:.2f}s")
+            logger.info(f"⏱️  Average per page: {avg_page_time:.2f}s")
+            logger.info(f"📂 Output directory: {file_output_dir}")
+            logger.info("="*80)
 
-                gc.collect()
+            return OCRResult(
+                success=True,
+                file_id=file_id,
+                pages_processed=len(image_paths),
+                processing_time=total_time,
+                output_paths=output_paths
+            )
 
-                return OCRResult(
-                    success=True,
-                    file_id=file_id,
-                    pages_processed=len(image_paths),
-                    processing_time=total_time,
-                    output_paths=output_paths
-                )
+        except Exception as e:
+            total_time = time.time() - start_time
+            error_msg = f"OCR processing failed: {str(e)}"
 
-            except Exception as e:
-                total_time = time.time() - start_time
-                error_msg = f"OCR processing failed: {str(e)}"
+            logger.error("="*80)
+            logger.error(f"❌ OCR PROCESSING FAILED")
+            logger.error(f"📄 File: {os.path.basename(pdf_path)}")
+            logger.error(f"⏱️  Time before failure: {total_time:.2f}s")
+            logger.error(f"🚨 Error: {error_msg}")
+            logger.error("="*80)
 
-                logger.error("="*80)
-                logger.error(f"❌ OCR PROCESSING FAILED")
-                logger.error(f"📄 File: {os.path.basename(pdf_path)}")
-                logger.error(f"⏱️  Time before failure: {total_time:.2f}s")
-                logger.error(f"🚨 Error: {error_msg}")
-                logger.error("="*80)
-
-                return OCRResult(
-                    success=False,
-                    file_id=file_id,
-                    pages_processed=0,
-                    processing_time=total_time,
-                    output_paths={},
-                    error_message=error_msg
-                )
+            return OCRResult(
+                success=False,
+                file_id=file_id,
+                pages_processed=0,
+                processing_time=total_time,
+                output_paths={},
+                error_message=error_msg
+            )
     
     def cleanup_temp_files(self) -> None:
         """Clean up temporary files"""
@@ -275,8 +275,37 @@ _ocr_service_instance: Optional[OCRService] = None
 def get_ocr_service() -> OCRService:
     """Get or create OCR service singleton instance"""
     global _ocr_service_instance
-    
+
     if _ocr_service_instance is None:
         _ocr_service_instance = OCRService()
-    
+
     return _ocr_service_instance
+
+
+async def run_ocr_async(pdf_path: str, output_base_dir: str, file_id: str) -> OCRResult:
+    """Run OCR on the dedicated single-thread executor.
+
+    Always call this from async code instead of asyncio.to_thread() or a
+    custom executor — pinning all OCR to one thread is required to avoid
+    PaddlePaddle per-thread state corruption (std::exception on predict).
+    """
+    loop = asyncio.get_running_loop()
+    service = get_ocr_service()
+    return await loop.run_in_executor(
+        _ocr_executor,
+        service.process_pdf,
+        pdf_path,
+        output_base_dir,
+        file_id,
+    )
+
+
+def warmup() -> None:
+    """Initialize the PP-StructureV3 pipeline on the ocr-worker thread.
+
+    Blocks until ready. Call at app startup so the first real request does not
+    pay the lazy-init cost (~10s on CPU) and so the pipeline is bound to the
+    same thread that will run every subsequent predict().
+    """
+    service = get_ocr_service()
+    _ocr_executor.submit(service._ensure_pipeline).result()
