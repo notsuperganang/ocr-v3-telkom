@@ -6,6 +6,7 @@ Converted from scripts/raw_pipeline_processor.py to be used as a backend service
 for the web application. Processes PDF contract files using PP-StructureV3 pipeline.
 """
 
+import gc
 import os
 import sys
 import time
@@ -124,21 +125,23 @@ class OCRService:
     
     def _process_page_with_pipeline(self, image_path: str, page_num: int) -> List:
         """Process a single page with PP-StructureV3"""
-        try:
-            logger.info(f"🔍 Processing page {page_num}: {os.path.basename(image_path)}")
-            start_time = time.time()
-            
-            # Process with PP-StructureV3
-            result = self.pipeline.predict(image_path)
-            
-            processing_time = time.time() - start_time
-            logger.success(f"✅ Page {page_num} processed in {processing_time:.2f}s")
-            
-            return result
-        
-        except Exception as e:
-            logger.error(f"❌ Page {page_num} processing failed: {str(e)}")
-            raise
+        last_exc = None
+        for attempt in range(2):
+            try:
+                if attempt > 0:
+                    logger.warning(f"🔄 Retrying page {page_num} (attempt {attempt + 1})...")
+                    gc.collect()
+                    time.sleep(1.0)
+                logger.info(f"🔍 Processing page {page_num}: {os.path.basename(image_path)}")
+                start_time = time.time()
+                result = self.pipeline.predict(image_path)
+                processing_time = time.time() - start_time
+                logger.success(f"✅ Page {page_num} processed in {processing_time:.2f}s")
+                return result
+            except Exception as e:
+                last_exc = e
+                logger.error(f"❌ Page {page_num} processing failed (attempt {attempt + 1}): {str(e)}")
+        raise last_exc
     
     def _save_page_result(self, results: List, output_dir: str, page_num: int) -> str:
         """Save page OCR result to JSON file using built-in save_to_json method"""
@@ -220,6 +223,8 @@ class OCRService:
                 logger.info(f"⏱️  Average per page: {avg_page_time:.2f}s")
                 logger.info(f"📂 Output directory: {file_output_dir}")
                 logger.info("="*80)
+
+                gc.collect()
 
                 return OCRResult(
                     success=True,
