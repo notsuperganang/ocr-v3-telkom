@@ -259,20 +259,9 @@ async def get_termin_upcoming(
         logger.warning(f"Failed to auto-update termin statuses: {e}")
         db.rollback()
 
-    today = date.today()
-    target_date = today + timedelta(days=days)
-
-    # We need to filter termin that are due within the window
-    # Due date is conceptually the first day of the termin month
-    # We'll filter by period_year and period_month
-
-    # Calculate the month range
-    start_year = today.year
-    start_month = today.month
-    end_year = target_date.year
-    end_month = target_date.month
-
-    # Query termin payments with contract join
+    # Query all non-paid, non-cancelled termin payments — no date window.
+    # PENDING items are future months at any distance, same as recurring-all.
+    # The `days` param is retained for API compatibility but no longer used.
     query = db.query(
         ContractTermPayment,
         Contract.customer_name,
@@ -287,58 +276,6 @@ async def get_termin_upcoming(
             TerminPaymentStatus.CANCELLED.value
         ])
     )
-
-    # Filter by date range
-    # Include:
-    # 1. All OVERDUE termins (past months, not paid)
-    # 2. DUE termins (current month)
-    # 3. PENDING termins (future months within the window)
-
-    # Create conditions for:
-    # - Past periods (OVERDUE) - any period before current month
-    # - Current and future periods up to target date
-    if start_year == end_year:
-        # Same year
-        query = query.filter(
-            or_(
-                # Past months in current year (OVERDUE)
-                and_(
-                    ContractTermPayment.period_year == start_year,
-                    ContractTermPayment.period_month < start_month
-                ),
-                # Past years (OVERDUE)
-                ContractTermPayment.period_year < start_year,
-                # Current month up to target (DUE and PENDING)
-                and_(
-                    ContractTermPayment.period_year == start_year,
-                    ContractTermPayment.period_month >= start_month,
-                    ContractTermPayment.period_month <= end_month
-                )
-            )
-        )
-    else:
-        # Spans multiple years
-        query = query.filter(
-            or_(
-                # Past years (OVERDUE)
-                ContractTermPayment.period_year < start_year,
-                # Past months in current year (OVERDUE)
-                and_(
-                    ContractTermPayment.period_year == start_year,
-                    ContractTermPayment.period_month < start_month
-                ),
-                # Current year from start_month onwards
-                and_(
-                    ContractTermPayment.period_year == start_year,
-                    ContractTermPayment.period_month >= start_month
-                ),
-                # Next year up to end_month
-                and_(
-                    ContractTermPayment.period_year == end_year,
-                    ContractTermPayment.period_month <= end_month
-                )
-            )
-        )
 
     # Order by due date (year, month) then customer name
     query = query.order_by(
