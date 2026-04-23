@@ -17,6 +17,7 @@ from statistics import mean
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
+import threading
 import fitz  # PyMuPDF
 from loguru import logger
 from paddleocr import PPStructureV3
@@ -43,6 +44,7 @@ class OCRService:
     def __init__(self):
         self.pipeline = None
         self.temp_dir = None
+        self._lock = threading.Lock()
         self._setup_temp_dir()
         self._initialize_pipeline()
     
@@ -171,82 +173,81 @@ class OCRService:
             OCRResult with processing details and output paths
         """
         start_time = time.time()
-        
-        try:
-            logger.info("="*80)
-            logger.info(f"🚀 Starting OCR processing for: {os.path.basename(pdf_path)}")
-            logger.info(f"📁 File ID: {file_id}")
-            logger.info("="*80)
-            
-            # Create output directory structure
-            file_output_dir = os.path.join(output_base_dir, f"{file_id}_ocr_results")
-            os.makedirs(file_output_dir, exist_ok=True)
-            
-            # Convert PDF to images
-            page_temp_dir = os.path.join(self.temp_dir, file_id)
-            os.makedirs(page_temp_dir, exist_ok=True)
-            
-            image_paths = self._convert_pdf_to_images(pdf_path, page_temp_dir)
-            
-            # Process each page
-            output_paths = {}
-            page_times = []
-            
-            for i, image_path in enumerate(image_paths):
-                page_num = i + 1
-                
-                # Process page with OCR
-                page_start = time.time()
-                ocr_results = self._process_page_with_pipeline(image_path, page_num)
-                page_time = time.time() - page_start
-                page_times.append(page_time)
-                
-                # Save result
-                page_output_dir = os.path.join(file_output_dir, f"page_{page_num}_results")
-                result_file = self._save_page_result(ocr_results, page_output_dir, page_num)
-                
-                output_paths[f"page_{page_num}"] = result_file
-            
-            total_time = time.time() - start_time
-            avg_page_time = mean(page_times) if page_times else 0
-            
-            # Log summary
-            logger.info("="*80)
-            logger.success(f"✅ OCR PROCESSING COMPLETE")
-            logger.info(f"📄 File: {os.path.basename(pdf_path)}")
-            logger.info(f"📊 Pages processed: {len(image_paths)}")
-            logger.info(f"⏱️  Total time: {total_time:.2f}s")
-            logger.info(f"⏱️  Average per page: {avg_page_time:.2f}s")
-            logger.info(f"📂 Output directory: {file_output_dir}")
-            logger.info("="*80)
-            
-            return OCRResult(
-                success=True,
-                file_id=file_id,
-                pages_processed=len(image_paths),
-                processing_time=total_time,
-                output_paths=output_paths
-            )
-        
-        except Exception as e:
-            total_time = time.time() - start_time
-            error_msg = f"OCR processing failed: {str(e)}"
-            
-            logger.error("="*80)
-            logger.error(f"❌ OCR PROCESSING FAILED")
-            logger.error(f"📄 File: {os.path.basename(pdf_path)}")
-            logger.error(f"⏱️  Time before failure: {total_time:.2f}s")
-            logger.error(f"🚨 Error: {error_msg}")
-            logger.error("="*80)
-            
-            return OCRResult(
-                success=False,
-                file_id=file_id,
-                pages_processed=0,
-                processing_time=total_time,
-                output_paths={},
-                error_message=error_msg
-            )
+
+        logger.info(f"⏳ Job {file_id} waiting for OCR lock...")
+        with self._lock:
+            try:
+                logger.info("="*80)
+                logger.info(f"🚀 Starting OCR processing for: {os.path.basename(pdf_path)}")
+                logger.info(f"📁 File ID: {file_id}")
+                logger.info("="*80)
+
+                # Create output directory structure
+                file_output_dir = os.path.join(output_base_dir, f"{file_id}_ocr_results")
+                os.makedirs(file_output_dir, exist_ok=True)
+
+                # Convert PDF to images
+                page_temp_dir = os.path.join(self.temp_dir, file_id)
+                os.makedirs(page_temp_dir, exist_ok=True)
+
+                image_paths = self._convert_pdf_to_images(pdf_path, page_temp_dir)
+
+                # Process each page
+                output_paths = {}
+                page_times = []
+
+                for i, image_path in enumerate(image_paths):
+                    page_num = i + 1
+
+                    page_start = time.time()
+                    ocr_results = self._process_page_with_pipeline(image_path, page_num)
+                    page_time = time.time() - page_start
+                    page_times.append(page_time)
+
+                    page_output_dir = os.path.join(file_output_dir, f"page_{page_num}_results")
+                    result_file = self._save_page_result(ocr_results, page_output_dir, page_num)
+
+                    output_paths[f"page_{page_num}"] = result_file
+
+                total_time = time.time() - start_time
+                avg_page_time = mean(page_times) if page_times else 0
+
+                logger.info("="*80)
+                logger.success(f"✅ OCR PROCESSING COMPLETE")
+                logger.info(f"📄 File: {os.path.basename(pdf_path)}")
+                logger.info(f"📊 Pages processed: {len(image_paths)}")
+                logger.info(f"⏱️  Total time: {total_time:.2f}s")
+                logger.info(f"⏱️  Average per page: {avg_page_time:.2f}s")
+                logger.info(f"📂 Output directory: {file_output_dir}")
+                logger.info("="*80)
+
+                return OCRResult(
+                    success=True,
+                    file_id=file_id,
+                    pages_processed=len(image_paths),
+                    processing_time=total_time,
+                    output_paths=output_paths
+                )
+
+            except Exception as e:
+                total_time = time.time() - start_time
+                error_msg = f"OCR processing failed: {str(e)}"
+
+                logger.error("="*80)
+                logger.error(f"❌ OCR PROCESSING FAILED")
+                logger.error(f"📄 File: {os.path.basename(pdf_path)}")
+                logger.error(f"⏱️  Time before failure: {total_time:.2f}s")
+                logger.error(f"🚨 Error: {error_msg}")
+                logger.error("="*80)
+
+                return OCRResult(
+                    success=False,
+                    file_id=file_id,
+                    pages_processed=0,
+                    processing_time=total_time,
+                    output_paths={},
+                    error_message=error_msg
+                )
     
     def cleanup_temp_files(self) -> None:
         """Clean up temporary files"""
