@@ -9,7 +9,7 @@ Keeps normalized table in sync with JSON source of truth while preserving operat
 import logging
 import re
 from decimal import Decimal, InvalidOperation
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.database import Contract, ContractTermPayment, User, Account
