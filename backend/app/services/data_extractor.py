@@ -767,6 +767,7 @@ def _extract_contract_number(texts: List[str]) -> Optional[str]:
                 # Normalize: uppercase, remove extra spaces
                 number = match.group(1).strip()
                 number = re.sub(r'\s+', ' ', number)  # Normalize spaces
+                number = re.sub(r'(/\d{4})\b.*', r'\1', number)  # keep only first contract number
                 return f"K.TEL. {number}"
 
     # Strategy 2: Search entire document for K.TEL pattern
@@ -774,6 +775,7 @@ def _extract_contract_number(texts: List[str]) -> Optional[str]:
     if match:
         number = match.group(1).strip()
         number = re.sub(r'\s+', ' ', number)
+        number = re.sub(r'(/\d{4})\b.*', r'\1', number)  # keep only first contract number
         return f"K.TEL. {number}"
 
     # Strategy 3: Try more permissive pattern for OCR errors
@@ -786,6 +788,7 @@ def _extract_contract_number(texts: List[str]) -> Optional[str]:
     if match:
         number = match.group(1).strip()
         number = re.sub(r'\s+', ' ', number)
+        number = re.sub(r'(/\d{4})\b.*', r'\1', number)  # keep only first contract number
         return f"K.TEL. {number}"
 
     return None
