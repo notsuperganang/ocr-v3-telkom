@@ -417,10 +417,36 @@ const formTerminPaymentSchema = z.object({
   raw_text: z.string().optional(),
 });
 
+const _MONTHS_ID = [
+  'Januari','Februari','Maret','April','Mei','Juni',
+  'Juli','Agustus','September','Oktober','November','Desember',
+];
+
+function _periodToValue(period: string): number {
+  const [month = '', yearStr = ''] = period.trim().split(/\s+/);
+  const m = _MONTHS_ID.indexOf(month);
+  const y = parseInt(yearStr);
+  return m === -1 || isNaN(y) ? -1 : y * 12 + m;
+}
+
 const formTataCaraPembayaranSchema = z.object({
   method_type: z.enum(['one_time_charge', 'recurring', 'termin']),
   description: z.string().optional(),
-  termin_payments: z.array(formTerminPaymentSchema),
+  termin_payments: z.array(formTerminPaymentSchema).superRefine((payments, ctx) => {
+    payments.forEach((payment, i) => {
+      if (i === 0) return;
+      const prev = _periodToValue(payments[i - 1].period);
+      const curr = _periodToValue(payment.period);
+      if (prev === -1 || curr === -1) return;
+      if (curr <= prev) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Periode termin ini tidak boleh sama atau lebih awal dari termin sebelumnya',
+          path: [i, 'period'],
+        });
+      }
+    });
+  }),
   total_termin_count: z.number().int().min(0).optional(),
   total_amount: z.number().min(0).optional(),
   raw_text: z.string().optional(),
