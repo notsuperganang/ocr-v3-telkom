@@ -1,11 +1,24 @@
 import { Plus, Trash2, Calendar, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { TerminPayment } from '@/types/extraction';
+
+const INDONESIAN_MONTHS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+const YEARS = Array.from({ length: 7 }, (_, i) => 2024 + i); // 2024–2030
 
 interface TerminTableProps {
   payments: TerminPayment[];
@@ -20,6 +33,33 @@ export function TerminTable({
   disabled = false,
   errors = {},
 }: TerminTableProps) {
+  // Split "Juni 2025" → { month: "Juni", year: "2025" }
+  const parsePeriod = (period: string) => {
+    const [month = '', year = ''] = period.trim().split(/\s+/);
+    return { month, year };
+  };
+
+  // Convert "Bulan YYYY" to a sortable integer; -1 if incomplete
+  const periodToValue = (period: string): number => {
+    const { month, year } = parsePeriod(period);
+    const m = INDONESIAN_MONTHS.indexOf(month);
+    const y = parseInt(year);
+    return m === -1 || isNaN(y) ? -1 : y * 12 + m;
+  };
+
+  // Returns an error message if this termin is not later than the previous one
+  const getChronologicalError = (index: number): string | null => {
+    if (index === 0) return null;
+    const prev = periodToValue(payments[index - 1].period);
+    const curr = periodToValue(payments[index].period);
+    if (prev === -1 || curr === -1) return null; // incomplete — skip
+    if (curr <= prev)
+      return 'Periode termin ini tidak boleh sama atau lebih awal dari termin sebelumnya';
+    return null;
+  };
+
+  const hasAnyChronologicalError = payments.some((_, i) => getChronologicalError(i) !== null);
+
   // Add new termin payment
   const addTermin = () => {
     const newTermin: TerminPayment = {
@@ -33,13 +73,10 @@ export function TerminTable({
   // Remove termin payment
   const removeTermin = (index: number) => {
     const updatedPayments = payments.filter((_, i) => i !== index);
-
-    // Renumber termin numbers to maintain sequence
     const renumberedPayments = updatedPayments.map((payment, idx) => ({
       ...payment,
       termin_number: idx + 1,
     }));
-
     onChange(renumberedPayments);
   };
 
@@ -115,85 +152,117 @@ export function TerminTable({
         </div>
       ) : (
         <div className="space-y-3">
-          {payments.map((payment, index) => (
-            <Card key={index} className="relative">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <span className="bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                      {payment.termin_number}
-                    </span>
-                    Termin #{payment.termin_number}
-                  </CardTitle>
-                  {payments.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeTermin(index)}
-                      disabled={disabled}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
+          {payments.map((payment, index) => {
+            const { month, year } = parsePeriod(payment.period);
+            const chronoError = getChronologicalError(index);
+            const periodError = errors[`termin_${index}_period`];
+            const hasError = !!(periodError || chronoError);
 
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Period */}
-                  <div className="space-y-2">
-                    <Label htmlFor={`period_${index}`} className="text-sm font-medium flex items-center gap-2">
-                      <Calendar className="w-4 h-4" />
-                      Periode Pembayaran
-                    </Label>
-                    <Input
-                      id={`period_${index}`}
-                      value={payment.period}
-                      onChange={(e) => updateTermin(index, 'period', e.target.value)}
-                      placeholder="Januari 2025"
-                      disabled={disabled}
-                      className={errors[`termin_${index}_period`] || (payment.period && !/^[A-Za-z]+\s+\d{4}$/.test(payment.period)) ? 'border-red-500' : ''}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Format: Bulan YYYY (contoh: Januari 2025, Februari 2025)
-                    </p>
-                    {errors[`termin_${index}_period`] && (
-                      <p className="text-xs text-red-500">{errors[`termin_${index}_period`]}</p>
+            return (
+              <Card key={index} className="relative">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <span className="bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
+                        {payment.termin_number}
+                      </span>
+                      Termin #{payment.termin_number}
+                    </CardTitle>
+                    {payments.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeTermin(index)}
+                        disabled={disabled}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     )}
-                    {!errors[`termin_${index}_period`] && payment.period && !/^[A-Za-z]+\s+\d{4}$/.test(payment.period) && (
-                      <p className="text-xs text-red-500">
-                        Format periode harus "Bulan YYYY" (contoh: Januari 2025, Februari 2025)
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Period */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Calendar className="w-4 h-4" />
+                        Periode Pembayaran
+                      </Label>
+                      <div className="flex gap-2">
+                        {/* Month */}
+                        <Select
+                          value={month}
+                          onValueChange={(m) =>
+                            updateTermin(index, 'period', year ? `${m} ${year}` : m)
+                          }
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className={`flex-1 ${hasError ? 'border-red-500' : ''}`}>
+                            <SelectValue placeholder="Bulan" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {INDONESIAN_MONTHS.map((m) => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        {/* Year */}
+                        <Select
+                          value={year}
+                          onValueChange={(y) =>
+                            updateTermin(index, 'period', month ? `${month} ${y}` : y)
+                          }
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className={`w-28 ${hasError ? 'border-red-500' : ''}`}>
+                            <SelectValue placeholder="Tahun" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {YEARS.map((y) => (
+                              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {periodError && (
+                        <p className="text-xs text-red-500">{periodError}</p>
+                      )}
+                      {!periodError && chronoError && (
+                        <p className="text-xs text-red-500">{chronoError}</p>
+                      )}
+                    </div>
+
+                    {/* Amount */}
+                    <div className="space-y-2">
+                      <CurrencyInput
+                        label="Jumlah Pembayaran"
+                        value={payment.amount}
+                        onChange={(value) => updateTermin(index, 'amount', value)}
+                        placeholder="0"
+                        disabled={disabled}
+                        error={errors[`termin_${index}_amount`]}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Raw Text (if available) */}
+                  {payment.raw_text && (
+                    <div className="border-t pt-3">
+                      <Label className="text-xs text-muted-foreground">Teks asli ekstraksi:</Label>
+                      <p className="text-xs text-muted-foreground mt-1 p-2 bg-gray-50 rounded">
+                        {payment.raw_text}
                       </p>
-                    )}
-                  </div>
-
-                  {/* Amount */}
-                  <div className="space-y-2">
-                    <CurrencyInput
-                      label="Jumlah Pembayaran"
-                      value={payment.amount}
-                      onChange={(value) => updateTermin(index, 'amount', value)}
-                      placeholder="0"
-                      disabled={disabled}
-                      error={errors[`termin_${index}_amount`]}
-                    />
-                  </div>
-                </div>
-
-                {/* Raw Text (if available) */}
-                {payment.raw_text && (
-                  <div className="border-t pt-3">
-                    <Label className="text-xs text-muted-foreground">Teks asli ekstraksi:</Label>
-                    <p className="text-xs text-muted-foreground mt-1 p-2 bg-gray-50 rounded">
-                      {payment.raw_text}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -228,7 +297,7 @@ export function TerminTable({
                   <div className="space-y-1">
                     {payments.map((payment, index) => (
                       <div key={index} className="flex justify-between items-center text-xs p-2 bg-white rounded">
-                        <span>Termin {payment.termin_number} - {payment.period || 'Periode belum diisi'}</span>
+                        <span>Termin {payment.termin_number} - {payment.period || 'Periode belum dipilih'}</span>
                         <span className="font-medium">
                           {new Intl.NumberFormat('id-ID', {
                             style: 'currency',
@@ -248,9 +317,15 @@ export function TerminTable({
                   </div>
                 )}
 
-                {payments.some(p => !p.period.trim()) && (
+                {payments.some(p => !parsePeriod(p.period).month || !parsePeriod(p.period).year) && (
                   <div className="p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
-                    ⚠️ Beberapa periode pembayaran belum diisi.
+                    ⚠️ Beberapa periode pembayaran belum dipilih.
+                  </div>
+                )}
+
+                {hasAnyChronologicalError && (
+                  <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                    ❌ Urutan periode termin tidak kronologis. Pastikan setiap termin lebih awal dari termin berikutnya.
                   </div>
                 )}
 
@@ -270,7 +345,8 @@ export function TerminTable({
         <h5 className="font-medium text-xs mb-2">Panduan Pembayaran Termin:</h5>
         <ul className="text-xs text-muted-foreground space-y-1">
           <li>• Pembayaran termin memungkinkan pelanggan membayar dalam beberapa tahap.</li>
-          <li>• Setiap termin harus memiliki periode yang jelas (bulan/tahun).</li>
+          <li>• Pilih bulan dan tahun pembayaran untuk setiap termin.</li>
+          <li>• Setiap termin harus memiliki periode yang lebih awal dari termin berikutnya.</li>
           <li>• Jumlah pembayaran setiap termin harus lebih dari 0.</li>
           <li>• Nomor termin akan diurutkan otomatis dari 1, 2, 3, dst.</li>
         </ul>
