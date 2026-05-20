@@ -383,6 +383,11 @@ def _extract_termin_count_only(texts: List[str]) -> Optional[int]:
                 continue
     return None
 
+def _normalize_termin_period(s: str) -> str:
+    """Ensure exactly one space between Indonesian month name and 4-digit year."""
+    return re.sub(r'([A-Za-z]+)\s*(\d{4})', r'\1 \2', s.strip())
+
+
 def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int, float]:
     """
     Ekstrak daftar pembayaran termin dari teks OCR.
@@ -411,15 +416,12 @@ def _extract_termin_payments(texts: List[str]) -> tuple[List[TerminPayment], int
     for match in matches:
         try:
             termin_num = int(match[0])
-            start_date = match[1].strip()
-            end_date = match[2].strip() if match[2] else ""
+            start_date = _normalize_termin_period(match[1])
+            end_date = _normalize_termin_period(match[2]) if match[2] else ""
             amount_str = match[3].strip()
 
-            # Format period dengan date range jika end_date tersedia
-            if end_date:
-                period = f"{start_date} - {end_date}"
-            else:
-                period = start_date
+            # For ranges, use only the end date; single dates are used directly
+            period = end_date if end_date else start_date
 
             # Bersihkan amount string dari karakter trailing
             amount_str = re.sub(r'[^\d\.,]', '', amount_str)
