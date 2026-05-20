@@ -549,9 +549,6 @@ def _generate_termin_payments_with_dates(
             # Invalid duration, fall back to basic generation
             return _auto_generate_termin_payments(count, total_amount)
 
-        # Calculate interval between termins
-        interval_months = duration_months / count
-
         # Calculate equal split amount per termin
         amount_per_termin = total_amount / count
 
@@ -569,8 +566,6 @@ def _generate_termin_payments_with_dates(
                 termin_date = end
             else:
                 # Calculate termin month: distribute evenly within contract period
-                # Round to nearest month, with slight bias towards end of period
-                import math
                 target_month = round((duration_months / count) * (i + 1))
                 months_to_add = target_month - 1  # -1 because relativedelta is 0-indexed from start
                 termin_date = start + relativedelta(months=months_to_add)
@@ -669,7 +664,7 @@ def _find_containing(texts: List[str], target: str, start: int = 0) -> Optional[
     
     return None
 
-def _find_near_label(texts: List[str], labels: List[str], start: int = 0, max_distance: int = 5) -> Optional[int]:
+def _find_near_label(texts: List[str], labels: List[str], start: int = 0) -> Optional[int]:
     """
     Cari salah satu dari beberapa variasi label dalam jarak tertentu.
     """
@@ -1092,8 +1087,6 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     # Note: Use section-specific patterns to avoid matching standalone numbers
     # The "2. PELANGGAN" pattern can match standalone "2" via containing match ("2" in "2. PELANGGAN")
     # So we need exact/fuzzy match first, then fallback to word "PELANGGAN" only
-    pelanggan_patterns = ["2. PELANGGAN", "2.PELANGGAN", "2.  PELANGGAN", "2.PELANGGAN ", "PELANGGAN"]
-
     # Try exact match first (most reliable)
     idx_pelanggan = None
     for pattern in ["2. PELANGGAN", "2.PELANGGAN", "2.  PELANGGAN"]:
@@ -1378,7 +1371,7 @@ def extract_from_page1_one_time(ocr_json_page1: Any) -> TelkomContractData:
     raw_tata = _slice_after_keyword(texts, "TATA CARA PEMBAYARAN", span=16)
     
     # Deteksi metode pembayaran secara dinamis
-    method_type, description, confidence = _detect_payment_type(texts)
+    method_type, description, _ = _detect_payment_type(texts)
     
     # Jika termin, ekstrak detail pembayaran termin
     termin_payments = None
@@ -1548,9 +1541,6 @@ def _parse_date_id(s: str) -> Optional[str]:
     return None
 
 # -------------------- Page 2: robust jangka waktu + kontak --------------------
-def _blob(texts: List[str]) -> str:
-    return "\n".join(texts)
-
 def _norm_label(s: str) -> str:
     s = s.lower().strip()
     s = s.replace("*", "").replace(")", "").replace("(", "")
@@ -1748,8 +1738,8 @@ def _extract_jangka_waktu(texts: List[str]) -> tuple[Optional[str], Optional[str
         
         for i in range(len(date_tokens)):
             for j in range(i + 1, len(date_tokens)):
-                idx1, date1, text1 = date_tokens[i]
-                idx2, date2, text2 = date_tokens[j]
+                idx1, date1, _ = date_tokens[i]
+                idx2, date2, _ = date_tokens[j]
                 
                 # Ensure chronological order
                 start_date, end_date = (date1, date2) if date1 < date2 else (date2, date1)
@@ -2070,7 +2060,7 @@ def merge_with_page2(existing: TelkomContractData, ocr_json_page2: Any) -> Telko
     payment_method = existing.tata_cara_pembayaran.method_type if existing.tata_cara_pembayaran else "unknown"
     
     # Payment method specific extraction
-    payment_specific_info = _extract_page2_payment_specific(texts, payment_method)
+    _extract_page2_payment_specific(texts, payment_method)
 
     # 1) Enhanced jangka waktu extraction
     start_date, end_date = _extract_jangka_waktu(texts)
