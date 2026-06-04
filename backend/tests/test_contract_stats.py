@@ -11,12 +11,13 @@ import pytest
 import os
 from decimal import Decimal
 from datetime import datetime, timezone
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
 # Import models and app
 from app.database import Base
+from app.main import app
 from app.models.database import Contract, ProcessingJob, File as FileModel, JobStatus
 from app.config import settings
 
@@ -193,8 +194,6 @@ class TestContractStatsEndpoint:
         )
 
         # Test aggregations
-        from sqlalchemy import func
-
         total_contracts = test_db.query(func.count(Contract.id)).scalar()
         total_value = test_db.query(func.sum(Contract.total_contract_value)).scalar()
         total_connectivity = test_db.query(func.sum(Contract.service_connectivity)).scalar()
@@ -261,8 +260,6 @@ class TestContractStatsEndpoint:
         contract3 = self._create_test_contract(test_db, job3.id, file3.id)
 
         # Calculate average
-        from sqlalchemy import func
-
         avg_time = (
             test_db.query(func.avg(ProcessingJob.processing_time_seconds))
             .join(Contract, Contract.source_job_id == ProcessingJob.id)
