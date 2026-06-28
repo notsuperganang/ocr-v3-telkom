@@ -164,13 +164,6 @@ def _find_eq(texts: List[str], label: str, start: int = 0) -> Optional[int]:
             return i
     return None
 
-def _value_after(texts: List[str], label: str, start: int = 0) -> Optional[str]:
-    """Ambil token setelah label tertentu (exact-match)."""
-    idx = _find_eq(texts, label, start)
-    if idx is not None and idx + 1 < len(texts):
-        return texts[idx + 1].strip()
-    return None
-
 def _parse_rupiah_token(tok: str) -> float:
     """Konversi token rupiah 'Rp 1.234.567,89' -> 1234567.89 (float)."""
     s = re.sub(r"[^\d,\.]", "", tok)
@@ -222,7 +215,7 @@ def _find_count_after_phrase(texts: List[str], phrase: str) -> int:
             return int(nxt)
     return 0
 
-def _find_count_robust(texts: List[str], service_patterns: List[str], max_distance: int = 2) -> int:
+def _find_count_robust(texts: List[str], service_patterns: List[str]) -> int:
     """
     Cari angka service dengan multiple strategies dan proximity matching.
     Simplified untuk akurasi yang lebih baik dengan prioritas exact/adjacent matching.
@@ -584,7 +577,7 @@ def _generate_termin_payments_with_dates(
 
         return termin_payments
 
-    except (ValueError, ImportError) as e:
+    except (ValueError, ImportError):
         # If date parsing fails or dateutil not available, fall back to basic generation
         return _auto_generate_termin_payments(count, total_amount)
 
