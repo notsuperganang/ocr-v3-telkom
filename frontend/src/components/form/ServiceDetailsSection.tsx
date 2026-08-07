@@ -197,7 +197,7 @@ export function ServiceDetailsSection({
 
           {/* Info tip with blue accent */}
           <div className="flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md">
-            <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+            <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
             <p className="text-xs text-blue-700">
               Hover pada ikon info di ringkasan biaya untuk melihat biaya langganan bulanan.
             </p>

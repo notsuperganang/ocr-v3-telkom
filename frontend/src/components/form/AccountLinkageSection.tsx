@@ -211,7 +211,7 @@ export function AccountLinkageSection({
               <div className="h-10 bg-muted/50 rounded-md animate-pulse" />
             ) : linkedAM ? (
               <div className="flex items-center gap-3 p-3 bg-blue-50/70 border border-blue-200 rounded-lg">
-                <Link2 className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <Link2 className="w-4 h-4 text-blue-600 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm text-blue-900 truncate">
                     {linkedAM.name}
@@ -223,7 +223,7 @@ export function AccountLinkageSection({
               </div>
             ) : accountId ? (
               <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <Info className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                <Info className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
                 <p className="text-sm text-orange-700">
                   Akun ini belum memiliki Account Manager. Silakan assign AM di halaman detail akun.
                 </p>
