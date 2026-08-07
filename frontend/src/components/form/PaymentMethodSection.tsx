@@ -91,7 +91,7 @@ export function PaymentMethodSection({
             {paymentOptions.map((option) => (
               <Card
                 key={option.value}
-                className={`cursor-pointer transition-all hover:shadow-md min-h-[100px] flex flex-col ${
+                className={`cursor-pointer transition-all hover:shadow-md min-h-25 flex flex-col ${
                   methodType === option.value
                     ? option.color + ' border-2'
                     : 'border hover:border-primary/50'

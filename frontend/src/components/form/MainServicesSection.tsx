@@ -60,7 +60,7 @@ export function MainServicesSection({
         {/* Service Type Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
           {/* Connectivity Services */}
-          <div className="border rounded-lg p-4 bg-blue-50/50 min-h-[140px] flex flex-col">
+          <div className="border rounded-lg p-4 bg-blue-50/50 min-h-35 flex flex-col">
             <div className="flex items-center gap-3 mb-3 flex-1">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Network className="w-5 h-5 text-blue-600" />
@@ -97,7 +97,7 @@ export function MainServicesSection({
           </div>
 
           {/* Non-Connectivity Services */}
-          <div className="border rounded-lg p-4 bg-green-50/50 min-h-[140px] flex flex-col">
+          <div className="border rounded-lg p-4 bg-green-50/50 min-h-35 flex flex-col">
             <div className="flex items-center gap-3 mb-3 flex-1">
               <div className="p-2 bg-green-100 rounded-lg">
                 <Globe className="w-5 h-5 text-green-600" />
@@ -134,7 +134,7 @@ export function MainServicesSection({
           </div>
 
           {/* Bundling Services */}
-          <div className="border rounded-lg p-4 bg-purple-50/50 min-h-[140px] flex flex-col">
+          <div className="border rounded-lg p-4 bg-purple-50/50 min-h-35 flex flex-col">
             <div className="flex items-center gap-3 mb-3 flex-1">
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Package className="w-5 h-5 text-purple-600" />
