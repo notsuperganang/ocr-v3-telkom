@@ -125,7 +125,7 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
           </div>
           <div
             className={cn(
-              "flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner",
+              "flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-linear-to-br from-[#d71920]/10 to-transparent shadow-inner",
               designTokens.focusRing
             )}
           >
@@ -696,7 +696,7 @@ export function DashboardPage() {
         <div className="flex items-center gap-4">
           <div
             className={twMerge(
-              'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner',
+              'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-linear-to-br from-[#d71920]/10 to-transparent shadow-inner',
               designTokens.focusRing
             )}
           >
@@ -817,7 +817,7 @@ export function DashboardPage() {
           </CardHeader>
 
           <CardContent className="pt-0">
-            <ScrollArea className="h-[350px]">
+            <ScrollArea className="h-87.5">
               {terminLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-muted-foreground">Memuat data...</div>
@@ -991,7 +991,7 @@ export function DashboardPage() {
           </CardHeader>
 
           <CardContent className="pt-0">
-            <ScrollArea className="h-[350px]">
+            <ScrollArea className="h-87.5">
               {recurringLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-muted-foreground">Memuat data...</div>
