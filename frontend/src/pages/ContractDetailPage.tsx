@@ -806,12 +806,12 @@ export function ContractDetailPage() {
                             className={`text-xs font-semibold text-slate-800 leading-snug ${
                               highlight.monospace
                                 ? 'font-mono text-sm tracking-wide text-slate-900 break-all'
-                                : 'break-words'
+                                : 'wrap-break-word'
                             }`}
                           >
                             {highlight.value}
                           </span>
-                          <span className="text-[0.65rem] text-slate-400 break-words" title={highlight.helper}>
+                          <span className="text-[0.65rem] text-slate-400 wrap-break-word" title={highlight.helper}>
                             {highlight.helper}
                           </span>
                         </div>
@@ -856,7 +856,7 @@ export function ContractDetailPage() {
                             </p>
                             <p
                               className={`text-xs font-semibold text-slate-900 ${
-                                detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'break-words'
+                                detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'wrap-break-word'
                               }`}
                             >
                               {detail.value}
@@ -927,7 +927,7 @@ export function ContractDetailPage() {
                                 </p>
                                 <p
                                   className={`text-xs font-medium text-slate-800 ${
-                                    detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'break-words'
+                                    detail.monospace ? 'font-mono tracking-wide text-slate-900 break-all' : 'wrap-break-word'
                                   }`}
                                 >
                                   {detail.value}
