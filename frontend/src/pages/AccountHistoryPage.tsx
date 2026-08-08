@@ -140,7 +140,7 @@ export function AccountHistoryPage() {
   return (
     <main
       className={twMerge(
-        'min-h-screen space-y-8 bg-gradient-to-br from-background via-background to-muted/20 px-6 py-8'
+        'min-h-screen space-y-8 bg-linear-to-br from-background via-background to-muted/20 px-6 py-8'
       )}
     >
       {/* Header */}
@@ -179,7 +179,7 @@ export function AccountHistoryPage() {
           <div className="flex items-center gap-4">
             <div
               className={twMerge(
-                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner',
+                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-linear-to-br from-[#d71920]/10 to-transparent shadow-inner',
                 designTokens.focusRing
               )}
             >
