@@ -516,7 +516,7 @@ const KpiCard: React.FC<KpiCardProps> = ({ descriptor, loading }) => {
           </div>
           <div
             className={twMerge(
-              "flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner",
+              "flex size-12 items-center justify-center rounded-2xl border border-border/60 bg-linear-to-br from-[#d71920]/10 to-transparent shadow-inner",
               designTokens.focusRing
             )}
           >
@@ -977,12 +977,12 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
   return (
     <div className="overflow-hidden rounded-2xl border border-border/60 shadow-[0_20px_60px_-45px_rgba(15,23,42,0.5)]">
       <div className="relative">
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-[#d71920]/60 to-transparent opacity-70" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-transparent via-[#d71920]/60 to-transparent opacity-70" />
         {isFetching ? (
-          <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-gradient-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
+          <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-linear-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
         ) : null}
         <Table className={designTokens.radius.xl}>
-            <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+            <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur support-backdrop-filter:bg-card/80">
               <TableRow>
                 <TableHead className="w-12">
                   <label className="flex items-center justify-center">
@@ -1255,7 +1255,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                     </TableCell>
                     {visibleColumns.has("fileName") && (
                       <TableCell
-                        className="max-w-[280px] truncate font-medium text-foreground"
+                        className="max-w-70 truncate font-medium text-foreground"
                       >
                         <div className="flex flex-col">
                           <span className="truncate">{record.fileName}</span>
@@ -1339,7 +1339,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                           <Badge
                             variant="outline"
                             className={twMerge(
-                              "inline-flex min-w-[90px] justify-center border",
+                              "inline-flex min-w-22.5 justify-center border",
                               paymentBadgeStyles[record.paymentMethod]
                             )}
                           >
@@ -1379,7 +1379,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
                         <Badge
                           variant="outline"
                           className={twMerge(
-                            "inline-flex min-w-[140px] items-center justify-center gap-2 border px-3 py-1 text-xs font-semibold",
+                            "inline-flex min-w-35 items-center justify-center gap-2 border px-3 py-1 text-xs font-semibold",
                             statusTokens[record.status].className
                           )}
                         >
@@ -1615,7 +1615,7 @@ const LoadingSkeleton: React.FC = () => (
       ))}
     </div>
     <Skeleton className="h-32 rounded-3xl" />
-    <Skeleton className="h-[520px] rounded-3xl" />
+    <Skeleton className="h-130 rounded-3xl" />
   </div>
 )
 
@@ -2215,7 +2215,7 @@ export function ContractsPage() {
   return (
     <main
       className={twMerge(
-        "space-y-8 bg-gradient-to-br from-background via-background to-muted/20 px-6 py-8",
+        "space-y-8 bg-linear-to-br from-background via-background to-muted/20 px-6 py-8",
         "min-h-screen"
       )}
     >
@@ -2237,7 +2237,7 @@ export function ContractsPage() {
           <div className="flex items-center gap-4">
             <div
               className={twMerge(
-                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-[#d71920]/10 to-transparent shadow-inner',
+                'flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-linear-to-br from-[#d71920]/10 to-transparent shadow-inner',
                 designTokens.focusRing
               )}
             >
