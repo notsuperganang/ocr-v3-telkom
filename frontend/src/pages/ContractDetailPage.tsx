@@ -583,7 +583,7 @@ export function ContractDetailPage() {
         initial={{ opacity: 0, y: -18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08 }}
-        className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gradient-to-br from-white via-white to-rose-50 shadow-sm"
+        className="relative overflow-hidden rounded-3xl border border-gray-200 bg-linear-to-br from-white via-white to-rose-50 shadow-sm"
       >
         <motion.span
           className="pointer-events-none absolute -top-16 right-0 h-56 w-56 rounded-full bg-rose-100 opacity-80 blur-3xl"
@@ -756,7 +756,7 @@ export function ContractDetailPage() {
         {/* Left Column: Customer Information (2/3 width) */}
         <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-2 lg:row-span-2">
           <Card className="h-auto min-h-0 overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
-            <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+            <CardHeader className="border-b border-rose-100 bg-linear-to-br from-white via-white to-rose-50">
               <div className="flex items-start justify-between">
                 <div>
                   <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">
@@ -777,7 +777,7 @@ export function ContractDetailPage() {
               <motion.div
                 whileHover={{ y: -2 }}
                 transition={{ duration: 0.2 }}
-                className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-rose-50 via-white to-white p-4 shadow-inner"
+                className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-linear-to-br from-rose-50 via-white to-white p-4 shadow-inner"
               >
                 <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-rose-100/60 blur-3xl" />
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -825,7 +825,7 @@ export function ContractDetailPage() {
                 <motion.div
                   whileHover={{ y: -3 }}
                   transition={{ duration: 0.2 }}
-                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-4 shadow-sm"
+                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-linear-to-br from-white via-white to-rose-50/70 p-4 shadow-sm"
                 >
                   <div className="absolute right-6 top-6 h-16 w-16 rounded-full bg-rose-100/40 blur-3xl" />
                   <div className="relative z-10 space-y-3">
@@ -871,7 +871,7 @@ export function ContractDetailPage() {
                 <motion.div
                   whileHover={{ y: -3 }}
                   transition={{ duration: 0.2 }}
-                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-gradient-to-br from-white via-white to-rose-50/70 p-4 shadow-sm"
+                  className="relative overflow-hidden rounded-3xl border border-rose-100/80 bg-linear-to-br from-white via-white to-rose-50/70 p-4 shadow-sm"
                 >
                   <div className="absolute left-6 top-6 h-16 w-16 rounded-full bg-rose-100/50 blur-2xl" />
                   <div className="relative z-10 space-y-3">
@@ -949,7 +949,7 @@ export function ContractDetailPage() {
         <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-1 lg:flex lg:w-full">
           {/* Layanan Utama Card */}
           <Card className="w-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40 lg:flex lg:h-full lg:flex-col">
-            <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+            <CardHeader className="border-b border-rose-100 bg-linear-to-br from-white via-white to-rose-50">
               <div className="flex items-start justify-between">
                 <div>
                   <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-rose-500">
@@ -989,7 +989,7 @@ export function ContractDetailPage() {
                     key={item.label}
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                    className={`relative flex w-full flex-col justify-center overflow-hidden rounded-2xl border border-white/60 bg-gradient-to-r ${item.gradient} p-4 shadow-lg`}
+                    className={`relative flex w-full flex-col justify-center overflow-hidden rounded-2xl border border-white/60 bg-linear-to-r ${item.gradient} p-4 shadow-lg`}
                   >
                     <div className="absolute right-4 top-4 h-12 w-12 rounded-full bg-white/50 blur-2xl" />
                     <div className="relative z-10 flex flex-col items-start gap-2 text-left sm:flex-row sm:items-center sm:justify-between">
@@ -1013,8 +1013,8 @@ export function ContractDetailPage() {
 
         <motion.div variants={cardVariants} whileHover={{ y: -4 }} className="lg:col-span-1 lg:col-start-3 lg:row-start-2 lg:flex lg:w-full">
           {/* Kontak Telkom Card */}
-          <Card className="w-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40 lg:flex lg:h-full lg:flex-col lg:min-h-[320px]">
-            <CardHeader className="border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50 pb-2">
+          <Card className="w-full overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40 lg:flex lg:h-full lg:flex-col lg:min-h-80">
+            <CardHeader className="border-b border-rose-100 bg-linear-to-br from-white via-white to-rose-50 pb-2">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
@@ -1091,7 +1091,7 @@ export function ContractDetailPage() {
       >
         <motion.div variants={cardVariants} whileHover="hover">
           <Card className="overflow-hidden rounded-3xl border border-rose-100/80 shadow-lg shadow-rose-100/40">
-            <CardHeader className="relative border-b border-rose-100 bg-gradient-to-br from-white via-white to-rose-50">
+            <CardHeader className="relative border-b border-rose-100 bg-linear-to-br from-white via-white to-rose-50">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.3em] text-rose-500">
@@ -1108,7 +1108,7 @@ export function ContractDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6 bg-white p-6">
               <div className="relative space-y-5 pl-8">
-                <span className="absolute left-4 top-2 bottom-2 w-px bg-gradient-to-b from-rose-200 via-rose-100 to-transparent" />
+                <span className="absolute left-4 top-2 bottom-2 w-px bg-linear-to-b from-rose-200 via-rose-100 to-transparent" />
                 {timelineEvents.length === 0 && (
                   <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-rose-100 bg-white/70 p-8 text-center text-sm text-slate-500">
                     <History className="h-5 w-5 text-rose-400" />
