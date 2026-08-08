@@ -116,9 +116,9 @@ const designTokens = {
   },
   border: "border border-border/70",
   surface: {
-    base: "bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90",
+    base: "bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/90",
     subtle: "bg-muted/50",
-    accent: "bg-gradient-to-br from-[#d71920]/10 via-transparent to-transparent",
+    accent: "bg-linear-to-br from-[#d71920]/10 via-transparent to-transparent",
   },
   focusRing:
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d71920]/80",
@@ -982,7 +982,7 @@ const ContractsTable: React.FC<ContractsTableProps> = ({
           <div className="absolute inset-x-0 top-0 h-1 animate-pulse bg-linear-to-r from-[#d71920]/0 via-[#d71920]/60 to-[#d71920]/0" />
         ) : null}
         <Table className={designTokens.radius.xl}>
-            <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur support-backdrop-filter:bg-card/80">
+            <TableHeader className="sticky top-0 z-10 bg-card/95 backdrop-blur supports-backdrop-filter:bg-card/80">
               <TableRow>
                 <TableHead className="w-12">
                   <label className="flex items-center justify-center">
