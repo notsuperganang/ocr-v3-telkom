@@ -369,10 +369,10 @@ export function UploadPage() {
   return (
     <div className="min-h-screen w-full relative">
       {/* Animated Gradient Background */}
-      <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-red-50 via-white to-orange-50 -z-10">
+      <div className="fixed inset-0 w-full h-full bg-linear-to-br from-red-50 via-white to-orange-50 -z-10">
         {/* Subtle animated orbs */}
         <motion.div
-          className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-3xl"
+          className="absolute top-0 right-0 w-150 h-150 bg-linear-to-br from-primary/10 to-transparent rounded-full blur-3xl"
           animate={{
             scale: [1, 1.1, 1],
             opacity: [0.3, 0.2, 0.3],
@@ -384,7 +384,7 @@ export function UploadPage() {
           }}
         />
         <motion.div
-          className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-orange-200/20 to-transparent rounded-full blur-3xl"
+          className="absolute bottom-0 left-0 w-125 h-125 bg-linear-to-tr from-orange-200/20 to-transparent rounded-full blur-3xl"
           animate={{
             scale: [1, 1.2, 1],
             opacity: [0.2, 0.3, 0.2],
@@ -397,7 +397,7 @@ export function UploadPage() {
           }}
         />
         <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-gradient-to-r from-red-100/10 via-orange-100/10 to-red-100/10 rounded-full blur-3xl"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-175 h-175 bg-linear-to-r from-red-100/10 via-orange-100/10 to-red-100/10 rounded-full blur-3xl"
           animate={{
             rotate: [0, 360],
             scale: [1, 1.05, 1],
@@ -530,7 +530,7 @@ export function UploadPage() {
                       <Card className="border shadow-sm hover:shadow-md transition-shadow bg-clip-padding backdrop-filter backdrop-blur-md bg-white/75 border-white/20">
                         <CardContent className="p-4">
                         <div className="flex items-center gap-4">
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             {getStatusIcon(file.status)}
                           </div>
 
@@ -555,7 +555,7 @@ export function UploadPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             {/* Review Button */}
                             {file.status === 'awaiting_review' && (
                               <Button
@@ -699,7 +699,7 @@ export function UploadPage() {
           <Card className="mt-4 bg-clip-padding backdrop-filter backdrop-blur-md bg-red-50/60 border border-white/30">
             <CardContent className="p-4">
               <div className="flex gap-3">
-                <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div className="text-sm text-foreground">
                   <p className="font-medium mb-1">Tips untuk hasil terbaik:</p>
                   <p className="text-muted-foreground">
