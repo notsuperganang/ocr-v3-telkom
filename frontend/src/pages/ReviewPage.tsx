@@ -189,7 +189,7 @@ export function ReviewPage() {
 
         {/* Center - Filename */}
         <div className="flex items-center gap-2 flex-1 justify-center min-w-0">
-          <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+          <FileText className="w-4 h-4 text-primary shrink-0" />
           <span className="text-sm font-medium">
             {extractionData.filename}
           </span>
@@ -249,7 +249,7 @@ export function ReviewPage() {
                 <h3 className="font-medium text-muted-foreground mb-2">
                   Tidak Ada Dokumen PDF
                 </h3>
-                <p className="text-sm text-muted-foreground/70 max-w-[280px]">
+                <p className="text-sm text-muted-foreground/70 max-w-70">
                   Entri ini dibuat secara manual tanpa dokumen referensi. Isi semua data yang diperlukan pada form di samping.
                 </p>
               </CardContent>
